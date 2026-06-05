@@ -1,1 +1,0 @@
-import{_ as a,c,b as e,o}from"./index-CRHZSGXo.js";const t={},d={class:"dashboard-page"};function r(l,s){return o(),c("div",d,[...s[0]||(s[0]=[e("div",{class:"welcome-card glass-card"},[e("h2",{class:"page-title"},"欢迎使用 AI 健康管理系统"),e("p",{class:"page-desc"},"基于 DeepSeek 的个性化健康管理与运动指导平台")],-1)])])}const _=a(t,[["render",r],["__scopeId","data-v-67b9a6d2"]]);export{_ as default};

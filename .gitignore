@@ -1,0 +1,12 @@
+# 后端忽略
+target/
+*.class
+.idea/
+*.iml
+
+# 前端忽略（最关键的几行）
+node_modules/
+frontend/node_modules/
+dist/
+.env.local
+.DS_Store
