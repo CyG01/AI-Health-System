@@ -75,6 +75,10 @@ const appStore = useAppStore()
 
 const menuItems = [
   { path: '/dashboard', title: '工作台', icon: 'Odometer' },
+  { path: '/checkin/calendar', title: '每日打卡', icon: 'Calendar' },
+  { path: '/statistics', title: '数据看板', icon: 'PieChart' },
+  { path: '/health/view', title: '健康档案', icon: 'Monitor' },
+  { path: '/plan/list', title: 'AI计划', icon: 'MagicStick' },
   { path: '/profile', title: '个人中心', icon: 'User' }
 ]
 

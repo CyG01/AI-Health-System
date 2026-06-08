@@ -38,7 +38,6 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        user.setUpdateTime(LocalDateTime.now());
         sysUserMapper.updateById(user);
     }
 
@@ -65,7 +64,6 @@ public class UserServiceImpl implements UserService {
         if (dto.getAge() != null) {
             user.setAge(dto.getAge());
         }
-        user.setUpdateTime(LocalDateTime.now());
         sysUserMapper.updateById(user);
 
         return userConvert.toUserInfoVO(user);

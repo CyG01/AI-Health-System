@@ -8,6 +8,14 @@ const Register = () => import('@/views/auth/Register.vue')
 const ForgotPassword = () => import('@/views/auth/ForgotPassword.vue')
 const Dashboard = () => import('@/views/Dashboard.vue')
 const Profile = () => import('@/views/auth/Profile.vue')
+const HealthForm = () => import('@/views/health/Form.vue')
+const HealthCreate = () => import('@/views/health/Create.vue')
+const HealthView = () => import('@/views/health/View.vue')
+const PlanGenerate = () => import('@/views/plan/Generate.vue')
+const PlanList = () => import('@/views/plan/List.vue')
+const PlanDetail = () => import('@/views/plan/Detail.vue')
+const CheckinCalendar = () => import('@/views/checkin/Calendar.vue')
+const StatisticsDashboard = () => import('@/views/statistics/Dashboard.vue')
 
 const routes = [
   {
@@ -45,6 +53,54 @@ const routes = [
         name: 'Profile',
         component: Profile,
         meta: { title: '个人中心', icon: 'User', requiresAuth: true }
+      },
+      {
+        path: 'health/create',
+        name: 'HealthCreate',
+        component: HealthCreate,
+        meta: { title: '创建健康档案', icon: 'Edit', requiresAuth: true }
+      },
+      {
+        path: 'health/view',
+        name: 'HealthView',
+        component: HealthView,
+        meta: { title: '健康档案', icon: 'Monitor', requiresAuth: true }
+      },
+      {
+        path: 'health/form',
+        name: 'HealthForm',
+        component: HealthForm,
+        meta: { title: '编辑健康档案', icon: 'Edit', requiresAuth: true }
+      },
+      {
+        path: 'plan/generate',
+        name: 'PlanGenerate',
+        component: PlanGenerate,
+        meta: { title: '生成AI计划', icon: 'MagicStick', requiresAuth: true }
+      },
+      {
+        path: 'plan/list',
+        name: 'PlanList',
+        component: PlanList,
+        meta: { title: 'AI计划列表', icon: 'List', requiresAuth: true }
+      },
+      {
+        path: 'plan/:id',
+        name: 'PlanDetail',
+        component: PlanDetail,
+        meta: { title: '计划详情', icon: 'Document', requiresAuth: true }
+      },
+      {
+        path: 'checkin/calendar',
+        name: 'CheckinCalendar',
+        component: CheckinCalendar,
+        meta: { title: '每日打卡', icon: 'Calendar', requiresAuth: true }
+      },
+      {
+        path: 'statistics',
+        name: 'StatisticsDashboard',
+        component: StatisticsDashboard,
+        meta: { title: '数据看板', icon: 'PieChart', requiresAuth: true }
       }
     ]
   },

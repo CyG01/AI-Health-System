@@ -14,14 +14,14 @@ import com.example.service.AuthService;
 import com.example.util.JwtUtil;
 import com.example.vo.LoginVO;
 import io.jsonwebtoken.Claims;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -32,6 +32,9 @@ public class AuthServiceImpl implements AuthService {
     private static final long SMS_CODE_EXPIRE_MINUTES = 5;
     private static final String DEFAULT_ROLE = "user";
     private static final int USER_STATUS_ENABLED = 1;
+    private static final String DEV_SMS_CODE = "123456";
+
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     @Autowired
     private SysUserMapper sysUserMapper;
@@ -72,8 +75,6 @@ public class AuthServiceImpl implements AuthService {
         user.setNickname(dto.getUsername());
         user.setRole(DEFAULT_ROLE);
         user.setStatus(USER_STATUS_ENABLED);
-        user.setCreateTime(LocalDateTime.now());
-        user.setUpdateTime(LocalDateTime.now());
         sysUserMapper.insert(user);
 
         deleteSmsCode(dto.getPhone());
@@ -111,12 +112,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void sendCode(SendCodeDTO dto) {
-        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(1000000));
+        // 开发环境跳过第三方短信接口，使用固定验证码
+        String code = DEV_SMS_CODE;
         stringRedisTemplate.opsForValue().set(
                 SMS_CODE_PREFIX + dto.getPhone(),
                 code,
                 SMS_CODE_EXPIRE_MINUTES,
                 TimeUnit.MINUTES);
+        log.info("发送验证码 — 手机号: {}, 验证码: {}", dto.getPhone(), code);
     }
 
     @Override
@@ -132,7 +135,6 @@ public class AuthServiceImpl implements AuthService {
         checkUserEnabled(user);
 
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        user.setUpdateTime(LocalDateTime.now());
         sysUserMapper.updateById(user);
 
         deleteSmsCode(dto.getPhone());

@@ -5,18 +5,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "deepseek")
 public class DeepSeekProperties {
 
-    private String apiUrl;
     private String apiKey;
+
+    private String baseUrl = "https://api.deepseek.com/v1";
+
     private String model;
-    private Integer timeout;
 
-    public String getApiUrl() {
-        return apiUrl;
-    }
-
-    public void setApiUrl(String apiUrl) {
-        this.apiUrl = apiUrl;
-    }
+    private Integer timeout = 30000;
 
     public String getApiKey() {
         return apiKey;
@@ -24,6 +19,14 @@ public class DeepSeekProperties {
 
     public void setApiKey(String apiKey) {
         this.apiKey = apiKey;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
     }
 
     public String getModel() {

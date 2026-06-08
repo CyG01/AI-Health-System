@@ -8,31 +8,29 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-@TableName("sys_user")
-public class SysUser implements Serializable {
+@TableName("ai_plan")
+public class AiPlan implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String username;
+    private Long userId;
 
-    private String password;
+    private String planType;
 
-    private String phone;
+    private String planName;
 
-    private String nickname;
+    private Integer durationDays;
 
-    private String avatar;
+    @TableField("ai_content")
+    private String aiContent;
 
-    private Integer gender;
-
-    private Integer age;
-
-    private String role;
+    private LocalDate startDate;
 
     private Integer status;
 
@@ -53,68 +51,52 @@ public class SysUser implements Serializable {
         this.id = id;
     }
 
-    public String getUsername() {
-        return username;
+    public Long getUserId() {
+        return userId;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
-    public String getPassword() {
-        return password;
+    public String getPlanType() {
+        return planType;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setPlanType(String planType) {
+        this.planType = planType;
     }
 
-    public String getPhone() {
-        return phone;
+    public String getPlanName() {
+        return planName;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void setPlanName(String planName) {
+        this.planName = planName;
     }
 
-    public String getNickname() {
-        return nickname;
+    public Integer getDurationDays() {
+        return durationDays;
     }
 
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
+    public void setDurationDays(Integer durationDays) {
+        this.durationDays = durationDays;
     }
 
-    public String getAvatar() {
-        return avatar;
+    public String getAiContent() {
+        return aiContent;
     }
 
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
+    public void setAiContent(String aiContent) {
+        this.aiContent = aiContent;
     }
 
-    public Integer getGender() {
-        return gender;
+    public LocalDate getStartDate() {
+        return startDate;
     }
 
-    public void setGender(Integer gender) {
-        this.gender = gender;
-    }
-
-    public Integer getAge() {
-        return age;
-    }
-
-    public void setAge(Integer age) {
-        this.age = age;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
     }
 
     public Integer getStatus() {
