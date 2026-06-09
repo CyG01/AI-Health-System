@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.annotation.NoRepeatSubmit;
 import com.example.common.Result;
 import com.example.dto.CheckinSubmitDTO;
@@ -8,6 +9,7 @@ import com.example.service.CheckinService;
 import com.example.vo.CheckinStatsVO;
 import com.example.vo.CheckinVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 
 import java.util.List;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "每日健康打卡")
@@ -40,6 +43,15 @@ public class CheckinController {
     @GetMapping("/list")
     public Result<List<CheckinVO>> list(@RequestAttribute("userId") Long userId) {
         return Result.success(checkinService.getCheckinList(userId));
+    }
+
+    @Operation(summary = "分页查询打卡记录")
+    @GetMapping("/page")
+    public Result<Page<CheckinVO>> page(
+            @RequestAttribute("userId") Long userId,
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size) {
+        return Result.success(checkinService.getCheckinPage(userId, page, size));
     }
 
     @NoRepeatSubmit

@@ -1,7 +1,6 @@
 package com.example.vo;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.List;
 
 public class ExerciseTrendVO implements Serializable {
@@ -10,7 +9,7 @@ public class ExerciseTrendVO implements Serializable {
 
     private List<String> xAxis;
 
-    private List<BigDecimal> completeRate;
+    private List<Integer> minutesPerDay;
 
     public List<String> getXAxis() {
         return xAxis;
@@ -20,11 +19,11 @@ public class ExerciseTrendVO implements Serializable {
         this.xAxis = xAxis;
     }
 
-    public List<BigDecimal> getCompleteRate() {
-        return completeRate;
+    public List<Integer> getMinutesPerDay() {
+        return minutesPerDay;
     }
 
-    public void setCompleteRate(List<BigDecimal> completeRate) {
-        this.completeRate = completeRate;
+    public void setMinutesPerDay(List<Integer> minutesPerDay) {
+        this.minutesPerDay = minutesPerDay;
     }
 }

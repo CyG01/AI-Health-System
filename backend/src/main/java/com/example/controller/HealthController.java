@@ -7,6 +7,7 @@ import com.example.dto.HealthUpdateDTO;
 import com.example.service.HealthService;
 import com.example.vo.HealthAssessmentVO;
 import com.example.vo.HealthHistoryVO;
+import com.example.vo.HealthProgressVO;
 import com.example.vo.HealthRecordVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -65,5 +66,11 @@ public class HealthController {
     @GetMapping("/assessment")
     public Result<HealthAssessmentVO> assessment(@RequestAttribute("userId") Long userId) {
         return Result.success(healthService.getHealthAssessment(userId));
+    }
+
+    @Operation(summary = "体重目标进度")
+    @GetMapping("/progress")
+    public Result<HealthProgressVO> progress(@RequestAttribute("userId") Long userId) {
+        return Result.success(healthService.getHealthProgress(userId));
     }
 }

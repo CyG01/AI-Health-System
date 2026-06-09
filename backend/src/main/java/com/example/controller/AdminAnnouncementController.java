@@ -7,9 +7,11 @@ import com.example.dto.AnnouncementCreateDTO;
 import com.example.dto.AnnouncementUpdateDTO;
 import com.example.entity.SysAnnouncement;
 import com.example.service.AdminAnnouncementService;
+import com.example.service.AuditLogService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,6 +34,9 @@ public class AdminAnnouncementController {
     @Autowired
     private AdminAnnouncementService adminAnnouncementService;
 
+    @Autowired
+    private AuditLogService auditLogService;
+
     @Operation(summary = "公告列表")
     @GetMapping("/list")
     public Result<Page<SysAnnouncement>> list(
@@ -44,32 +49,47 @@ public class AdminAnnouncementController {
     @Operation(summary = "创建公告")
     @PostMapping
     public Result<Void> create(@Validated @RequestBody AnnouncementCreateDTO dto,
-                               @RequestAttribute("userId") Long userId) {
-        adminAnnouncementService.createAnnouncement(dto, userId);
+                               @RequestAttribute("userId") Long userId,
+                               HttpServletRequest request) {
+        SysAnnouncement announcement = adminAnnouncementService.createAnnouncement(dto, userId);
+        auditLogService.log(userId, null, "CREATE", "announcement", announcement.getId(),
+                "创建公告: " + dto.getTitle(), request.getRemoteAddr());
         return Result.success();
     }
 
     @NoRepeatSubmit
     @Operation(summary = "修改公告")
     @PutMapping
-    public Result<Void> update(@Validated @RequestBody AnnouncementUpdateDTO dto) {
+    public Result<Void> update(@Validated @RequestBody AnnouncementUpdateDTO dto,
+                               @RequestAttribute("userId") Long userId,
+                               HttpServletRequest request) {
         adminAnnouncementService.updateAnnouncement(dto);
+        auditLogService.log(userId, null, "UPDATE", "announcement", dto.getId(),
+                "修改公告: " + dto.getTitle(), request.getRemoteAddr());
         return Result.success();
     }
 
     @NoRepeatSubmit
     @Operation(summary = "删除公告")
     @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable Long id) {
+    public Result<Void> delete(@PathVariable Long id,
+                               @RequestAttribute("userId") Long userId,
+                               HttpServletRequest request) {
         adminAnnouncementService.deleteAnnouncement(id);
+        auditLogService.log(userId, null, "DELETE", "announcement", id,
+                "删除公告", request.getRemoteAddr());
         return Result.success();
     }
 
     @NoRepeatSubmit
     @Operation(summary = "发布公告")
     @PutMapping("/{id}/publish")
-    public Result<Void> publish(@PathVariable Long id) {
+    public Result<Void> publish(@PathVariable Long id,
+                                @RequestAttribute("userId") Long userId,
+                                HttpServletRequest request) {
         adminAnnouncementService.publishAnnouncement(id);
+        auditLogService.log(userId, null, "PUBLISH", "announcement", id,
+                "发布公告", request.getRemoteAddr());
         return Result.success();
     }
 }

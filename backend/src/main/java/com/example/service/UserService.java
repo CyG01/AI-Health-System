@@ -15,4 +15,8 @@ public interface UserService {
     void updateAvatar(Long userId, String avatarUrl);
 
     String getAvatar(Long userId);
+
+    void deactivateAccount(Long userId);
+
+    void updateNotificationPreference(Long userId, String notificationEnabled, String reminderTime);
 }

@@ -2,7 +2,7 @@
   <div class="generate-page">
     <div v-if="!streaming" class="form-card glass-card">
       <h2 class="page-title">AI 智能计划生成</h2>
-      <p class="page-desc">基于您的健康档案，由 DeepSeek 为您量身定制个性化运动/饮食计划</p>
+      <p class="page-desc">基于您的健康档案，由 DeepSeek 为您量身定制个性化健康计划（运动/饮食/综合/康复/冥想）</p>
       <el-alert title="每日最多生成3次计划" type="info" :closable="false" show-icon class="limit-tip" />
 
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="generate-form">
@@ -10,6 +10,9 @@
           <el-radio-group v-model="form.planType">
             <el-radio value="sport">运动计划</el-radio>
             <el-radio value="diet">饮食计划</el-radio>
+            <el-radio value="comprehensive">综合计划</el-radio>
+            <el-radio value="rehabilitation">康复计划</el-radio>
+            <el-radio value="meditation">冥想放松</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -58,7 +61,7 @@
           <span class="terminal-dot" style="background:#3fb950"></span>
           <span class="terminal-dot" style="background:#d29922"></span>
           <span class="terminal-dot" style="background:#f85149"></span>
-          <span class="terminal-label">{{ form.planType === 'sport' ? '运动计划' : '饮食计划' }} · {{ form.durationDays }}天 · AI生成中</span>
+          <span class="terminal-label">{{ planTypeLabel }} · {{ form.durationDays }}天 · AI生成中</span>
         </div>
         <div class="streaming-header-right">
           <span v-if="streamStatus === 'streaming'" class="status-badge streaming">
@@ -92,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
@@ -119,6 +122,11 @@ const form = reactive({
   durationDays: 7,
   intensity: '',
   tastePreference: ''
+})
+
+const planTypeLabel = computed(() => {
+  const map = { sport: '运动计划', diet: '饮食计划', comprehensive: '综合计划', rehabilitation: '康复计划', meditation: '冥想放松' }
+  return map[form.planType] || '健康计划'
 })
 
 const rules = {

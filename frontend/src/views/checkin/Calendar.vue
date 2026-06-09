@@ -32,6 +32,24 @@
       </div>
     </div>
 
+    <!-- 成就徽章 -->
+    <div class="badges-section glass-card" v-if="badges.length > 0">
+      <div class="section-title">打卡成就</div>
+      <div class="badges-row">
+        <div v-for="badge in badges" :key="badge.name" class="badge-item" :class="{ unlocked: badge.unlocked }">
+          <span class="badge-icon">{{ badge.icon }}</span>
+          <span class="badge-name">{{ badge.name }}</span>
+          <span class="badge-desc">{{ badge.desc }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 打卡热力图 -->
+    <div class="heatmap-card glass-card">
+      <div class="section-title">打卡热力图（近一年）</div>
+      <div class="heatmap-container" ref="heatmapRef"></div>
+    </div>
+
     <div class="main-row">
       <div class="calendar-card glass-card">
         <el-calendar v-model="calendarDate" ref="calendarRef">
@@ -233,8 +251,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import echarts from '@/utils/echarts'
 import { submitCheckin, supplementCheckin, getCheckinList, getCheckinStats } from '@/api/checkin'
 
 const PAGE_LOADING_KEY = 'checkin-page'
@@ -260,6 +279,38 @@ const records = ref({})
 const todayRecord = ref(null)
 const supplementVisible = ref(false)
 const supplementDate = ref('')
+const heatmapRef = ref(null)
+
+// 成就徽章
+const badges = computed(() => {
+  const list = []
+  const total = stats.totalDays
+  const streak = stats.consecutiveDays
+  const conditions = [
+    { days: 3, icon: '🌱', name: '新手上路', desc: '累计打卡3天' },
+    { days: 7, icon: '🔥', name: '一周打卡', desc: '累计打卡7天' },
+    { days: 14, icon: '💪', name: '坚持两周', desc: '累计打卡14天' },
+    { days: 30, icon: '⭐', name: '月度之星', desc: '累计打卡30天' },
+    { days: 60, icon: '🏆', name: '健身达人', desc: '累计打卡60天' },
+    { days: 100, icon: '👑', name: '百炼成钢', desc: '累计打卡100天' },
+    { days: 180, icon: '💎', name: '半年坚持', desc: '累计打卡180天' },
+    { days: 365, icon: '🌟', name: '年度传奇', desc: '累计打卡365天' }
+  ]
+  const streakConditions = [
+    { days: 3, icon: '🔥', name: '连击3天', desc: '连续3天不中断' },
+    { days: 7, icon: '🔥🔥', name: '一周连击', desc: '连续打卡7天' },
+    { days: 14, icon: '🚀', name: '双周王者', desc: '连续打卡14天' },
+    { days: 30, icon: '⚡', name: '月度全勤', desc: '连续打卡30天' },
+    { days: 60, icon: '💥', name: '铁人模式', desc: '连续打卡60天' }
+  ]
+  conditions.forEach(c => {
+    list.push({ ...c, unlocked: total >= c.days })
+  })
+  streakConditions.forEach(c => {
+    list.push({ ...c, unlocked: streak >= c.days })
+  })
+  return list
+})
 
 const submitForm = reactive({
   planId: null,
@@ -334,6 +385,7 @@ async function loadData() {
     })
 
     todayRecord.value = records.value[today] || null
+    nextTick(() => renderHeatmap())
   } finally {
     pageLoading.value = false
   }
@@ -472,6 +524,39 @@ async function handleSupplementSubmit() {
 onMounted(() => {
   loadData()
 })
+
+// 打卡热力图渲染
+function getDaysInYear() {
+  const days = []
+  const now = new Date()
+  const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+  for (let d = new Date(startDate); d <= now; d.setDate(d.getDate() + 1)) {
+    days.push(toDateStr(d))
+  }
+  return days
+}
+
+function getHeatmapLevel(dateStr) {
+  const r = records.value[dateStr]
+  if (!r) return 0
+  if (r.exerciseStatus === 2 && r.dietStatus === 2) return 3
+  if (r.exerciseStatus >= 1 || r.dietStatus >= 1) return 2
+  return 1
+}
+
+function renderHeatmap() {
+  if (!heatmapRef.value) return
+  const chart = echarts.init(heatmapRef.value)
+  const days = getDaysInYear()
+  const data = days.map(d => [d, getHeatmapLevel(d)])
+  chart.setOption({
+    tooltip: { backgroundColor: 'rgba(22,27,34,0.95)', borderColor: '#30363d', textStyle: { color: '#c9d1d9' }, formatter: (p) => `${p.data[0]}: ${['未打卡','部分','不错','完美'][p.data[1]]}` },
+    visualMap: { min: 0, max: 3, orient: 'horizontal', left: 'center', bottom: 0, calculable: false, inRange: { color: ['#161b22', '#0e4429', '#006d32', '#26a641'] }, show: false },
+    calendar: { top: 20, left: 40, right: 20, range: [days[0], days[days.length - 1]], cellSize: [14, 14], splitLine: { lineStyle: { color: '#0d1117' } }, itemStyle: { borderColor: '#0d1117', borderWidth: 2, borderRadius: 2 }, dayLabel: { color: '#8b949e' }, monthLabel: { color: '#8b949e' }, yearLabel: { show: false } },
+    series: [{ type: 'heatmap', coordinateSystem: 'calendar', data: data, emphasis: { itemStyle: { shadowBlur: 8, shadowColor: 'rgba(0,0,0,0.3)' } } }]
+  })
+  chart.resize()
+}
 </script>
 
 <style scoped lang="scss">
@@ -713,5 +798,61 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* 成就徽章 */
+.badges-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.badge-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  min-width: 72px;
+  opacity: 0.35;
+  transition: all 0.3s;
+}
+
+.badge-item.unlocked {
+  opacity: 1;
+  border-color: #3fb950;
+  background: rgba(63, 185, 80, 0.08);
+}
+
+.badge-icon { font-size: 22px; }
+.badge-name { font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.badge-desc { font-size: 10px; color: var(--text-secondary); }
+
+/* 热力图 */
+.heatmap-card {
+  margin-bottom: 16px;
+  padding: 20px 24px;
+}
+
+.heatmap-container {
+  width: 100%;
+  height: 170px;
+  margin-top: 12px;
 }
 </style>

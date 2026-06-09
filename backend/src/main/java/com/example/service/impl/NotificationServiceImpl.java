@@ -5,8 +5,11 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.common.BusinessException;
 import com.example.convert.NotificationConvert;
+import com.example.dto.SendNotificationDTO;
 import com.example.entity.SysNotification;
+import com.example.entity.SysUser;
 import com.example.mapper.SysNotificationMapper;
+import com.example.mapper.SysUserMapper;
 import com.example.service.NotificationService;
 import com.example.vo.NotificationVO;
 import org.slf4j.Logger;
@@ -15,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class NotificationServiceImpl implements NotificationService {
@@ -24,6 +27,9 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Autowired
     private SysNotificationMapper sysNotificationMapper;
+
+    @Autowired
+    private SysUserMapper sysUserMapper;
 
     @Autowired
     private NotificationConvert notificationConvert;
@@ -59,7 +65,6 @@ public class NotificationServiceImpl implements NotificationService {
             throw new BusinessException(403, "无权操作此通知");
         }
         notification.setIsRead(1);
-        notification.setReadTime(LocalDateTime.now());
         sysNotificationMapper.updateById(notification);
     }
 
@@ -69,8 +74,7 @@ public class NotificationServiceImpl implements NotificationService {
         LambdaUpdateWrapper<SysNotification> wrapper = new LambdaUpdateWrapper<SysNotification>()
                 .eq(SysNotification::getUserId, userId)
                 .eq(SysNotification::getIsRead, 0)
-                .set(SysNotification::getIsRead, 1)
-                .set(SysNotification::getReadTime, LocalDateTime.now());
+                .set(SysNotification::getIsRead, 1);
         sysNotificationMapper.update(null, wrapper);
     }
 
@@ -86,5 +90,35 @@ public class NotificationServiceImpl implements NotificationService {
         }
         sysNotificationMapper.deleteById(notificationId);
         log.info("用户删除通知 userId={} notificationId={}", userId, notificationId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void sendNotification(SendNotificationDTO dto) {
+        if (dto.isSendToAll()) {
+            List<SysUser> allUsers = sysUserMapper.selectList(null);
+            for (SysUser user : allUsers) {
+                SysNotification notification = new SysNotification();
+                notification.setUserId(user.getId());
+                notification.setTitle(dto.getTitle());
+                notification.setContent(dto.getContent());
+                notification.setType(dto.getType() != null ? dto.getType() : "system");
+                notification.setIsRead(0);
+                sysNotificationMapper.insert(notification);
+            }
+            log.info("管理员向全体用户发送通知 title={} count={}", dto.getTitle(), allUsers.size());
+        } else {
+            if (dto.getUserId() == null) {
+                throw new BusinessException("指定用户通知需要提供userId");
+            }
+            SysNotification notification = new SysNotification();
+            notification.setUserId(dto.getUserId());
+            notification.setTitle(dto.getTitle());
+            notification.setContent(dto.getContent());
+            notification.setType(dto.getType() != null ? dto.getType() : "system");
+            notification.setIsRead(0);
+            sysNotificationMapper.insert(notification);
+            log.info("管理员向用户发送通知 title={} userId={}", dto.getTitle(), dto.getUserId());
+        }
     }
 }

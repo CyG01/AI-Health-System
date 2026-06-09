@@ -1,9 +1,12 @@
 package com.example.service;
 
 import com.example.vo.BmiTrendVO;
+import com.example.vo.CalorieDeficitVO;
 import com.example.vo.CalorieTrendVO;
 import com.example.vo.CheckinTrendVO;
+import com.example.vo.ExerciseDistributionVO;
 import com.example.vo.ExerciseTrendVO;
+import com.example.vo.NutrientRatioVO;
 import com.example.vo.ProgressVO;
 import com.example.vo.WeightTrendVO;
 
@@ -20,4 +23,13 @@ public interface StatisticsService {
     CalorieTrendVO getCalorieTrend(Long userId, Integer days);
 
     ProgressVO getProgress(Long userId);
+
+    /** 热量缺口分析（摄入vs消耗） */
+    CalorieDeficitVO getCalorieDeficit(Long userId, Integer days);
+
+    /** 营养素占比 */
+    NutrientRatioVO getNutrientRatio(Long userId, Integer days);
+
+    /** 运动类型分布 */
+    ExerciseDistributionVO getExerciseDistribution(Long userId, Integer days);
 }

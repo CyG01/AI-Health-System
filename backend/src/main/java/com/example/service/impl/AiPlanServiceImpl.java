@@ -1,10 +1,15 @@
 package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.common.BusinessException;
 import com.example.convert.AiPlanConvert;
 import com.example.dto.PlanGenerateDTO;
 import com.example.entity.AiPlan;
+import com.example.entity.AiPlanDetail;
+import com.example.entity.AiPlanFeedback;
+import com.example.mapper.AiPlanDetailMapper;
+import com.example.mapper.AiPlanFeedbackMapper;
 import com.example.mapper.AiPlanMapper;
 import com.example.monitor.DeepSeekCostMonitor;
 import com.example.properties.DeepSeekProperties;
@@ -14,7 +19,9 @@ import com.example.service.HealthService;
 import com.example.vo.AiPlanDetailVO;
 import com.example.vo.AiPlanVO;
 import com.example.vo.HealthRecordVO;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -52,9 +59,10 @@ public class AiPlanServiceImpl implements AiPlanService {
     private final DeepSeekProperties deepSeekProperties;
     private final RedisTemplate<String, Object> redisTemplate;
     private final AiPlanMapper aiPlanMapper;
+    private final AiPlanDetailMapper aiPlanDetailMapper;
+    private final AiPlanFeedbackMapper aiPlanFeedbackMapper;
     private final AiPlanConvert aiPlanConvert;
     private final ObjectMapper objectMapper;
-    private final AiPlanCollectionMapper aiPlanCollectionMapper;
     private final AiPlanServiceImpl self;
 
     public AiPlanServiceImpl(HealthService healthService,
@@ -63,9 +71,10 @@ public class AiPlanServiceImpl implements AiPlanService {
                              DeepSeekProperties deepSeekProperties,
                              RedisTemplate<String, Object> redisTemplate,
                              AiPlanMapper aiPlanMapper,
+                             AiPlanDetailMapper aiPlanDetailMapper,
+                             AiPlanFeedbackMapper aiPlanFeedbackMapper,
                              AiPlanConvert aiPlanConvert,
                              ObjectMapper objectMapper,
-                             AiPlanCollectionMapper aiPlanCollectionMapper,
                              @Lazy AiPlanServiceImpl self) {
         this.healthService = healthService;
         this.deepSeekService = deepSeekService;
@@ -73,9 +82,10 @@ public class AiPlanServiceImpl implements AiPlanService {
         this.deepSeekProperties = deepSeekProperties;
         this.redisTemplate = redisTemplate;
         this.aiPlanMapper = aiPlanMapper;
+        this.aiPlanDetailMapper = aiPlanDetailMapper;
+        this.aiPlanFeedbackMapper = aiPlanFeedbackMapper;
         this.aiPlanConvert = aiPlanConvert;
         this.objectMapper = objectMapper;
-        this.aiPlanCollectionMapper = aiPlanCollectionMapper;
         this.self = self;
     }
 
@@ -115,10 +125,13 @@ public class AiPlanServiceImpl implements AiPlanService {
         String model = selectModel(dto, healthRecord);
 
         String preference = buildPreference(dto);
+        String userProfile = buildUserProfile(healthRecord);
+        String planTypeLabel = getPlanTypeLabel(dto.getPlanType());
+        String planTypeNote = getPlanTypeNote(dto.getPlanType());
         String aiContent = deepSeekService.callApi(
-                healthRecord.getHeight(), healthRecord.getWeight(),
+                BigDecimal.valueOf(healthRecord.getHeight()), BigDecimal.valueOf(healthRecord.getWeight()),
                 healthRecord.getGoal(), dto.getDurationDays(),
-                preference, model);
+                preference, userProfile, planTypeLabel, planTypeNote, model);
 
         AiPlan plan = new AiPlan();
         plan.setUserId(userId);
@@ -131,6 +144,9 @@ public class AiPlanServiceImpl implements AiPlanService {
 
         aiPlanMapper.insert(plan);
         log.info("AI计划生成成功 userId={} planId={} model={}", userId, plan.getId(), model);
+
+        // 解析并保存 detail
+        savePlanDetails(plan.getId(), aiContent, dto.getPlanType());
 
         redisTemplate.opsForValue().set(globalCacheKey, aiContent, GLOBAL_CACHE_TTL, TimeUnit.DAYS);
         cachePlan(plan);
@@ -182,13 +198,15 @@ public class AiPlanServiceImpl implements AiPlanService {
 
             String model = selectModel(dto, healthRecord);
             String preference = buildPreference(dto);
+            String userProfile = buildUserProfile(healthRecord);
+            String planTypeLabel = getPlanTypeLabel(dto.getPlanType());
+            String planTypeNote = getPlanTypeNote(dto.getPlanType());
 
             StringBuilder fullContent = new StringBuilder();
-
             deepSeekService.callApiStream(
-                    healthRecord.getHeight(), healthRecord.getWeight(),
-                    healthRecord.getGoal(), dto.getDurationDays(),
-                    preference, model)
+                        BigDecimal.valueOf(healthRecord.getHeight()), BigDecimal.valueOf(healthRecord.getWeight()),
+                        healthRecord.getGoal(), dto.getDurationDays(),
+                        preference, userProfile, planTypeLabel, planTypeNote, model)
                     .doOnNext(chunk -> {
                         try {
                             if (fullContent.length() == 0 && chunk.trim().isEmpty()) {
@@ -269,7 +287,15 @@ public class AiPlanServiceImpl implements AiPlanService {
     @Override
     public AiPlanDetailVO getPlanDetail(Long planId, Long userId) {
         AiPlan plan = getOwnPlan(planId, userId);
-        return aiPlanConvert.toAiPlanDetailVO(plan);
+        AiPlanDetailVO vo = aiPlanConvert.toAiPlanDetailVO(plan);
+
+        LambdaQueryWrapper<AiPlanDetail> detailWrapper = new LambdaQueryWrapper<AiPlanDetail>()
+                .eq(AiPlanDetail::getPlanId, planId)
+                .orderByAsc(AiPlanDetail::getDaySequence);
+        List<AiPlanDetail> details = aiPlanDetailMapper.selectList(detailWrapper);
+        vo.setDetails(details.stream().map(aiPlanConvert::toDetailVO).toList());
+
+        return vo;
     }
 
     @Override
@@ -297,6 +323,17 @@ public class AiPlanServiceImpl implements AiPlanService {
     @Transactional(rollbackFor = Exception.class)
     public void deletePlan(Long planId, Long userId) {
         AiPlan plan = getOwnPlan(planId, userId);
+
+        // 级联删除计划明细
+        LambdaQueryWrapper<AiPlanDetail> detailWrapper = new LambdaQueryWrapper<AiPlanDetail>()
+                .eq(AiPlanDetail::getPlanId, planId);
+        aiPlanDetailMapper.delete(detailWrapper);
+
+        // 级联删除反馈记录
+        LambdaQueryWrapper<AiPlanFeedback> feedbackWrapper = new LambdaQueryWrapper<AiPlanFeedback>()
+                .eq(AiPlanFeedback::getPlanId, planId);
+        aiPlanFeedbackMapper.delete(feedbackWrapper);
+
         aiPlanMapper.deleteById(plan.getId());
         String cacheKey = String.format(USER_CACHE_KEY, userId, planId);
         redisTemplate.delete(cacheKey);
@@ -316,16 +353,52 @@ public class AiPlanServiceImpl implements AiPlanService {
 
         aiPlanMapper.insert(plan);
 
+        // 解析 AI 返回的 JSON 并保存 detail 记录
+        savePlanDetails(plan.getId(), aiContent, dto.getPlanType());
+
         redisTemplate.opsForValue().set(globalCacheKey, aiContent, GLOBAL_CACHE_TTL, TimeUnit.DAYS);
         cachePlan(plan);
 
         log.info("AI计划保存成功 userId={} planId={}", userId, plan.getId());
     }
 
+    private void savePlanDetails(Long planId, String aiContent, String planType) {
+        try {
+            JsonNode root = objectMapper.readTree(aiContent);
+            JsonNode days = root.path("days");
+            if (!days.isArray()) {
+                log.warn("AI返回内容中无days数组 planId={}", planId);
+                return;
+            }
+            for (JsonNode dayNode : days) {
+                int daySeq = dayNode.path("d").asInt();
+                JsonNode items = dayNode.path("items");
+                if (!items.isArray()) continue;
+                for (JsonNode itemText : items) {
+                    String text = itemText.asText();
+                    if (text == null || text.isBlank()) continue;
+
+                    AiPlanDetail detail = new AiPlanDetail();
+                    detail.setPlanId(planId);
+                    detail.setDaySequence(daySeq);
+                    detail.setItemType(planType);
+                    detail.setItemName(text);
+                    detail.setTargetAmount("");
+                    detail.setStatus(0);
+                    aiPlanDetailMapper.insert(detail);
+                }
+            }
+            log.info("AI计划detail保存成功 planId={}", planId);
+        } catch (Exception e) {
+            log.error("解析AI计划detail失败 planId={}", planId, e);
+        }
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public void cloneAndCachePlan(Long userId, PlanGenerateDTO dto, String cachedContent) {
         AiPlan cloned = clonePlanForUser(userId, dto, cachedContent);
         aiPlanMapper.insert(cloned);
+        savePlanDetails(cloned.getId(), cachedContent, dto.getPlanType());
         cachePlan(cloned);
     }
 
@@ -357,7 +430,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         redisTemplate.opsForValue().set(userCacheKey, plan.getAiContent(), USER_CACHE_TTL, TimeUnit.DAYS);
     }
 
-    private String computeFeatureHash(BigDecimal height, BigDecimal weight, String goal,
+    private String computeFeatureHash(Integer height, Integer weight, String goal,
                                       Integer durationDays, String intensity) {
         String raw = String.format("%.1f_%.1f_%s_%d_%s",
                 height, weight, goal, durationDays, intensity != null ? intensity : "");
@@ -398,7 +471,68 @@ public class AiPlanServiceImpl implements AiPlanService {
     }
 
     private String buildPlanName(PlanGenerateDTO dto) {
-        String typeLabel = "sport".equals(dto.getPlanType()) ? "运动计划" : "饮食计划";
+        String typeLabel = getPlanTypeLabel(dto.getPlanType());
         return typeLabel + "-" + dto.getDurationDays() + "天-" + LocalDate.now();
+    }
+
+    private String getPlanTypeLabel(String planType) {
+        return switch (planType) {
+            case "sport" -> "运动计划";
+            case "diet" -> "饮食计划";
+            case "comprehensive" -> "综合计划";
+            case "rehabilitation" -> "康复计划";
+            case "meditation" -> "冥想放松计划";
+            default -> "健康计划";
+        };
+    }
+
+    private String getPlanTypeNote(String planType) {
+        return switch (planType) {
+            case "sport" -> "运动类计划输出运动项目建议(含具体组数、时长、强度)";
+            case "diet" -> "饮食类计划输出每餐食物搭配建议(含具体食材克数、热量)";
+            case "comprehensive" -> "综合计划需同时包含运动安排与饮食建议,按天交替或结合";
+            case "rehabilitation" -> "康复计划需低强度、渐进式,针对用户病史设计恢复性训练与营养建议";
+            case "meditation" -> "冥想放松计划包含呼吸练习、正念冥想、瑜伽拉伸、渐进式肌肉放松等,每天15-30分钟";
+            default -> "输出运动项目建议和食物搭配建议";
+        };
+    }
+
+    private String buildUserProfile(HealthRecordVO healthRecord) {
+        StringBuilder sb = new StringBuilder();
+        if (healthRecord.getDiseaseHistory() != null && !healthRecord.getDiseaseHistory().isBlank()) {
+            sb.append("病史:").append(healthRecord.getDiseaseHistory()).append(";");
+        }
+        if (healthRecord.getAllergyHistory() != null && !healthRecord.getAllergyHistory().isBlank()) {
+            sb.append("过敏史:").append(healthRecord.getAllergyHistory()).append(";");
+        }
+        if (healthRecord.getExerciseHabit() != null && !healthRecord.getExerciseHabit().isBlank()) {
+            sb.append("运动习惯:").append(healthRecord.getExerciseHabit()).append(";");
+        }
+        if (healthRecord.getDietHabit() != null && !healthRecord.getDietHabit().isBlank()) {
+            sb.append("饮食习惯:").append(healthRecord.getDietHabit()).append(";");
+        }
+        if (healthRecord.getTargetWeight() != null) {
+            sb.append("目标体重:").append(healthRecord.getTargetWeight()).append("kg;");
+        }
+        if (sb.isEmpty()) {
+            sb.append("无特殊病史,一般健康人群;");
+        }
+        return sb.toString();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeTask(Long detailId, Long userId) {
+        AiPlanDetail detail = aiPlanDetailMapper.selectById(detailId);
+        if (detail == null) {
+            throw new BusinessException(404, "计划任务不存在");
+        }
+        AiPlan plan = aiPlanMapper.selectById(detail.getPlanId());
+        if (plan == null || !plan.getUserId().equals(userId)) {
+            throw new BusinessException("无权操作此任务");
+        }
+        detail.setStatus(1);
+        aiPlanDetailMapper.updateById(detail);
+        log.info("用户完成任务 userId={} detailId={} planId={}", userId, detailId, detail.getPlanId());
     }
 }

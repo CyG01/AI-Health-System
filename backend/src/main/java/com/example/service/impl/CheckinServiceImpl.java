@@ -1,6 +1,7 @@
 package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.common.BusinessException;
 import com.example.convert.DailyCheckinConvert;
 import com.example.dto.CheckinSubmitDTO;
@@ -97,6 +98,20 @@ public class CheckinServiceImpl implements CheckinService {
         return dailyCheckinMapper.selectList(wrapper).stream()
                 .map(dailyCheckinConvert::toCheckinVO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<CheckinVO> getCheckinPage(Long userId, int page, int size) {
+        Page<DailyCheckin> pageParam = new Page<>(page, size);
+        LambdaQueryWrapper<DailyCheckin> wrapper = new LambdaQueryWrapper<DailyCheckin>()
+                .eq(DailyCheckin::getUserId, userId)
+                .orderByDesc(DailyCheckin::getCheckDate);
+        Page<DailyCheckin> result = dailyCheckinMapper.selectPage(pageParam, wrapper);
+        Page<CheckinVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        voPage.setRecords(result.getRecords().stream()
+                .map(dailyCheckinConvert::toCheckinVO)
+                .toList());
+        return voPage;
     }
 
     @Override

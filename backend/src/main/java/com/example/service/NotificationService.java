@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.dto.SendNotificationDTO;
 import com.example.vo.NotificationVO;
 
 public interface NotificationService {
@@ -14,4 +15,6 @@ public interface NotificationService {
     void markAllAsRead(Long userId);
 
     void deleteNotification(Long notificationId, Long userId);
+
+    void sendNotification(SendNotificationDTO dto);
 }

@@ -3,9 +3,12 @@ package com.example.controller;
 import com.example.common.Result;
 import com.example.service.StatisticsService;
 import com.example.vo.BmiTrendVO;
+import com.example.vo.CalorieDeficitVO;
 import com.example.vo.CalorieTrendVO;
 import com.example.vo.CheckinTrendVO;
+import com.example.vo.ExerciseDistributionVO;
 import com.example.vo.ExerciseTrendVO;
+import com.example.vo.NutrientRatioVO;
 import com.example.vo.ProgressVO;
 import com.example.vo.WeightTrendVO;
 import jakarta.validation.constraints.Max;
@@ -66,5 +69,26 @@ public class StatisticsController {
     @GetMapping("/progress")
     public Result<ProgressVO> progress(@RequestAttribute("userId") Long userId) {
         return Result.success(statisticsService.getProgress(userId));
+    }
+
+    @Operation(summary = "热量缺口分析（摄入vs消耗）")
+    @GetMapping("/calorie-deficit")
+    public Result<CalorieDeficitVO> calorieDeficit(@RequestAttribute("userId") Long userId,
+                                                    @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
+        return Result.success(statisticsService.getCalorieDeficit(userId, days));
+    }
+
+    @Operation(summary = "营养素占比")
+    @GetMapping("/nutrient-ratio")
+    public Result<NutrientRatioVO> nutrientRatio(@RequestAttribute("userId") Long userId,
+                                                  @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
+        return Result.success(statisticsService.getNutrientRatio(userId, days));
+    }
+
+    @Operation(summary = "运动类型分布")
+    @GetMapping("/exercise-distribution")
+    public Result<ExerciseDistributionVO> exerciseDistribution(@RequestAttribute("userId") Long userId,
+                                                                @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
+        return Result.success(statisticsService.getExerciseDistribution(userId, days));
     }
 }

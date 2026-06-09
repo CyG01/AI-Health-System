@@ -93,4 +93,31 @@ public class UserServiceImpl implements UserService {
         SysUser user = sysUserMapper.selectById(userId);
         return user != null ? user.getAvatar() : null;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deactivateAccount(Long userId) {
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        user.setStatus(0);
+        sysUserMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateNotificationPreference(Long userId, String notificationEnabled, String reminderTime) {
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        if (notificationEnabled != null) {
+            user.setNotificationEnabled(Integer.parseInt(notificationEnabled));
+        }
+        if (reminderTime != null) {
+            user.setReminderTime(reminderTime);
+        }
+        sysUserMapper.updateById(user);
+    }
 }

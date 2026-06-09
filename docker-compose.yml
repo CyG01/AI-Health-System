@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-change-me}
-      MYSQL_DATABASE: ai_health_db
+      MYSQL_DATABASE: ai_health_system
       MYSQL_CHARSET: utf8mb4
       MYSQL_COLLATION: utf8mb4_unicode_ci
       TZ: Asia/Shanghai
@@ -50,7 +50,7 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:mysql://mysql:3306/ai_health_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=false
+      DB_URL: jdbc:mysql://mysql:3306/ai_health_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=false
       DB_USERNAME: root
       DB_PASSWORD: ${DB_PASSWORD:-change-me}
       REDIS_HOST: redis

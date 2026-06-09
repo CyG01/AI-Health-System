@@ -14,7 +14,7 @@ public class PlanGenerateDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @NotBlank(message = "计划类型不能为空")
-    @Pattern(regexp = "^(sport|diet)$", message = "计划类型必须为sport或diet")
+    @Pattern(regexp = "^(sport|diet|comprehensive|rehabilitation|meditation)$", message = "计划类型必须为sport/diet/comprehensive/rehabilitation/meditation")
     private String planType;
 
     @NotNull(message = "计划天数不能为空")

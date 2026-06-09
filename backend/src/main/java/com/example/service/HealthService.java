@@ -4,6 +4,7 @@ import com.example.dto.HealthCreateDTO;
 import com.example.dto.HealthUpdateDTO;
 import com.example.vo.HealthAssessmentVO;
 import com.example.vo.HealthHistoryVO;
+import com.example.vo.HealthProgressVO;
 import com.example.vo.HealthRecordVO;
 
 import java.util.List;
@@ -19,4 +20,6 @@ public interface HealthService {
     List<HealthHistoryVO> getHealthHistory(Long userId, Integer page, Integer size);
 
     HealthAssessmentVO getHealthAssessment(Long userId);
+
+    HealthProgressVO getHealthProgress(Long userId);
 }

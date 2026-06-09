@@ -5,10 +5,12 @@ import com.example.common.Result;
 import com.example.convert.UserConvert;
 import com.example.dto.UpdatePasswordDTO;
 import com.example.dto.UpdateProfileDTO;
+import com.example.service.AuthService;
 import com.example.service.UserService;
 import com.example.vo.UserInfoVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.UUID;
 
 @Tag(name = "个人中心")
@@ -43,6 +47,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private AuthService authService;
 
     @Autowired
     private UserConvert userConvert;
@@ -120,5 +127,30 @@ public class UserController {
             log.error("头像上传失败 userId={}", userId, e);
             return Result.error(500, "头像上传失败");
         }
+    }
+
+    @NoRepeatSubmit
+    @Operation(summary = "注销账号")
+    @DeleteMapping("/deactivate")
+    public Result<Void> deactivate(@RequestAttribute("userId") Long userId,
+                                   HttpServletRequest request) {
+        userService.deactivateAccount(userId);
+        // 注销后立即使当前 Token 失效
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && !authorization.isBlank()) {
+            authService.logout(authorization);
+        }
+        return Result.success();
+    }
+
+    @NoRepeatSubmit
+    @Operation(summary = "更新通知偏好")
+    @PutMapping("/notification-preference")
+    public Result<Void> updateNotificationPreference(@RequestAttribute("userId") Long userId,
+                                                      @RequestBody Map<String, String> body) {
+        String notificationEnabled = body.get("notificationEnabled");
+        String reminderTime = body.get("reminderTime");
+        userService.updateNotificationPreference(userId, notificationEnabled, reminderTime);
+        return Result.success();
     }
 }

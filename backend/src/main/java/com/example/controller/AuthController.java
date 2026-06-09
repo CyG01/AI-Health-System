@@ -79,6 +79,7 @@ public class AuthController {
         return Result.success(authService.login(dto));
     }
 
+    @RateLimit(time = 60, count = 3)
     @NoRepeatSubmit
     @Operation(summary = "手机号验证码登录")
     @PostMapping("/login-by-phone")
@@ -95,6 +96,7 @@ public class AuthController {
         return Result.success();
     }
 
+    @RateLimit(time = 60, count = 3)
     @NoRepeatSubmit
     @Operation(summary = "忘记密码")
     @PostMapping("/reset-password")

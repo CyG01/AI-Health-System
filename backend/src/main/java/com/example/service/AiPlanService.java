@@ -19,4 +19,6 @@ public interface AiPlanService {
     void activePlan(Long planId, Long userId);
 
     void deletePlan(Long planId, Long userId);
+
+    void completeTask(Long detailId, Long userId);
 }

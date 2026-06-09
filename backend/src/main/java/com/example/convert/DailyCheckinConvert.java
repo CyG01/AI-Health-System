@@ -17,11 +17,13 @@ public interface DailyCheckinConvert {
     @Mapping(target = "checkDate", ignore = true)
     @Mapping(target = "createTime", ignore = true)
     @Mapping(target = "isDeleted", ignore = true)
+    @Mapping(target = "version", ignore = true)
     DailyCheckin toEntity(CheckinSubmitDTO dto);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "userId", ignore = true)
     @Mapping(target = "createTime", ignore = true)
     @Mapping(target = "isDeleted", ignore = true)
+    @Mapping(target = "version", ignore = true)
     DailyCheckin toEntity(CheckinSupplementDTO dto);
 }

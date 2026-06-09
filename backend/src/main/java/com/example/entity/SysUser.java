@@ -33,6 +33,27 @@ public class SysUser implements Serializable {
 
     private Integer age;
 
+    /** 通知开关 1=开启 0=关闭 */
+    private Integer notificationEnabled;
+
+    /** 提醒时间 HH:mm */
+    private String reminderTime;
+
+    /** 运动提醒 1=开 0=关 */
+    private Integer notifyExercise;
+
+    /** 饮食提醒 1=开 0=关 */
+    private Integer notifyDiet;
+
+    /** 打卡提醒 1=开 0=关 */
+    private Integer notifyCheckin;
+
+    /** 安静时段开始 HH:mm */
+    private String quietStart;
+
+    /** 安静时段结束 HH:mm */
+    private String quietEnd;
+
     private String role;
 
     private Integer status;
@@ -112,6 +133,12 @@ public class SysUser implements Serializable {
     public void setAge(Integer age) {
         this.age = age;
     }
+
+    public Integer getNotificationEnabled() { return notificationEnabled; }
+    public void setNotificationEnabled(Integer notificationEnabled) { this.notificationEnabled = notificationEnabled; }
+
+    public String getReminderTime() { return reminderTime; }
+    public void setReminderTime(String reminderTime) { this.reminderTime = reminderTime; }
 
     public String getRole() {
         return role;

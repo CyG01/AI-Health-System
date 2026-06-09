@@ -12,7 +12,7 @@ spring:
       max-request-size: 10MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${DB_URL:jdbc:mysql://localhost:3306/ai_health_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=false}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ai_health_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=false}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
     hikari:
@@ -62,8 +62,10 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+# ⚠️ 生产环境必须覆盖 JWT_SECRET（至少256位强密钥）
+#    示例: openssl rand -base64 32
 jwt:
-  secret: ${JWT_SECRET:ai-health-system-dev-secret-do-not-use-in-production}
+  secret: ${JWT_SECRET:tmp-dev-key-only-for-local-development-replace-in-prod}
   access-token-expire: 7200000
   refresh-token-expire: 604800000
   header: Authorization
@@ -97,8 +99,9 @@ resilience4j:
         wait-duration-in-open-state: 60s
         permitted-number-of-calls-in-half-open-state: 3
 
+# CORS 配置 — 生产环境通过 ALLOWED_ORIGINS 覆盖（逗号分隔多个域名）
 cors:
-  allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   allowed-headers: "*"
   allow-credentials: true
@@ -106,15 +109,16 @@ cors:
 
 logging:
   level:
-    root: WARN
-    com.example: INFO
+    root: ERROR
+    com.example: ${LOG_LEVEL:INFO}
     org.springframework.web: WARN
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # 生产环境仅暴露 health，内部监控需加 Spring Security 或独立端口
+        include: health
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: never

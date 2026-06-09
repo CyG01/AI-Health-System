@@ -2,14 +2,21 @@ package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.entity.DailyCheckin;
+import com.example.entity.DietRecord;
+import com.example.entity.ExerciseRecord;
 import com.example.entity.HealthRecord;
 import com.example.mapper.DailyCheckinMapper;
+import com.example.mapper.DietRecordMapper;
+import com.example.mapper.ExerciseRecordMapper;
 import com.example.mapper.HealthRecordMapper;
 import com.example.service.StatisticsService;
 import com.example.vo.BmiTrendVO;
+import com.example.vo.CalorieDeficitVO;
 import com.example.vo.CalorieTrendVO;
 import com.example.vo.CheckinTrendVO;
+import com.example.vo.ExerciseDistributionVO;
 import com.example.vo.ExerciseTrendVO;
+import com.example.vo.NutrientRatioVO;
 import com.example.vo.ProgressVO;
 import com.example.vo.WeightTrendVO;
 import org.slf4j.Logger;
@@ -21,6 +28,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +51,12 @@ public class StatisticsServiceImpl implements StatisticsService {
     private DailyCheckinMapper dailyCheckinMapper;
 
     @Autowired
+    private ExerciseRecordMapper exerciseRecordMapper;
+
+    @Autowired
+    private DietRecordMapper dietRecordMapper;
+
+    @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
     @Override
@@ -55,21 +70,22 @@ public class StatisticsServiceImpl implements StatisticsService {
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
 
-        LambdaQueryWrapper<DailyCheckin> wrapper = new LambdaQueryWrapper<DailyCheckin>()
-                .eq(DailyCheckin::getUserId, userId)
-                .ge(DailyCheckin::getCheckDate, startDate)
-                .isNotNull(DailyCheckin::getCurrentWeight)
-                .orderByAsc(DailyCheckin::getCheckDate);
-        List<DailyCheckin> records = dailyCheckinMapper.selectList(wrapper);
+        // 从 health_record 读取体重 — 这是权威数据源
+        LambdaQueryWrapper<HealthRecord> wrapper = new LambdaQueryWrapper<HealthRecord>()
+                .eq(HealthRecord::getUserId, userId)
+                .ge(HealthRecord::getCreateTime, startDate.atStartOfDay())
+                .isNotNull(HealthRecord::getWeight)
+                .orderByAsc(HealthRecord::getCreateTime);
+        List<HealthRecord> records = healthRecordMapper.selectList(wrapper);
 
-        Map<LocalDate, BigDecimal> weightMap = records.stream()
+        Map<LocalDate, Integer> weightMap = records.stream()
                 .collect(Collectors.toMap(
-                        DailyCheckin::getCheckDate,
-                        DailyCheckin::getCurrentWeight,
+                        r -> r.getCreateTime().toLocalDate(),
+                        HealthRecord::getWeight,
                         (existing, replacement) -> replacement));
 
         List<String> xAxis = new ArrayList<>();
-        List<BigDecimal> yAxis = new ArrayList<>();
+        List<Integer> yAxis = new ArrayList<>();
 
         for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
             xAxis.add(d.toString());
@@ -179,38 +195,34 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
 
-        LambdaQueryWrapper<DailyCheckin> wrapper = new LambdaQueryWrapper<DailyCheckin>()
-                .eq(DailyCheckin::getUserId, userId)
-                .ge(DailyCheckin::getCheckDate, startDate)
-                .orderByAsc(DailyCheckin::getCheckDate);
-        List<DailyCheckin> records = dailyCheckinMapper.selectList(wrapper);
+        // 从 exercise_record 读取实际运动数据
+        LambdaQueryWrapper<ExerciseRecord> wrapper = new LambdaQueryWrapper<ExerciseRecord>()
+                .eq(ExerciseRecord::getUserId, userId)
+                .between(ExerciseRecord::getCreateTime, start, end)
+                .orderByAsc(ExerciseRecord::getCreateTime);
+        List<ExerciseRecord> records = exerciseRecordMapper.selectList(wrapper);
 
-        Map<LocalDate, List<DailyCheckin>> grouped = records.stream()
-                .collect(Collectors.groupingBy(DailyCheckin::getCheckDate));
+        Map<LocalDate, List<ExerciseRecord>> grouped = records.stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate()));
 
         List<String> xAxis = new ArrayList<>();
-        List<BigDecimal> completeRate = new ArrayList<>();
+        List<Integer> minutesPerDay = new ArrayList<>();
 
         for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
             xAxis.add(d.toString());
-            List<DailyCheckin> dayRecords = grouped.getOrDefault(d, List.of());
-            if (dayRecords.isEmpty()) {
-                completeRate.add(BigDecimal.ZERO);
-            } else {
-                long completeCount = dayRecords.stream()
-                        .filter(r -> r.getExerciseStatus() != null && r.getExerciseStatus() == 2)
-                        .count();
-                BigDecimal rate = BigDecimal.valueOf(completeCount)
-                        .multiply(BigDecimal.valueOf(100))
-                        .divide(BigDecimal.valueOf(dayRecords.size()), 1, RoundingMode.HALF_UP);
-                completeRate.add(rate);
-            }
+            List<ExerciseRecord> dayRecords = grouped.getOrDefault(d, List.of());
+            int totalMinutes = dayRecords.stream()
+                    .mapToInt(r -> r.getDurationMinutes() != null ? r.getDurationMinutes() : 0)
+                    .sum();
+            minutesPerDay.add(totalMinutes);
         }
 
         ExerciseTrendVO vo = new ExerciseTrendVO();
         vo.setXAxis(xAxis);
-        vo.setCompleteRate(completeRate);
+        vo.setMinutesPerDay(minutesPerDay);
 
         redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
@@ -226,24 +238,34 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
 
-        LambdaQueryWrapper<HealthRecord> wrapper = new LambdaQueryWrapper<HealthRecord>()
-                .eq(HealthRecord::getUserId, userId)
-                .ge(HealthRecord::getCreateTime, startDate.atStartOfDay())
-                .orderByAsc(HealthRecord::getCreateTime);
-        List<HealthRecord> records = healthRecordMapper.selectList(wrapper);
+        // 从 diet_record 读取实际饮食热量数据
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .between(DietRecord::getCreateTime, start, end)
+                .orderByAsc(DietRecord::getCreateTime);
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        Map<LocalDate, List<DietRecord>> grouped = records.stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate()));
 
         List<String> xAxis = new ArrayList<>();
-        List<BigDecimal> yAxis = new ArrayList<>();
+        List<Integer> dailyCalories = new ArrayList<>();
 
-        for (HealthRecord record : records) {
-            xAxis.add(record.getCreateTime().toLocalDate().toString());
-            yAxis.add(record.getDailyCalorie());
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            List<DietRecord> dayRecords = grouped.getOrDefault(d, List.of());
+            int totalCal = dayRecords.stream()
+                    .mapToInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)
+                    .sum();
+            dailyCalories.add(totalCal);
         }
 
         CalorieTrendVO vo = new CalorieTrendVO();
         vo.setXAxis(xAxis);
-        vo.setYAxis(yAxis);
+        vo.setDailyCalories(dailyCalories);
 
         redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
@@ -299,17 +321,17 @@ public class StatisticsServiceImpl implements StatisticsService {
             HealthRecord latest = healthRecords.get(healthRecords.size() - 1);
             goal = latest.getGoal();
 
-            List<DailyCheckin> weightRecords = checkinRecords.stream()
-                    .filter(r -> r.getCurrentWeight() != null)
-                    .toList();
-            if (!weightRecords.isEmpty()) {
-                BigDecimal startWeight = weightRecords.get(0).getCurrentWeight();
-                BigDecimal latestWeight = weightRecords.get(weightRecords.size() - 1).getCurrentWeight();
-                weightChange = latestWeight.subtract(startWeight).setScale(1, RoundingMode.HALF_UP);
+            if (healthRecords.size() >= 2) {
+                Integer startWeight = healthRecords.get(0).getWeight();
+                Integer latestWeight = latest.getWeight();
+                if (startWeight != null && latestWeight != null) {
+                    weightChange = BigDecimal.valueOf(latestWeight - startWeight).setScale(1, RoundingMode.HALF_UP);
+                }
             }
 
             if (latest.getWeight() != null && latest.getGoal() != null
-                    && latest.getGoal().contains("减重") && latest.getBmi() != null) {
+                    && latest.getGoal().contains("减重") && latest.getBmi() != null
+                    && healthRecords.size() >= 2) {
                 BigDecimal targetBmi = new BigDecimal("24.0");
                 BigDecimal currentBmi = latest.getBmi();
                 BigDecimal startBmi = healthRecords.get(0).getBmi();
@@ -333,6 +355,101 @@ public class StatisticsServiceImpl implements StatisticsService {
         vo.setGoal(goal);
         return vo;
     }
+
+    private int resolveDays(Integer days) {
+
+    @Override
+    public CalorieDeficitVO getCalorieDeficit(Long userId, Integer days) {
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        // 饮食摄入
+        LambdaQueryWrapper<DietRecord> dietWrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .between(DietRecord::getCreateTime, start, end);
+        Map<LocalDate, Integer> dietMap = dietRecordMapper.selectList(dietWrapper).stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate(),
+                        Collectors.summingInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)));
+
+        // 运动消耗
+        LambdaQueryWrapper<ExerciseRecord> exWrapper = new LambdaQueryWrapper<ExerciseRecord>()
+                .eq(ExerciseRecord::getUserId, userId)
+                .between(ExerciseRecord::getCreateTime, start, end);
+        Map<LocalDate, Integer> exerciseMap = exerciseRecordMapper.selectList(exWrapper).stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate(),
+                        Collectors.summingInt(r -> r.getCaloriesBurned() != null ? r.getCaloriesBurned() : 0)));
+
+        List<String> xAxis = new ArrayList<>();
+        List<Integer> consumed = new ArrayList<>();
+        List<Integer> burned = new ArrayList<>();
+        List<Integer> net = new ArrayList<>();
+
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            int c = dietMap.getOrDefault(d, 0);
+            int b = exerciseMap.getOrDefault(d, 0);
+            consumed.add(c);
+            burned.add(b);
+            net.add(c - b);
+        }
+
+        CalorieDeficitVO vo = new CalorieDeficitVO();
+        vo.setXAxis(xAxis);
+        vo.setConsumed(consumed);
+        vo.setBurned(burned);
+        vo.setNet(net);
+        return vo;
+    }
+
+    @Override
+    public NutrientRatioVO getNutrientRatio(Long userId, Integer days) {
+        int range = resolveDays(days);
+        LocalDateTime start = LocalDate.now().minusDays(range - 1).atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .between(DietRecord::getCreateTime, start, end);
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        double totalProtein = records.stream().mapToDouble(r -> r.getProtein() != null ? r.getProtein().doubleValue() : 0).sum();
+        double totalFat = records.stream().mapToDouble(r -> r.getFat() != null ? r.getFat().doubleValue() : 0).sum();
+        double totalCarbs = records.stream().mapToDouble(r -> r.getCarbs() != null ? r.getCarbs().doubleValue() : 0).sum();
+
+        NutrientRatioVO vo = new NutrientRatioVO();
+        vo.setNames(List.of("蛋白质", "脂肪", "碳水"));
+        vo.setValues(List.of(round2(totalProtein), round2(totalFat), round2(totalCarbs)));
+        return vo;
+    }
+
+    @Override
+    public ExerciseDistributionVO getExerciseDistribution(Long userId, Integer days) {
+        int range = resolveDays(days);
+        LocalDateTime start = LocalDate.now().minusDays(range - 1).atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        LambdaQueryWrapper<ExerciseRecord> wrapper = new LambdaQueryWrapper<ExerciseRecord>()
+                .eq(ExerciseRecord::getUserId, userId)
+                .between(ExerciseRecord::getCreateTime, start, end);
+        List<ExerciseRecord> records = exerciseRecordMapper.selectList(wrapper);
+
+        Map<String, Long> typeCount = records.stream()
+                .collect(Collectors.groupingBy(
+                        r -> r.getExerciseType() != null ? r.getExerciseType() : "其他",
+                        Collectors.counting()));
+
+        List<String> names = new ArrayList<>(typeCount.keySet());
+        List<Long> values = new ArrayList<>(typeCount.values());
+
+        ExerciseDistributionVO vo = new ExerciseDistributionVO();
+        vo.setNames(names);
+        vo.setValues(values);
+        return vo;
+    }
+
+    private double round2(double v) { return Math.round(v * 100.0) / 100.0; }
 
     private int resolveDays(Integer days) {
         if (days == null || days <= 0) {

@@ -7,6 +7,7 @@ import com.example.dto.AnnouncementCreateDTO;
 import com.example.dto.AnnouncementUpdateDTO;
 import com.example.entity.SysAnnouncement;
 import com.example.entity.SysNotification;
+import com.example.entity.SysUser;
 import com.example.mapper.SysAnnouncementMapper;
 import com.example.mapper.SysNotificationMapper;
 import com.example.mapper.SysUserMapper;
@@ -26,9 +27,6 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminAnnouncementServiceImpl.class);
 
-    private static final int STATUS_DRAFT = 0;
-    private static final int STATUS_PUBLISHED = 1;
-
     @Autowired
     private SysAnnouncementMapper sysAnnouncementMapper;
 
@@ -47,13 +45,21 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
     }
 
     @Override
+    public SysAnnouncement getById(Long id) {
+        SysAnnouncement announcement = sysAnnouncementMapper.selectById(id);
+        if (announcement == null) {
+            throw new BusinessException(404, "公告不存在");
+        }
+        return announcement;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public SysAnnouncement createAnnouncement(AnnouncementCreateDTO dto, Long adminId) {
         SysAnnouncement announcement = new SysAnnouncement();
         announcement.setTitle(dto.getTitle());
         announcement.setContent(dto.getContent());
         announcement.setAdminId(adminId);
-        announcement.setStatus(STATUS_DRAFT);
         sysAnnouncementMapper.insert(announcement);
         log.info("管理员创建公告 adminId={} announcementId={}", adminId, announcement.getId());
         return announcement;
@@ -68,9 +74,6 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
         }
         announcement.setTitle(dto.getTitle());
         announcement.setContent(dto.getContent());
-        if (dto.getStatus() != null) {
-            announcement.setStatus(dto.getStatus());
-        }
         announcement.setUpdateTime(LocalDateTime.now());
         sysAnnouncementMapper.updateById(announcement);
         log.info("管理员更新公告 announcementId={}", dto.getId());
@@ -95,35 +98,50 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
         if (announcement == null) {
             throw new BusinessException(404, "公告不存在");
         }
-        if (announcement.getStatus() != null && announcement.getStatus() == STATUS_PUBLISHED) {
-            throw new BusinessException("公告已发布，无需重复操作");
-        }
-        announcement.setStatus(STATUS_PUBLISHED);
-        announcement.setPublishTime(LocalDateTime.now());
-        announcement.setUpdateTime(LocalDateTime.now());
-        sysAnnouncementMapper.updateById(announcement);
-        log.info("管理员发布公告 announcementId={}", id);
-
         broadcastNotificationAsync(announcement);
+        log.info("管理员广播公告 announcementId={}", id);
     }
 
     @Async
     public void broadcastNotificationAsync(SysAnnouncement announcement) {
         try {
-            List<Long> userIds = sysUserMapper.selectList(null).stream()
-                    .map(u -> u.getId())
-                    .toList();
+            int batchSize = 500;
+            int pageNum = 1;
+            int totalSent = 0;
 
-            for (Long userId : userIds) {
-                SysNotification notification = new SysNotification();
-                notification.setUserId(userId);
-                notification.setTitle("系统公告");
-                notification.setContent(announcement.getTitle());
-                notification.setType("system");
-                notification.setIsRead(0);
-                sysNotificationMapper.insert(notification);
+            while (true) {
+                Page<SysUser> userPage = new Page<>(pageNum, batchSize);
+                Page<SysUser> result = sysUserMapper.selectPage(userPage, null);
+                List<SysUser> users = result.getRecords();
+
+                if (users.isEmpty()) {
+                    break;
+                }
+
+                List<SysNotification> notifications = users.stream().map(user -> {
+                    SysNotification notification = new SysNotification();
+                    notification.setUserId(user.getId());
+                    notification.setTitle("系统公告");
+                    notification.setContent(announcement.getTitle());
+                    notification.setType("system");
+                    notification.setIsRead(0);
+                    return notification;
+                }).toList();
+
+                // 批量插入
+                for (SysNotification notif : notifications) {
+                    sysNotificationMapper.insert(notif);
+                }
+
+                totalSent += users.size();
+                pageNum++;
+
+                if (users.size() < batchSize) {
+                    break;
+                }
             }
-            log.info("公告广播完成 announcementId={} 通知用户数={}", announcement.getId(), userIds.size());
+
+            log.info("公告广播完成 announcementId={} 通知用户数={}", announcement.getId(), totalSent);
         } catch (Exception e) {
             log.error("公告广播失败 announcementId={}", announcement.getId(), e);
         }

@@ -3,7 +3,12 @@
     <div class="glass-card page-card">
       <div class="page-header">
         <h2 class="page-title">通知中心</h2>
-        <el-button type="primary" text @click="handleMarkAllRead">全部已读</el-button>
+        <div class="header-actions">
+          <el-button type="default" text @click="showPreferenceDialog = true">
+            <el-icon><Setting /></el-icon> 通知偏好
+          </el-button>
+          <el-button type="primary" text @click="handleMarkAllRead">全部已读</el-button>
+        </div>
       </div>
 
       <div class="notification-list" v-loading="loading">
@@ -61,14 +66,50 @@
         />
       </div>
     </div>
+
+    <!-- 通知偏好设置对话框 -->
+    <el-dialog v-model="showPreferenceDialog" title="通知偏好设置" width="460px" @close="loadPreferences">
+      <el-form :model="prefForm" label-width="110px" label-position="left">
+        <el-form-item label="总开关">
+          <el-switch v-model="prefForm.notificationEnabled" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+        <el-form-item label="每日提醒时间">
+          <el-time-picker v-model="prefForm.reminderTime" format="HH:mm" value-format="HH:mm" placeholder="选择时间" style="width:100%" />
+        </el-form-item>
+        <el-divider />
+        <el-form-item label="运动提醒">
+          <el-switch v-model="prefForm.notifyExercise" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+        <el-form-item label="饮食提醒">
+          <el-switch v-model="prefForm.notifyDiet" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+        <el-form-item label="打卡提醒">
+          <el-switch v-model="prefForm.notifyCheckin" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+        <el-divider />
+        <el-form-item label="安静时段">
+          <div style="display:flex;align-items:center;gap:8px">
+            <el-time-picker v-model="prefForm.quietStart" format="HH:mm" value-format="HH:mm" placeholder="开始" style="width:120px" />
+            <span style="color:#8b949e">至</span>
+            <el-time-picker v-model="prefForm.quietEnd" format="HH:mm" value-format="HH:mm" placeholder="结束" style="width:120px" />
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showPreferenceDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingPrefs" @click="savePreferences">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Setting } from '@element-plus/icons-vue'
 import { getNotificationList, markAsRead, markAllAsRead, deleteNotification } from '@/api/notification'
 import { useUserStore } from '@/stores/user'
+import request from '@/utils/request'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -76,6 +117,19 @@ const list = ref([])
 const page = ref(1)
 const size = ref(10)
 const total = ref(0)
+
+// 通知偏好设置
+const showPreferenceDialog = ref(false)
+const savingPrefs = ref(false)
+const prefForm = reactive({
+  notificationEnabled: 1,
+  reminderTime: '',
+  notifyExercise: 1,
+  notifyDiet: 1,
+  notifyCheckin: 1,
+  quietStart: '',
+  quietEnd: ''
+})
 
 async function fetchData() {
   loading.value = true
@@ -133,8 +187,34 @@ function handleDelete(item) {
   }).catch(() => {})
 }
 
+// 加载通知偏好
+async function loadPreferences() {
+  try {
+    const res = await request({ url: '/notification-preference', method: 'get' })
+    if (res.data) {
+      Object.assign(prefForm, res.data)
+      if (prefForm.notificationEnabled == null) prefForm.notificationEnabled = 1
+      if (prefForm.notifyExercise == null) prefForm.notifyExercise = 1
+      if (prefForm.notifyDiet == null) prefForm.notifyDiet = 1
+      if (prefForm.notifyCheckin == null) prefForm.notifyCheckin = 1
+    }
+  } catch { /* ignore */ }
+}
+
+// 保存通知偏好
+async function savePreferences() {
+  savingPrefs.value = true
+  try {
+    await request({ url: '/notification-preference', method: 'put', data: prefForm })
+    ElMessage.success('通知偏好已保存')
+    showPreferenceDialog.value = false
+  } catch { /* handled by interceptor */ }
+  finally { savingPrefs.value = false }
+}
+
 onMounted(() => {
   fetchData()
+  loadPreferences()
 })
 </script>
 

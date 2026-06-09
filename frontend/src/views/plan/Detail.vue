@@ -42,6 +42,41 @@
         </div>
       </div>
 
+      <!-- AI动态计划调整 -->
+      <div class="adjust-card glass-card">
+        <div class="adjust-header">
+          <h3><el-icon><MagicStick /></el-icon> AI动态计划调整</h3>
+          <el-button
+            type="primary"
+            size="small"
+            :loading="adjusting"
+            @click="handleAdjustPlan"
+          >
+            分析打卡数据并调整计划
+          </el-button>
+        </div>
+        <p class="adjust-tip">AI会分析你最近的打卡完成情况、体重变化和身体状况，智能调整后续计划</p>
+
+        <div v-if="adjustResult" class="adjust-result">
+          <div class="adjust-summary">
+            <el-tag type="success" effect="dark">调整建议</el-tag>
+            <span>{{ adjustResult.summary }}</span>
+          </div>
+          <div v-if="adjustResult.changes?.length" class="adjust-changes">
+            <h4>调整项</h4>
+            <ul>
+              <li v-for="(change, i) in adjustResult.changes" :key="i">
+                <el-tag size="small" :type="change.type === 'increase' ? 'success' : 'warning'">
+                  {{ change.type === 'increase' ? '增加' : change.type === 'decrease' ? '减少' : '调整' }}
+                </el-tag>
+                <span>{{ change.description }}</span>
+                <em>{{ change.reason }}</em>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <el-empty v-else description="计划内容为空" />
     </div>
   </div>
@@ -52,10 +87,14 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, Check } from '@element-plus/icons-vue'
 import { getPlanDetail } from '@/api/aiPlan'
+import { adjustPlan } from '@/api/aiPlan'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const pageLoading = ref(false)
 const plan = ref(null)
+const adjusting = ref(false)
+const adjustResult = ref(null)
 
 const planDays = computed(() => {
   if (!plan.value?.aiContent) return []
@@ -111,6 +150,21 @@ li::before{content:'✓';color:#3fb950;flex-shrink:0}
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+async function handleAdjustPlan() {
+  if (!plan.value) return
+  adjusting.value = true
+  adjustResult.value = null
+  try {
+    const res = await adjustPlan(plan.value.id)
+    adjustResult.value = res.data
+    ElMessage.success('计划调整建议已生成')
+  } catch {
+    // handled by interceptor
+  } finally {
+    adjusting.value = false
+  }
 }
 
 onMounted(async () => {
@@ -212,5 +266,90 @@ onMounted(async () => {
   font-size: 14px;
   color: var(--text-primary);
   line-height: 1.5;
+}
+
+/* AI动态调整 */
+.adjust-card {
+  margin-top: 20px;
+  padding: 20px 24px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+}
+
+.adjust-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.adjust-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #58a6ff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adjust-tip {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 16px;
+}
+
+.adjust-result {
+  padding: 16px;
+  background: rgba(88, 166, 255, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(88, 166, 255, 0.12);
+}
+
+.adjust-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.adjust-summary span {
+  color: #c9d1d9;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.adjust-changes h4 {
+  font-size: 13px;
+  color: #58a6ff;
+  margin-bottom: 10px;
+}
+
+.adjust-changes ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.adjust-changes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #0d1117;
+  border-radius: 6px;
+  border: 1px solid #21262d;
+  font-size: 13px;
+  color: #c9d1d9;
+  line-height: 1.5;
+}
+
+.adjust-changes li em {
+  color: #8b949e;
+  font-size: 12px;
+  font-style: normal;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 </style>

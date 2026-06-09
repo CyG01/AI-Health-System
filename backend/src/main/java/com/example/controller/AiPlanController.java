@@ -88,4 +88,13 @@ public class AiPlanController {
         aiPlanService.deletePlan(id, userId);
         return Result.success();
     }
+
+    @NoRepeatSubmit
+    @Operation(summary = "标记日任务完成")
+    @PutMapping("/detail/{detailId}/complete")
+    public Result<Void> completeTask(@PathVariable Long detailId,
+                                     @RequestAttribute("userId") Long userId) {
+        aiPlanService.completeTask(detailId, userId);
+        return Result.success();
+    }
 }

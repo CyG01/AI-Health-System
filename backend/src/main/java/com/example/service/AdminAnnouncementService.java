@@ -9,6 +9,8 @@ public interface AdminAnnouncementService {
 
     Page<SysAnnouncement> listAnnouncements(int page, int size);
 
+    SysAnnouncement getById(Long id);
+
     SysAnnouncement createAnnouncement(AnnouncementCreateDTO dto, Long adminId);
 
     SysAnnouncement updateAnnouncement(AnnouncementUpdateDTO dto);

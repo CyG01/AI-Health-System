@@ -27,9 +27,11 @@ public class SysNotification implements Serializable {
 
     private String type;
 
-    private Integer isRead;
+    private String targetType;
 
-    private LocalDateTime readTime;
+    private Long targetId;
+
+    private Integer isRead;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
@@ -40,83 +42,36 @@ public class SysNotification implements Serializable {
     @Version
     private Integer version;
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 
-    public Long getUserId() {
-        return userId;
-    }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
 
-    public String getTitle() {
-        return title;
-    }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
+    public String getTargetType() { return targetType; }
+    public void setTargetType(String targetType) { this.targetType = targetType; }
 
-    public String getContent() {
-        return content;
-    }
+    public Long getTargetId() { return targetId; }
+    public void setTargetId(Long targetId) { this.targetId = targetId; }
 
-    public void setContent(String content) {
-        this.content = content;
-    }
+    public Integer getIsRead() { return isRead; }
+    public void setIsRead(Integer isRead) { this.isRead = isRead; }
 
-    public String getType() {
-        return type;
-    }
+    public LocalDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
 
-    public void setType(String type) {
-        this.type = type;
-    }
+    public Integer getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Integer isDeleted) { this.isDeleted = isDeleted; }
 
-    public Integer getIsRead() {
-        return isRead;
-    }
-
-    public void setIsRead(Integer isRead) {
-        this.isRead = isRead;
-    }
-
-    public LocalDateTime getReadTime() {
-        return readTime;
-    }
-
-    public void setReadTime(LocalDateTime readTime) {
-        this.readTime = readTime;
-    }
-
-    public LocalDateTime getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(LocalDateTime createTime) {
-        this.createTime = createTime;
-    }
-
-    public Integer getIsDeleted() {
-        return isDeleted;
-    }
-
-    public void setIsDeleted(Integer isDeleted) {
-        this.isDeleted = isDeleted;
-    }
-
-    public Integer getVersion() {
-        return version;
-    }
-
-    public void setVersion(Integer version) {
-        this.version = version;
-    }
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
 }

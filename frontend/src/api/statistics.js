@@ -46,3 +46,27 @@ export function getProgress() {
     method: 'get'
   })
 }
+
+export function getCalorieDeficit(params) {
+  return request({
+    url: '/statistics/calorie-deficit',
+    method: 'get',
+    params
+  })
+}
+
+export function getNutrientRatio(params) {
+  return request({
+    url: '/statistics/nutrient-ratio',
+    method: 'get',
+    params
+  })
+}
+
+export function getExerciseDistribution(params) {
+  return request({
+    url: '/statistics/exercise-distribution',
+    method: 'get',
+    params
+  })
+}

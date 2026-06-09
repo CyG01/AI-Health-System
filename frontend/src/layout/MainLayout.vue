@@ -71,6 +71,8 @@
       <main class="content" v-loading="appStore.pageLoading">
         <router-view />
       </main>
+      <!-- AI健康咨询浮动机器人 -->
+      <ChatBot />
     </div>
   </div>
 </template>
@@ -82,6 +84,7 @@ import { ElMessage } from 'element-plus'
 import { Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
+import ChatBot from '@/views/chat/ChatBot.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -91,16 +94,29 @@ const appStore = useAppStore()
 const mainMenuItems = [
   { path: '/dashboard', title: '工作台', icon: 'Odometer' },
   { path: '/checkin/calendar', title: '每日打卡', icon: 'Calendar' },
+  { path: '/food', title: '饮食记录', icon: 'Dish' },
+  { path: '/water', title: '饮水记录', icon: 'Dish' },
+  { path: '/exercise', title: '运动记录', icon: 'Bicycle' },
+  { path: '/sleep', title: '睡眠管理', icon: 'Moon' },
+  { path: '/body-measurement', title: '身体围度', icon: 'DataLine' },
+  { path: '/goal', title: '目标里程碑', icon: 'Trophy' },
   { path: '/statistics', title: '数据看板', icon: 'PieChart' },
   { path: '/health/view', title: '健康档案', icon: 'Monitor' },
+  { path: '/health/report', title: 'AI健康报告', icon: 'Document' },
   { path: '/plan/list', title: 'AI计划', icon: 'MagicStick' },
+  { path: '/community', title: '健康社区', icon: 'ChatDotRound' },
   { path: '/notification', title: '通知中心', icon: 'Bell' },
   { path: '/profile', title: '个人中心', icon: 'User' }
 ]
 
 const adminMenuItems = [
   { path: '/admin/user', title: '用户管理', icon: 'UserFilled' },
-  { path: '/admin/announcement', title: '公告管理', icon: 'Notification' }
+  { path: '/admin/announcement', title: '公告管理', icon: 'Notification' },
+  { path: '/admin/food', title: '食物字典', icon: 'Dish' },
+  { path: '/admin/exercise', title: '运动字典', icon: 'Bicycle' },
+  { path: '/admin/notification', title: '发送通知', icon: 'Message' },
+  { path: '/admin/feedback', title: '计划反馈', icon: 'ChatDotSquare' },
+  { path: '/admin/audit', title: '审计日志', icon: 'Document' }
 ]
 
 const isAdmin = computed(() => userStore.userInfo?.role === 'admin')
@@ -237,5 +253,63 @@ onMounted(() => {
   padding: 16px 20px 8px;
   border-top: 1px solid rgba(48, 54, 61, 0.5);
   margin-top: 4px;
+}
+
+/* ====== 移动端响应式 ====== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    width: 220px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+
+    &.collapsed {
+      width: 220px;
+      transform: translateX(0);
+    }
+  }
+
+  .main-container {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .header {
+    height: 48px;
+    padding: 0 12px;
+  }
+
+  .username {
+    display: none;
+  }
+
+  .page-title {
+    font-size: 14px;
+  }
+
+  .content {
+    border-radius: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    height: 44px;
+    padding: 0 8px;
+  }
+
+  .user-info {
+    gap: 4px;
+    padding: 2px 4px;
+  }
+
+  :deep(.el-menu-item) {
+    font-size: 13px;
+    padding-left: 12px !important;
+  }
 }
 </style>

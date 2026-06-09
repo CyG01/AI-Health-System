@@ -25,6 +25,20 @@
         <span class="progress-value">{{ progress.goal }}</span>
         <span class="progress-label">当前目标</span>
       </div>
+      <div class="progress-divider" />
+      <div class="progress-item export-btn-wrapper">
+        <el-dropdown @command="handleExport">
+          <el-button size="small" type="default">
+            导出数据 <el-icon><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">导出 CSV</el-dropdown-item>
+              <el-dropdown-item command="excel">导出 Excel</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
     <div class="charts-container">
@@ -77,12 +91,41 @@
           <BaseChart :option="calorieOption" />
         </div>
       </div>
+
+      <div class="glass-card chart-card chart-full">
+        <div class="chart-header">
+          <span class="chart-title">热量缺口分析（摄入 vs 消耗）</span>
+        </div>
+        <div class="chart-body">
+          <BaseChart :option="calorieDeficitOption" />
+        </div>
+      </div>
+
+      <div class="glass-card chart-card chart-half">
+        <div class="chart-header">
+          <span class="chart-title">营养素占比（近{{ days }}天）</span>
+        </div>
+        <div class="chart-body">
+          <BaseChart :option="nutrientRatioOption" />
+        </div>
+      </div>
+
+      <div class="glass-card chart-card chart-half">
+        <div class="chart-header">
+          <span class="chart-title">运动类型分布（近{{ days }}天）</span>
+        </div>
+        <div class="chart-body">
+          <BaseChart :option="exerciseDistributionOption" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 import echarts from '@/utils/echarts'
 import BaseChart from '@/components/BaseChart.vue'
 import {
@@ -91,7 +134,10 @@ import {
   getCheckinTrend,
   getExerciseTrend,
   getCalorieTrend,
-  getProgress
+  getProgress,
+  getCalorieDeficit,
+  getNutrientRatio,
+  getExerciseDistribution
 } from '@/api/statistics'
 
 const pageLoading = ref(false)
@@ -123,6 +169,9 @@ const bmiOption = ref({})
 const checkinOption = ref({})
 const exerciseOption = ref({})
 const calorieOption = ref({})
+const calorieDeficitOption = ref({})
+const nutrientRatioOption = ref({})
+const exerciseDistributionOption = ref({})
 
 const weightChangeDisplay = computed(() => {
   const v = progress.weightChange
@@ -149,13 +198,17 @@ async function loadAll() {
   pageLoading.value = true
   try {
     const params = { days: days.value }
-    const [weightRes, bmiRes, checkinRes, exerciseRes, calorieRes, progressRes] = await Promise.all([
+    const [weightRes, bmiRes, checkinRes, exerciseRes, calorieRes, progressRes,
+           deficitRes, nutrientRes, exDistributionRes] = await Promise.all([
       getWeightTrend(params),
       getBmiTrend(params),
       getCheckinTrend(params),
       getExerciseTrend(params),
       getCalorieTrend(params),
-      getProgress()
+      getProgress(),
+      getCalorieDeficit(params),
+      getNutrientRatio(params),
+      getExerciseDistribution(params)
     ])
 
     const w = weightRes.data || {}
@@ -182,6 +235,21 @@ async function loadAll() {
 
     const cal = calorieRes.data || {}
     calorieOption.value = buildLineOption(cal.xAxis || [], cal.yAxis || [], '千卡/天', CHART_COLORS.amber)
+
+    const df = deficitRes.data || {}
+    calorieDeficitOption.value = buildCalorieDeficitOption(
+      df.xAxis || [], df.consumed || [], df.burned || [], df.net || []
+    )
+
+    const nr = nutrientRes.data || {}
+    nutrientRatioOption.value = buildPieOption(
+      nr.names || [], nr.values || [], '营养素占比 (g)'
+    )
+
+    const ed = exDistributionRes.data || {}
+    exerciseDistributionOption.value = buildPieOption(
+      ed.names || [], (ed.values || []).map(v => Number(v)), '运动次数'
+    )
 
     const p = progressRes.data || {}
     Object.assign(progress, {
@@ -280,9 +348,65 @@ function buildBarOption(xAxisData, yData, unitLabel, color) {
   }
 }
 
+function buildCalorieDeficitOption(xAxisData, consumed, burned, net) {
+  return {
+    tooltip: {
+      ...darkTooltip(),
+      trigger: 'axis'
+    },
+    legend: {
+      data: ['摄入', '消耗', '净差值'],
+      textStyle: { color: '#8b949e', fontSize: 11 },
+      top: 0
+    },
+    grid: { top: 32, right: 20, bottom: 28, left: 48 },
+    xAxis: { type: 'category', data: xAxisData, ...CHART_AXIS },
+    yAxis: { type: 'value', name: 'kcal', nameTextStyle: { color: '#8b949e', fontSize: 11 }, ...CHART_AXIS },
+    series: [
+      { name: '摄入', type: 'bar', data: consumed, barGap: '10%', itemStyle: { color: '#f85149', borderRadius: [4, 4, 0, 0], opacity: 0.75 } },
+      { name: '消耗', type: 'bar', data: burned, itemStyle: { color: '#58a6ff', borderRadius: [4, 4, 0, 0], opacity: 0.75 } },
+      { name: '净差值', type: 'line', data: net, smooth: true, symbol: 'circle', symbolSize: 4, lineStyle: { color: '#3fb950', width: 2 }, itemStyle: { color: '#3fb950' } }
+    ]
+  }
+}
+
+function buildPieOption(names, values, title) {
+  return {
+    tooltip: { ...darkTooltip(), trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', right: 8, top: 'center', textStyle: { color: '#8b949e', fontSize: 11 } },
+    series: [{
+      name: title,
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 4, borderColor: '#0d1117', borderWidth: 2 },
+      label: { show: false },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+      data: names.map((n, i) => ({ name: n, value: values[i] || 0 }))
+    }]
+  }
+}
+
 onMounted(() => {
   loadAll()
 })
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+function handleExport(type) {
+  const token = localStorage.getItem('token')
+  const url = `${API_BASE}/api/export/${type}`
+  // Create a hidden link to trigger download with auth
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `health-data-${new Date().toISOString().split('T')[0]}.${type === 'excel' ? 'xlsx' : 'csv'}`
+  // Add token as query param for auth
+  link.href = `${url}?token=${encodeURIComponent(token)}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  ElMessage.success(`正在下载${type.toUpperCase()}文件...`)
+}
 </script>
 
 <style scoped lang="scss">
@@ -379,5 +503,10 @@ onMounted(() => {
   flex: 1;
   min-height: 220px;
   padding: 8px 8px 12px 4px;
+}
+
+.export-btn-wrapper {
+  display: flex;
+  align-items: center;
 }
 </style>
