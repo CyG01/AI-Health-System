@@ -17,7 +17,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
 
-    private static final String TOKEN_BLACKLIST_PREFIX = "token:blacklist:";
+    private static final String TOKEN_BLACKLIST_PREFIX = "auth:blacklist:";
 
     private final JwtUtil jwtUtil;
     private final JwtProperties jwtProperties;
@@ -58,7 +58,7 @@ public class JwtInterceptor implements HandlerInterceptor {
 
         request.setAttribute("userId", jwtUtil.getUserId(token));
         request.setAttribute("username", jwtUtil.getUsername(token));
-        request.setAttribute("role", jwtUtil.getRole(token));
+        request.setAttribute("userRole", jwtUtil.getRole(token));
         return true;
     }
 }

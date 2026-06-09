@@ -29,7 +29,7 @@ public class DeepSeekCostMonitor {
     private String currentKey;
 
     @PostConstruct
-    private void init() {
+    public void init() {
         currentKey = buildKey();
     }
 
@@ -37,7 +37,7 @@ public class DeepSeekCostMonitor {
     public void resetDailyCost() {
         redisTemplate.delete(buildYesterdayKey());
         currentKey = buildKey();
-        log.warn("DeepSeek每日消耗统计已重置");
+        log.info("DeepSeek每日消耗统计已重置");
     }
 
     public void recordCall(int inputTokens, int outputTokens) {
@@ -56,7 +56,7 @@ public class DeepSeekCostMonitor {
         redisTemplate.opsForHash().increment(currentKey, costField, callCost.doubleValue());
 
         BigDecimal totalCost = getCurrentDailyCost();
-        log.warn("DeepSeek API调用 cost={} totalDailyCost={}", callCost, totalCost);
+        log.info("DeepSeek API调用 cost={} totalDailyCost={}", callCost, totalCost);
     }
 
     public boolean isGlobalCostExceeded() {

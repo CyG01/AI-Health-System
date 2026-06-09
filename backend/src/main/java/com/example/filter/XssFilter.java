@@ -12,6 +12,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+/**
+ * XSS保护 - Servlet Filter层
+ * 对query参数和form参数进行HTML转义。
+ * 与JacksonXssConfig分工：Filter层处理query/form参数，Jackson层处理JSON body。
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class XssFilter extends OncePerRequestFilter {

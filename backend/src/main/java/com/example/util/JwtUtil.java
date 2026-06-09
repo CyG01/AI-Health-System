@@ -33,8 +33,8 @@ public class JwtUtil {
         return buildToken(userId, username, role, jwtProperties.getAccessTokenExpire(), "access");
     }
 
-    public String generateRefreshToken(Long userId, String username, String role) {
-        return buildToken(userId, username, role, jwtProperties.getRefreshTokenExpire(), "refresh");
+    public String generateRefreshToken(Long userId) {
+        return buildToken(userId, null, null, jwtProperties.getRefreshTokenExpire(), "refresh");
     }
 
     private String buildToken(Long userId, String username, String role, Long expireMillis, String tokenType) {

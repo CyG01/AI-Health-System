@@ -17,6 +17,12 @@ public class UserLoginDTO implements Serializable {
     @Size(min = 6, max = 20, message = "密码长度必须在6-20个字符之间")
     private String password;
 
+    @NotBlank(message = "验证码不能为空")
+    private String captchaCode;
+
+    @NotBlank(message = "验证码不能为空")
+    private String captchaUuid;
+
     public String getUsername() {
         return username;
     }
@@ -31,5 +37,21 @@ public class UserLoginDTO implements Serializable {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getCaptchaCode() {
+        return captchaCode;
+    }
+
+    public void setCaptchaCode(String captchaCode) {
+        this.captchaCode = captchaCode;
+    }
+
+    public String getCaptchaUuid() {
+        return captchaUuid;
+    }
+
+    public void setCaptchaUuid(String captchaUuid) {
+        this.captchaUuid = captchaUuid;
     }
 }

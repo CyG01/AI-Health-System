@@ -11,4 +11,8 @@ public interface UserService {
     UserInfoVO getProfile(Long userId);
 
     UserInfoVO updateProfile(Long userId, UpdateProfileDTO dto);
+
+    void updateAvatar(Long userId, String avatarUrl);
+
+    String getAvatar(Long userId);
 }

@@ -12,6 +12,17 @@
             <el-form-item label="密码" prop="password">
               <el-input v-model="accountForm.password" type="password" placeholder="请输入密码" show-password />
             </el-form-item>
+            <el-form-item label="验证码" prop="captchaCode">
+              <div class="captcha-row">
+                <el-input v-model="accountForm.captchaCode" placeholder="请输入验证码" maxlength="6" />
+                <div class="captcha-img-box" @click="refreshCaptcha" title="点击刷新验证码">
+                  <img v-if="captchaBase64" :src="captchaBase64" alt="验证码" class="captcha-img" />
+                  <div v-else class="captcha-placeholder">
+                    <el-icon :size="20"><Refresh /></el-icon>
+                  </div>
+                </div>
+              </div>
+            </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="loading" :disabled="loading" class="submit-btn" @click="handleAccountLogin">
                 登录
@@ -47,10 +58,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { login, loginByPhone, sendCode } from '@/api/auth'
+import { Refresh } from '@element-plus/icons-vue'
+import { getCaptcha, login, loginByPhone, sendCode } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { usernameRules, passwordRules, phoneRules as phoneFieldRules, verifyCodeRules } from '@/utils/validate'
 
@@ -66,9 +78,13 @@ const codeSending = ref(false)
 const countdown = ref(0)
 let countdownTimer = null
 
+const captchaBase64 = ref('')
+const captchaUuid = ref('')
+
 const accountForm = reactive({
   username: '',
-  password: ''
+  password: '',
+  captchaCode: ''
 })
 
 const phoneForm = reactive({
@@ -78,7 +94,10 @@ const phoneForm = reactive({
 
 const accountRules = {
   username: usernameRules,
-  password: passwordRules
+  password: passwordRules,
+  captchaCode: [
+    { required: true, message: '请输入验证码', trigger: 'blur' }
+  ]
 }
 
 const phoneFormRules = {
@@ -89,6 +108,25 @@ const phoneFormRules = {
 const codeButtonText = computed(() => {
   return countdown.value > 0 ? `${countdown.value}s后重试` : '获取验证码'
 })
+
+async function fetchCaptcha() {
+  try {
+    const res = await getCaptcha()
+    if (res.data) {
+      captchaBase64.value = res.data.base64
+      captchaUuid.value = res.data.uuid
+    }
+  } catch {
+    captchaBase64.value = ''
+    captchaUuid.value = ''
+  }
+}
+
+function refreshCaptcha() {
+  captchaBase64.value = ''
+  captchaUuid.value = ''
+  fetchCaptcha()
+}
 
 function startCountdown() {
   countdown.value = 60
@@ -121,6 +159,7 @@ async function handleSendCode() {
 
 async function handleLoginSuccess(res) {
   userStore.setAuth(res.data)
+  userStore.fetchUnreadCount()
   ElMessage.success('登录成功')
   const redirect = route.query.redirect || '/dashboard'
   await router.push(redirect)
@@ -134,9 +173,14 @@ async function handleAccountLogin() {
     try {
       const res = await login({
         username: accountForm.username,
-        password: accountForm.password
+        password: accountForm.password,
+        captchaCode: accountForm.captchaCode,
+        captchaUuid: captchaUuid.value
       })
       await handleLoginSuccess(res)
+    } catch {
+      refreshCaptcha()
+      accountForm.captchaCode = ''
     } finally {
       loading.value = false
     }
@@ -159,6 +203,10 @@ async function handlePhoneLogin() {
     }
   })
 }
+
+onMounted(() => {
+  fetchCaptcha()
+})
 
 onUnmounted(() => {
   if (countdownTimer) {
@@ -215,6 +263,51 @@ onUnmounted(() => {
   .el-input {
     flex: 1;
   }
+}
+
+.captcha-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+
+  .el-input {
+    flex: 1;
+  }
+}
+
+.captcha-img-box {
+  width: 120px;
+  height: 40px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: var(--radius-base);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 17, 23, 0.6);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 8px rgba(88, 166, 255, 0.25);
+  }
+}
+
+.captcha-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.captcha-placeholder {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .submit-btn {

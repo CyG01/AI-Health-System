@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
 import com.example.common.Result;
 import com.example.dto.HealthCreateDTO;
 import com.example.dto.HealthUpdateDTO;
@@ -30,6 +31,7 @@ public class HealthController {
     @Autowired
     private HealthService healthService;
 
+    @NoRepeatSubmit
     @Operation(summary = "创建健康档案")
     @PostMapping("/create")
     public Result<HealthRecordVO> create(@Validated @RequestBody HealthCreateDTO dto,
@@ -37,6 +39,7 @@ public class HealthController {
         return Result.success(healthService.createHealthRecord(userId, dto));
     }
 
+    @NoRepeatSubmit
     @Operation(summary = "更新健康档案")
     @PutMapping("/update")
     public Result<HealthRecordVO> update(@Validated @RequestBody HealthUpdateDTO dto,

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -42,6 +43,9 @@ public class AiPlan implements Serializable {
 
     @TableLogic
     private Integer isDeleted;
+
+    @Version
+    private Integer version;
 
     public Long getId() {
         return id;
@@ -129,5 +133,13 @@ public class AiPlan implements Serializable {
 
     public void setIsDeleted(Integer isDeleted) {
         this.isDeleted = isDeleted;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 }

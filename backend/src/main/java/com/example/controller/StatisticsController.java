@@ -8,6 +8,8 @@ import com.example.vo.CheckinTrendVO;
 import com.example.vo.ExerciseTrendVO;
 import com.example.vo.ProgressVO;
 import com.example.vo.WeightTrendVO;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,35 +30,35 @@ public class StatisticsController {
     @Operation(summary = "体重变化趋势")
     @GetMapping("/weight")
     public Result<WeightTrendVO> weight(@RequestAttribute("userId") Long userId,
-                                        @RequestParam(defaultValue = "30") Integer days) {
+                                        @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
         return Result.success(statisticsService.getWeightTrend(userId, days));
     }
 
     @Operation(summary = "BMI变化趋势")
     @GetMapping("/bmi")
     public Result<BmiTrendVO> bmi(@RequestAttribute("userId") Long userId,
-                                  @RequestParam(defaultValue = "30") Integer days) {
+                                  @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
         return Result.success(statisticsService.getBmiTrend(userId, days));
     }
 
     @Operation(summary = "打卡完成率")
     @GetMapping("/checkin")
     public Result<CheckinTrendVO> checkin(@RequestAttribute("userId") Long userId,
-                                          @RequestParam(defaultValue = "30") Integer days) {
+                                          @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
         return Result.success(statisticsService.getCheckinTrend(userId, days));
     }
 
     @Operation(summary = "运动完成率统计")
     @GetMapping("/exercise")
     public Result<ExerciseTrendVO> exercise(@RequestAttribute("userId") Long userId,
-                                            @RequestParam(defaultValue = "30") Integer days) {
+                                            @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
         return Result.success(statisticsService.getExerciseTrend(userId, days));
     }
 
     @Operation(summary = "热量摄入统计")
     @GetMapping("/calorie")
     public Result<CalorieTrendVO> calorie(@RequestAttribute("userId") Long userId,
-                                          @RequestParam(defaultValue = "30") Integer days) {
+                                          @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
         return Result.success(statisticsService.getCalorieTrend(userId, days));
     }
 

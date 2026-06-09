@@ -18,6 +18,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
             "/api/auth/send-code",
             "/api/auth/reset-password",
             "/api/auth/refresh",
+            "/api/auth/captcha",
+            "/avatars/**",
             "/error"
     );
 
@@ -32,5 +34,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(jwtInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(EXCLUDE_PATHS);
+    }
+
+    @Override
+    public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/avatars/**")
+                .addResourceLocations("file:uploads/avatars/");
     }
 }

@@ -15,12 +15,14 @@ import com.example.vo.AiPlanDetailVO;
 import com.example.vo.AiPlanVO;
 import com.example.vo.HealthRecordVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -32,10 +34,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class AiPlanServiceImpl implements AiPlanService {
-
-    private static final Logger log = LoggerFactory.getLogger(AiPlanServiceImpl.class);
 
     private static final String GLOBAL_CACHE_KEY = "ai:plan:global:%s";
     private static final String USER_LIMIT_KEY = "ai:plan:limit:%d:%s";
@@ -45,29 +46,38 @@ public class AiPlanServiceImpl implements AiPlanService {
     private static final long GLOBAL_CACHE_TTL = 30;
     private static final long USER_CACHE_TTL = 7;
 
-    @Autowired
-    private HealthService healthService;
+    private final HealthService healthService;
+    private final DeepSeekService deepSeekService;
+    private final DeepSeekCostMonitor deepSeekCostMonitor;
+    private final DeepSeekProperties deepSeekProperties;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final AiPlanMapper aiPlanMapper;
+    private final AiPlanConvert aiPlanConvert;
+    private final ObjectMapper objectMapper;
+    private final AiPlanCollectionMapper aiPlanCollectionMapper;
+    private final AiPlanServiceImpl self;
 
-    @Autowired
-    private DeepSeekService deepSeekService;
-
-    @Autowired
-    private DeepSeekCostMonitor deepSeekCostMonitor;
-
-    @Autowired
-    private DeepSeekProperties deepSeekProperties;
-
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
-
-    @Autowired
-    private AiPlanMapper aiPlanMapper;
-
-    @Autowired
-    private AiPlanConvert aiPlanConvert;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    public AiPlanServiceImpl(HealthService healthService,
+                             DeepSeekService deepSeekService,
+                             DeepSeekCostMonitor deepSeekCostMonitor,
+                             DeepSeekProperties deepSeekProperties,
+                             RedisTemplate<String, Object> redisTemplate,
+                             AiPlanMapper aiPlanMapper,
+                             AiPlanConvert aiPlanConvert,
+                             ObjectMapper objectMapper,
+                             AiPlanCollectionMapper aiPlanCollectionMapper,
+                             @Lazy AiPlanServiceImpl self) {
+        this.healthService = healthService;
+        this.deepSeekService = deepSeekService;
+        this.deepSeekCostMonitor = deepSeekCostMonitor;
+        this.deepSeekProperties = deepSeekProperties;
+        this.redisTemplate = redisTemplate;
+        this.aiPlanMapper = aiPlanMapper;
+        this.aiPlanConvert = aiPlanConvert;
+        this.objectMapper = objectMapper;
+        this.aiPlanCollectionMapper = aiPlanCollectionMapper;
+        this.self = self;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -85,7 +95,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         String globalCacheKey = String.format(GLOBAL_CACHE_KEY, featureHash);
         Object cachedContent = redisTemplate.opsForValue().get(globalCacheKey);
         if (cachedContent != null) {
-            log.warn("命中L2全局缓存 featureHash={}", featureHash);
+            log.info("命中L2全局缓存 featureHash={}", featureHash);
             AiPlan cloned = clonePlanForUser(userId, dto, cachedContent.toString());
             aiPlanMapper.insert(cloned);
             cachePlan(cloned);
@@ -120,7 +130,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         plan.setStatus(1);
 
         aiPlanMapper.insert(plan);
-        log.warn("AI计划生成成功 userId={} planId={} model={}", userId, plan.getId(), model);
+        log.info("AI计划生成成功 userId={} planId={} model={}", userId, plan.getId(), model);
 
         redisTemplate.opsForValue().set(globalCacheKey, aiContent, GLOBAL_CACHE_TTL, TimeUnit.DAYS);
         cachePlan(plan);
@@ -129,13 +139,131 @@ public class AiPlanServiceImpl implements AiPlanService {
     }
 
     @Override
-    public List<AiPlanVO> getPlanList(Long userId) {
+    @Async
+    public void generatePlanStream(PlanGenerateDTO dto, Long userId, SseEmitter emitter) {
+        try {
+            if (deepSeekCostMonitor.isGlobalCostExceeded()) {
+                emitter.send(SseEmitter.event().name("error").data("今日AI调用额度已用尽，请明天再试"));
+                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                emitter.complete();
+                return;
+            }
+
+            HealthRecordVO healthRecord = healthService.getLatestHealthRecord(userId);
+
+            String featureHash = computeFeatureHash(
+                    healthRecord.getHeight(), healthRecord.getWeight(), healthRecord.getGoal(),
+                    dto.getDurationDays(), dto.getIntensity());
+
+            String globalCacheKey = String.format(GLOBAL_CACHE_KEY, featureHash);
+            Object cachedContent = redisTemplate.opsForValue().get(globalCacheKey);
+            if (cachedContent != null) {
+                log.info("命中L2全局缓存 featureHash={}", featureHash);
+                ((AiPlanServiceImpl) self).cloneAndCachePlan(userId, dto, cachedContent.toString());
+
+                emitter.send(SseEmitter.event().name("message").data(cachedContent.toString()));
+                emitter.send(SseEmitter.event().name("message").data("[DONE]"));
+                emitter.complete();
+                return;
+            }
+
+            String dateStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+            String limitKey = String.format(USER_LIMIT_KEY, userId, dateStr);
+            Long callCount = redisTemplate.opsForValue().increment(limitKey, 1);
+            if (callCount != null && callCount == 1) {
+                redisTemplate.expire(limitKey, 1, TimeUnit.DAYS);
+            }
+            if (callCount != null && callCount > DAILY_LIMIT) {
+                emitter.send(SseEmitter.event().name("error").data("今日AI计划生成次数已达上限(3次)，请明天再试"));
+                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                emitter.complete();
+                return;
+            }
+
+            String model = selectModel(dto, healthRecord);
+            String preference = buildPreference(dto);
+
+            StringBuilder fullContent = new StringBuilder();
+
+            deepSeekService.callApiStream(
+                    healthRecord.getHeight(), healthRecord.getWeight(),
+                    healthRecord.getGoal(), dto.getDurationDays(),
+                    preference, model)
+                    .doOnNext(chunk -> {
+                        try {
+                            if (fullContent.length() == 0 && chunk.trim().isEmpty()) {
+                                return;
+                            }
+                            emitter.send(SseEmitter.event().name("message").data(chunk));
+                            fullContent.append(chunk);
+                        } catch (Exception e) {
+                            log.error("SSE发送失败", e);
+                        }
+                    })
+                    .doOnError(error -> {
+                        log.error("AI流式生成失败 userId={}", userId, error);
+                        try {
+                            emitter.send(SseEmitter.event().name("error")
+                                    .data(error instanceof BusinessException ? error.getMessage() : "AI服务调用失败"));
+                            emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                        } catch (Exception ex) {
+                            log.error("SSE错误发送失败", ex);
+                        }
+                        emitter.completeWithError(error);
+                    })
+                    .doOnComplete(() -> {
+                        try {
+                            String aiContent = fullContent.toString();
+                            if (aiContent.isBlank()) {
+                                emitter.send(SseEmitter.event().name("error").data("AI返回内容为空"));
+                                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                                emitter.complete();
+                                return;
+                            }
+
+                            ((AiPlanServiceImpl) self).savePlanWithContent(userId, dto, aiContent, globalCacheKey);
+
+                            emitter.send(SseEmitter.event().name("message").data("[DONE]"));
+                            emitter.complete();
+                        } catch (Exception e) {
+                            log.error("计划保存失败 userId={}", userId, e);
+                            try {
+                                emitter.send(SseEmitter.event().name("error").data("计划保存失败"));
+                                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                            } catch (Exception ex) {
+                                log.error("SSE错误发送失败", ex);
+                            }
+                            emitter.completeWithError(e);
+                        }
+                    })
+                    .subscribe();
+        } catch (Exception e) {
+            log.error("流式生成计划异常 userId={}", userId, e);
+            try {
+                emitter.send(SseEmitter.event().name("error").data("系统繁忙，请稍后重试"));
+                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                emitter.complete();
+            } catch (Exception ex) {
+                log.error("SSE错误发送失败", ex);
+            }
+        }
+    }
+
+    @Override
+    public Page<AiPlanVO> getPlanList(Long userId, int page, int size, String keyword) {
+        Page<AiPlan> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<AiPlan> wrapper = new LambdaQueryWrapper<AiPlan>()
                 .eq(AiPlan::getUserId, userId)
+                .like(!isBlank(keyword), AiPlan::getPlanName, keyword)
                 .orderByDesc(AiPlan::getCreateTime);
-        return aiPlanMapper.selectList(wrapper).stream()
-                .map(aiPlanConvert::toAiPlanVO)
-                .toList();
+        Page<AiPlan> result = aiPlanMapper.selectPage(pageParam, wrapper);
+        Page<AiPlanVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        voPage.setRecords(result.getRecords().stream().map(aiPlanConvert::toAiPlanVO).toList());
+        return voPage;
+    }
+
+    private static boolean isBlank(String str) {
+        return str == null || str.isBlank();
     }
 
     @Override
@@ -162,7 +290,7 @@ public class AiPlanServiceImpl implements AiPlanService {
 
         String activeKey = String.format(ACTIVE_PLAN_CACHE_KEY, userId);
         redisTemplate.delete(activeKey);
-        log.warn("切换生效计划 userId={} planId={}", userId, planId);
+        log.info("切换生效计划 userId={} planId={}", userId, planId);
     }
 
     @Override
@@ -172,7 +300,33 @@ public class AiPlanServiceImpl implements AiPlanService {
         aiPlanMapper.deleteById(plan.getId());
         String cacheKey = String.format(USER_CACHE_KEY, userId, planId);
         redisTemplate.delete(cacheKey);
-        log.warn("删除AI计划 userId={} planId={}", userId, planId);
+        log.info("删除AI计划 userId={} planId={}", userId, planId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void savePlanWithContent(Long userId, PlanGenerateDTO dto, String aiContent, String globalCacheKey) {
+        AiPlan plan = new AiPlan();
+        plan.setUserId(userId);
+        plan.setPlanType(dto.getPlanType());
+        plan.setPlanName(buildPlanName(dto));
+        plan.setDurationDays(dto.getDurationDays());
+        plan.setAiContent(aiContent);
+        plan.setStartDate(LocalDate.now());
+        plan.setStatus(1);
+
+        aiPlanMapper.insert(plan);
+
+        redisTemplate.opsForValue().set(globalCacheKey, aiContent, GLOBAL_CACHE_TTL, TimeUnit.DAYS);
+        cachePlan(plan);
+
+        log.info("AI计划保存成功 userId={} planId={}", userId, plan.getId());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void cloneAndCachePlan(Long userId, PlanGenerateDTO dto, String cachedContent) {
+        AiPlan cloned = clonePlanForUser(userId, dto, cachedContent);
+        aiPlanMapper.insert(cloned);
+        cachePlan(cloned);
     }
 
     private AiPlan getOwnPlan(Long planId, Long userId) {

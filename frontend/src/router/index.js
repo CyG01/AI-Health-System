@@ -16,6 +16,9 @@ const PlanList = () => import('@/views/plan/List.vue')
 const PlanDetail = () => import('@/views/plan/Detail.vue')
 const CheckinCalendar = () => import('@/views/checkin/Calendar.vue')
 const StatisticsDashboard = () => import('@/views/statistics/Dashboard.vue')
+const UserManage = () => import('@/views/admin/UserManage.vue')
+const AnnouncementManage = () => import('@/views/admin/AnnouncementManage.vue')
+const NotificationList = () => import('@/views/notification/NotificationList.vue')
 
 const routes = [
   {
@@ -101,12 +104,32 @@ const routes = [
         name: 'StatisticsDashboard',
         component: StatisticsDashboard,
         meta: { title: '数据看板', icon: 'PieChart', requiresAuth: true }
+      },
+      {
+        path: 'admin/user',
+        name: 'UserManage',
+        component: UserManage,
+        meta: { title: '用户管理', icon: 'UserFilled', requiresAuth: true, roles: ['admin'] }
+      },
+      {
+        path: 'admin/announcement',
+        name: 'AnnouncementManage',
+        component: AnnouncementManage,
+        meta: { title: '公告管理', icon: 'Notification', requiresAuth: true, roles: ['admin'] }
+      },
+      {
+        path: 'notification',
+        name: 'NotificationList',
+        component: NotificationList,
+        meta: { title: '通知中心', icon: 'Bell', requiresAuth: true }
       }
     ]
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
+    name: 'NotFound',
+    component: () => import('@/views/error/NotFound.vue'),
+    meta: { title: '页面不存在' }
   }
 ]
 
@@ -135,9 +158,12 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  if (to.meta.requiresAdmin && !userStore.isAdmin) {
-    next('/dashboard')
-    return
+  if (to.meta.roles && Array.isArray(to.meta.roles)) {
+    const userRole = userStore.userInfo?.role
+    if (!to.meta.roles.includes(userRole)) {
+      next('/dashboard')
+      return
+    }
   }
 
   next()

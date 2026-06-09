@@ -1,6 +1,6 @@
 <template>
   <div class="generate-page">
-    <div class="form-card glass-card">
+    <div v-if="!streaming" class="form-card glass-card">
       <h2 class="page-title">AI 智能计划生成</h2>
       <p class="page-desc">基于您的健康档案，由 DeepSeek 为您量身定制个性化运动/饮食计划</p>
       <el-alert title="每日最多生成3次计划" type="info" :closable="false" show-icon class="limit-tip" />
@@ -45,50 +45,74 @@
             :disabled="generating"
             @click="handleGenerate"
           >
-            {{ generating ? 'AI 生成中...' : '开始生成' }}
+            {{ generating ? '正在生成中...' : '开始生成' }}
           </el-button>
           <el-button :disabled="generating" @click="$router.push('/plan/list')">返回列表</el-button>
         </el-form-item>
       </el-form>
     </div>
 
-    <div v-if="generating" class="skeleton-overlay">
-      <div class="skeleton-card glass-card">
-        <div class="skeleton-header">
-          <el-icon :size="24" color="#58a6ff" class="pulse-icon"><Cpu /></el-icon>
-          <span class="skeleton-title">AI 正在为您生成个性化计划...</span>
+    <div v-if="streaming" class="streaming-container glass-card">
+      <div class="streaming-header">
+        <div class="streaming-header-left">
+          <span class="terminal-dot" style="background:#3fb950"></span>
+          <span class="terminal-dot" style="background:#d29922"></span>
+          <span class="terminal-dot" style="background:#f85149"></span>
+          <span class="terminal-label">{{ form.planType === 'sport' ? '运动计划' : '饮食计划' }} · {{ form.durationDays }}天 · AI生成中</span>
         </div>
-        <div class="skeleton-steps">
-          <div class="skeleton-step" v-for="step in steps" :key="step.idx">
-            <el-icon :color="step.done ? '#3fb950' : '#30363d'" :size="18">
-              <CircleCheck v-if="step.done" /><Clock v-else />
-            </el-icon>
-            <span :class="['step-text', { done: step.done }]">{{ step.label }}</span>
-          </div>
+        <div class="streaming-header-right">
+          <span v-if="streamStatus === 'streaming'" class="status-badge streaming">
+            <span class="pulse-dot"></span>实时生成中
+          </span>
+          <span v-else-if="streamStatus === 'complete'" class="status-badge complete">
+            <el-icon><CircleCheck /></el-icon>生成成功
+          </span>
+          <span v-else-if="streamStatus === 'error'" class="status-badge error">
+            <el-icon><CircleClose /></el-icon>生成失败
+          </span>
         </div>
-        <div class="skeleton-progress">
-          <div class="progress-bar" :style="{ width: progressPercent + '%' }"></div>
-        </div>
-        <p class="skeleton-hint">生成过程约需 10-30 秒，请耐心等待...</p>
+      </div>
+      <div class="streaming-body" ref="streamBodyRef">
+        <pre class="streaming-text">{{ displayText }}<span v-if="streamStatus === 'streaming'" class="cursor-blink">|</span></pre>
+      </div>
+      <div class="streaming-footer">
+        <template v-if="streamStatus === 'complete'">
+          <el-button type="primary" size="small" @click="goToPlanList">
+            生成成功！正在跳转... ({{ countdown }}秒)
+          </el-button>
+        </template>
+        <template v-else-if="streamStatus === 'error'">
+          <el-alert :title="errorMessage" type="error" :closable="false" show-icon class="error-alert" />
+          <el-button type="primary" size="small" @click="resetForm">重新生成</el-button>
+        </template>
+        <span v-else class="bytes-info">{{ totalChars }} 字符已生成</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onUnmounted } from 'vue'
+import { ref, reactive, watch, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Cpu, Clock, CircleCheck } from '@element-plus/icons-vue'
-import { generatePlan } from '@/api/aiPlan'
+import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { generatePlanStream } from '@/api/aiPlan'
 
 const router = useRouter()
 const formRef = ref(null)
+const streamBodyRef = ref(null)
 const generating = ref(false)
-const progressPercent = ref(0)
+const streaming = ref(false)
+const displayText = ref('')
+const streamStatus = ref('streaming')
+const errorMessage = ref('')
+const totalChars = ref(0)
+const countdown = ref(0)
 
-let progressTimer = null
-let stepTimers = []
+let typewriterQueue = []
+let typewriterTimer = null
+let aborted = false
+let countdownTimer = null
 
 const form = reactive({
   planType: 'sport',
@@ -102,46 +126,83 @@ const rules = {
   durationDays: [{ required: true, message: '请选择计划天数', trigger: 'change' }]
 }
 
-const steps = reactive([
-  { idx: 1, label: '分析健康档案', done: false },
-  { idx: 2, label: '匹配最优模型', done: false },
-  { idx: 3, label: '生成计划内容', done: false },
-  { idx: 4, label: '保存入库', done: false }
-])
-
-function startSkeletonAnimation() {
-  progressPercent.value = 0
-  steps.forEach(s => (s.done = false))
-
-  let stepIdx = 0
-  function nextStep() {
-    if (stepIdx < steps.length) {
-      steps[stepIdx].done = true
-      stepIdx++
-      const delay = 2000 + Math.random() * 3000
-      const timer = setTimeout(nextStep, delay)
-      stepTimers.push(timer)
-    }
+function autoScroll() {
+  if (streamBodyRef.value) {
+    streamBodyRef.value.scrollTop = streamBodyRef.value.scrollHeight
   }
-  nextStep()
-
-  const totalTime = 25000
-  const interval = 300
-  const increment = (100 / (totalTime / interval))
-  progressTimer = setInterval(() => {
-    progressPercent.value = Math.min(progressPercent.value + increment, 95)
-  }, interval)
 }
 
-function clearSkeletonTimers() {
-  if (progressTimer) {
-    clearInterval(progressTimer)
-    progressTimer = null
+function startTypewriter(fullText) {
+  const chars = fullText.split('')
+  typewriterQueue.push(...chars)
+  if (!typewriterTimer) {
+    runTypewriter()
   }
-  stepTimers.forEach(t => clearTimeout(t))
-  stepTimers = []
-  progressPercent.value = 100
-  steps.forEach(s => (s.done = true))
+}
+
+function runTypewriter() {
+  typewriterTimer = setInterval(() => {
+    if (aborted) return
+    if (typewriterQueue.length === 0) {
+      clearInterval(typewriterTimer)
+      typewriterTimer = null
+      return
+    }
+    const chunk = typewriterQueue.splice(0, 1)
+    displayText.value += chunk.join('')
+    totalChars.value = displayText.value.length
+    autoScroll()
+  }, 20)
+}
+
+function startCountdown(seconds) {
+  countdown.value = seconds
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+      router.push('/plan/list')
+    }
+  }, 1000)
+}
+
+function handleIncomingMessage(data) {
+  if (aborted) return
+
+  if (data === '[DONE]') {
+    streamStatus.value = 'complete'
+    if (typewriterTimer) {
+      clearInterval(typewriterTimer)
+      typewriterTimer = null
+    }
+    if (typewriterQueue.length > 0) {
+      displayText.value += typewriterQueue.join('')
+      typewriterQueue = []
+      totalChars.value = displayText.value.length
+      autoScroll()
+    }
+    startCountdown(2)
+    return
+  }
+
+  if (data === '[ERROR]') {
+    streamStatus.value = 'error'
+    if (typewriterTimer) {
+      clearInterval(typewriterTimer)
+      typewriterTimer = null
+    }
+    if (typewriterQueue.length > 0) {
+      displayText.value += typewriterQueue.join('')
+      typewriterQueue = []
+    }
+    errorMessage.value = errorMessage.value || 'AI服务调用失败'
+    generating.value = false
+    return
+  }
+
+  totalChars.value = displayText.value.length + typewriterQueue.length + data.length
+  startTypewriter(data)
 }
 
 async function handleGenerate() {
@@ -150,7 +211,12 @@ async function handleGenerate() {
     if (!valid) return
 
     generating.value = true
-    startSkeletonAnimation()
+    streaming.value = true
+    displayText.value = ''
+    streamStatus.value = 'streaming'
+    errorMessage.value = ''
+    totalChars.value = 0
+    aborted = false
 
     try {
       const payload = {
@@ -159,18 +225,66 @@ async function handleGenerate() {
         intensity: form.intensity || undefined,
         tastePreference: form.tastePreference || undefined
       }
-      await generatePlan(payload)
-      ElMessage.success('AI 计划生成成功')
-      router.push('/plan/list')
-    } finally {
-      clearSkeletonTimers()
-      generating.value = false
+
+      const emitter = await generatePlanStream(payload)
+      emitter.onMessage = handleIncomingMessage
+      emitter.onError = (err) => {
+        if (aborted) return
+        streamStatus.value = 'error'
+        errorMessage.value = '网络连接中断，请重试'
+        generating.value = false
+        if (typewriterTimer) {
+          clearInterval(typewriterTimer)
+          typewriterTimer = null
+        }
+      }
+      await emitter
+    } catch (err) {
+      if (aborted) return
+      streamStatus.value = 'error'
+      errorMessage.value = '网络连接中断，请重试'
     }
+    generating.value = false
   })
 }
 
+function resetForm() {
+  aborted = true
+  if (typewriterTimer) {
+    clearInterval(typewriterTimer)
+    typewriterTimer = null
+  }
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  typewriterQueue = []
+  streaming.value = false
+  streaming.value = false
+  displayText.value = ''
+  generating.value = false
+  errorMessage.value = ''
+  countdown.value = 0
+  streamStatus.value = 'streaming'
+  totalChars.value = 0
+}
+
+function goToPlanList() {
+  clearInterval(countdownTimer)
+  countdownTimer = null
+  router.push('/plan/list')
+}
+
 onUnmounted(() => {
-  clearSkeletonTimers()
+  aborted = true
+  if (typewriterTimer) {
+    clearInterval(typewriterTimer)
+    typewriterTimer = null
+  }
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
 })
 </script>
 
@@ -211,88 +325,159 @@ onUnmounted(() => {
   }
 }
 
-.skeleton-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(13, 17, 23, 0.85);
-  backdrop-filter: blur(8px);
-}
-
-.skeleton-card {
-  width: 480px;
-  padding: 40px;
+.streaming-container {
+  max-width: 900px;
+  border: 1px solid #58a6ff;
+  border-radius: 8px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 24px;
+  height: calc(100vh - 140px);
 }
 
-.skeleton-header {
+.streaming-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(22, 27, 34, 0.95);
+  border-bottom: 1px solid #30363d;
 }
 
-.pulse-icon {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.15); }
-}
-
-.skeleton-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.skeleton-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-  padding: 0 20px;
-}
-
-.skeleton-step {
+.streaming-header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
-.step-text {
-  font-size: 14px;
-  color: #484f58;
-  transition: color 0.3s ease;
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
 
-  &.done {
-    color: var(--text-primary);
+.terminal-label {
+  font-size: 13px;
+  color: #8b949e;
+  margin-left: 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.streaming-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 500;
+
+  &.streaming {
+    background: rgba(88, 166, 255, 0.12);
+    color: #58a6ff;
+    border: 1px solid rgba(88, 166, 255, 0.25);
+  }
+
+  &.complete {
+    background: rgba(63, 185, 80, 0.12);
+    color: #3fb950;
+    border: 1px solid rgba(63, 185, 80, 0.25);
+  }
+
+  &.error {
+    background: rgba(248, 81, 73, 0.12);
+    color: #f85149;
+    border: 1px solid rgba(248, 81, 73, 0.25);
   }
 }
 
-.skeleton-progress {
-  width: 100%;
-  height: 4px;
-  background: rgba(48, 54, 61, 0.6);
-  border-radius: 2px;
-  overflow: hidden;
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #58a6ff;
+  animation: pulse-dot 1.2s ease-in-out infinite;
 }
 
-.progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #58a6ff, #3fb950);
-  border-radius: 2px;
-  transition: width 0.3s ease;
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
-.skeleton-hint {
+.streaming-body {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+  background: rgba(13, 17, 23, 0.95);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+  }
+}
+
+.streaming-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cursor-blink {
+  color: #58a6ff;
+  animation: blink 0.8s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(22, 27, 34, 0.95);
+  border-top: 1px solid #30363d;
+  min-height: 48px;
+}
+
+.bytes-info {
   font-size: 12px;
   color: #484f58;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.error-alert {
+  max-width: 360px;
+  background: rgba(248, 81, 73, 0.08);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+  border-radius: 8px;
+
+  :deep(.el-alert__icon) {
+    color: #f85149;
+  }
+  :deep(.el-alert__title) {
+    color: #f85149;
+    font-size: 13px;
+  }
 }
 </style>

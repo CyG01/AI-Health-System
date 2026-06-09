@@ -6,18 +6,18 @@ public class LoginVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private String token;
+    private String accessToken;
 
     private String refreshToken;
 
     private UserInfoVO userInfo;
 
-    public String getToken() {
-        return token;
+    public String getAccessToken() {
+        return accessToken;
     }
 
-    public void setToken(String token) {
-        this.token = token;
+    public void setAccessToken(String accessToken) {
+        this.accessToken = accessToken;
     }
 
     public String getRefreshToken() {

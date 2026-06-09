@@ -79,4 +79,18 @@ public class UserServiceImpl implements UserService {
         }
         return user;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateAvatar(Long userId, String avatarUrl) {
+        SysUser user = getEnabledUser(userId);
+        user.setAvatar(avatarUrl);
+        sysUserMapper.updateById(user);
+    }
+
+    @Override
+    public String getAvatar(Long userId) {
+        SysUser user = sysUserMapper.selectById(userId);
+        return user != null ? user.getAvatar() : null;
+    }
 }

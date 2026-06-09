@@ -15,6 +15,7 @@ import com.example.vo.WeightTrendVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -23,6 +24,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,14 +32,26 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     private static final Logger log = LoggerFactory.getLogger(StatisticsServiceImpl.class);
 
+    private static final String STATS_CACHE_PREFIX = "stats:";
+    private static final long STATS_CACHE_TTL_HOURS = 1;
+
     @Autowired
     private HealthRecordMapper healthRecordMapper;
 
     @Autowired
     private DailyCheckinMapper dailyCheckinMapper;
 
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
     @Override
     public WeightTrendVO getWeightTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "weight:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (WeightTrendVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
 
@@ -65,11 +79,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         WeightTrendVO vo = new WeightTrendVO();
         vo.setXAxis(xAxis);
         vo.setYAxis(yAxis);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 
     @Override
     public BmiTrendVO getBmiTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "bmi:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (BmiTrendVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
 
@@ -90,11 +112,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         BmiTrendVO vo = new BmiTrendVO();
         vo.setXAxis(xAxis);
         vo.setYAxis(yAxis);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 
     @Override
     public CheckinTrendVO getCheckinTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "checkin:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (CheckinTrendVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
 
@@ -134,11 +164,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         vo.setXAxis(xAxis);
         vo.setCompleteRate(completeRate);
         vo.setTotalDays(totalDays);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 
     @Override
     public ExerciseTrendVO getExerciseTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "exercise:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (ExerciseTrendVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
 
@@ -173,11 +211,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         ExerciseTrendVO vo = new ExerciseTrendVO();
         vo.setXAxis(xAxis);
         vo.setCompleteRate(completeRate);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 
     @Override
     public CalorieTrendVO getCalorieTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "calorie:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (CalorieTrendVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
 
@@ -198,6 +244,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         CalorieTrendVO vo = new CalorieTrendVO();
         vo.setXAxis(xAxis);
         vo.setYAxis(yAxis);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 

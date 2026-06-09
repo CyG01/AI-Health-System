@@ -8,13 +8,13 @@ import com.example.dto.HealthCreateDTO;
 import com.example.dto.HealthUpdateDTO;
 import com.example.entity.HealthRecord;
 import com.example.mapper.HealthRecordMapper;
+import com.example.mapper.SysUserMapper;
 import com.example.service.HealthService;
 import com.example.vo.HealthAssessmentVO;
 import com.example.vo.HealthHistoryVO;
 import com.example.vo.HealthRecordVO;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,16 +23,14 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class HealthServiceImpl implements HealthService {
 
-    private static final Logger log = LoggerFactory.getLogger(HealthServiceImpl.class);
-
-    @Autowired
-    private HealthRecordMapper healthRecordMapper;
-
-    @Autowired
-    private HealthConvert healthConvert;
+    private final HealthRecordMapper healthRecordMapper;
+    private final SysUserMapper sysUserMapper;
+    private final HealthConvert healthConvert;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -43,13 +41,13 @@ public class HealthServiceImpl implements HealthService {
         BigDecimal bmi = calculateBmi(dto.getHeight(), dto.getWeight());
         record.setBmi(bmi);
 
-        BigDecimal bmr = calculateBmr(dto.getHeight(), dto.getWeight(), BigDecimal.ZERO);
+        BigDecimal bmr = calculateBmr(dto.getHeight(), dto.getWeight(), userId);
         record.setBmr(bmr);
 
         record.setDailyCalorie(calculateDailyCalorie(bmr));
 
         healthRecordMapper.insert(record);
-        log.warn("创建健康档案 userId={} recordId={} bmi={} bmr={}", userId, record.getId(), bmi, bmr);
+        log.info("创建健康档案 userId={} recordId={} bmi={} bmr={}", userId, record.getId(), bmi, bmr);
         return healthConvert.toHealthRecordVO(record);
     }
 
@@ -87,12 +85,12 @@ public class HealthServiceImpl implements HealthService {
         BigDecimal weight = latest.getWeight();
         if (height != null && weight != null && height.compareTo(BigDecimal.ZERO) > 0) {
             latest.setBmi(calculateBmi(height, weight));
-            latest.setBmr(calculateBmr(height, weight, BigDecimal.ZERO));
+            latest.setBmr(calculateBmr(height, weight, userId));
             latest.setDailyCalorie(calculateDailyCalorie(latest.getBmr()));
         }
 
         healthRecordMapper.updateById(latest);
-        log.warn("更新健康档案 userId={} recordId={}", userId, latest.getId());
+        log.info("更新健康档案 userId={} recordId={}", userId, latest.getId());
         return healthConvert.toHealthRecordVO(latest);
     }
 
@@ -154,12 +152,29 @@ public class HealthServiceImpl implements HealthService {
         return weightKg.divide(heightSquared, 1, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal calculateBmr(BigDecimal heightCm, BigDecimal weightKg, BigDecimal genderFactor) {
+    // BMR based on Mifflin-St Jeor formula: 10W + 6.25H - 5A + G
+    // where G = +5 for male, -161 for female
+    private BigDecimal calculateBmr(BigDecimal heightCm, BigDecimal weightKg, Long userId) {
+        int age = 30; // default age when not available
+        int genderFactor = 5; // default male
+
+        if (userId != null) {
+            com.example.entity.SysUser user = sysUserMapper.selectById(userId);
+            if (user != null) {
+                if (user.getAge() != null && user.getAge() > 0) {
+                    age = user.getAge();
+                }
+                if (user.getGender() != null && user.getGender() == 0) {
+                    genderFactor = -161; // female
+                }
+            }
+        }
+
         return BigDecimal.valueOf(10)
                 .multiply(weightKg)
                 .add(BigDecimal.valueOf(6.25).multiply(heightCm))
-                .add(BigDecimal.valueOf(5).multiply(genderFactor))
-                .add(BigDecimal.valueOf(5))
+                .subtract(BigDecimal.valueOf(5).multiply(BigDecimal.valueOf(age)))
+                .add(BigDecimal.valueOf(genderFactor))
                 .setScale(0, RoundingMode.HALF_UP);
     }
 

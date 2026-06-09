@@ -55,7 +55,7 @@ public class CheckinServiceImpl implements CheckinService {
         checkin.setCheckDate(today);
 
         dailyCheckinMapper.insert(checkin);
-        log.warn("提交打卡 userId={} checkDate={} checkinId={}", userId, today, checkin.getId());
+        log.info("提交打卡 userId={} checkDate={} checkinId={}", userId, today, checkin.getId());
         return dailyCheckinConvert.toCheckinVO(checkin);
     }
 
@@ -85,7 +85,7 @@ public class CheckinServiceImpl implements CheckinService {
         checkin.setUserId(userId);
 
         dailyCheckinMapper.insert(checkin);
-        log.warn("补卡提交 userId={} checkDate={} checkinId={}", userId, checkDate, checkin.getId());
+        log.info("补卡提交 userId={} checkDate={} checkinId={}", userId, checkDate, checkin.getId());
         return dailyCheckinConvert.toCheckinVO(checkin);
     }
 

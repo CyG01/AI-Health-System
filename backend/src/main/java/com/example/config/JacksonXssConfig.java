@@ -13,8 +13,9 @@ import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 
 /**
- * Jackson 全局 XSS 过滤配置
- * 替换 String 反序列化器，在 JSON 反序列化阶段统一过滤 XSS 注入
+ * XSS保护 - JSON反序列化层
+ * 对JSON请求体中的String字段进行HTML转义。
+ * 与XssFilter分工：Jackson层处理JSON body，XssFilter处理query/form参数。
  */
 @Configuration
 public class JacksonXssConfig {

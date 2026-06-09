@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
 import com.example.common.Result;
 import com.example.dto.CheckinSubmitDTO;
 import com.example.dto.CheckinSupplementDTO;
@@ -27,6 +28,7 @@ public class CheckinController {
     @Autowired
     private CheckinService checkinService;
 
+    @NoRepeatSubmit
     @Operation(summary = "提交今日打卡")
     @PostMapping("/submit")
     public Result<CheckinVO> submit(@Validated @RequestBody CheckinSubmitDTO dto,
@@ -40,6 +42,7 @@ public class CheckinController {
         return Result.success(checkinService.getCheckinList(userId));
     }
 
+    @NoRepeatSubmit
     @Operation(summary = "补卡")
     @PostMapping("/supplement")
     public Result<CheckinVO> supplement(@Validated @RequestBody CheckinSupplementDTO dto,

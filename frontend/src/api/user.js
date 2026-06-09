@@ -5,7 +5,7 @@ import request from '@/utils/request'
  */
 export function getProfile() {
   return request({
-    url: '/user/profile',
+    url: '/auth/profile',
     method: 'get'
   })
 }
@@ -15,7 +15,7 @@ export function getProfile() {
  */
 export function updateProfile(data) {
   return request({
-    url: '/user/profile',
+    url: '/auth/update-profile',
     method: 'put',
     data
   })
@@ -26,8 +26,22 @@ export function updateProfile(data) {
  */
 export function updatePassword(data) {
   return request({
-    url: '/user/password',
+    url: '/auth/update-password',
     method: 'put',
     data
+  })
+}
+
+/**
+ * 上传头像
+ */
+export function uploadAvatar(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/auth/upload-avatar',
+    method: 'post',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
 }

@@ -2,11 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { refreshToken as refreshTokenApi, logout as logoutApi } from '@/api/auth'
 import { getProfile } from '@/api/user'
+import { getUnreadCount } from '@/api/notification'
 
-/**
- * 安全读取 localStorage — 带 try-catch 防护
- * 防止隐私模式 / storage 满 / 反序列化异常导致白屏
- */
 function safeGetItem(key, fallback = '') {
   try {
     return localStorage.getItem(key) ?? fallback
@@ -28,7 +25,7 @@ function safeSetItem(key, value) {
   try {
     localStorage.setItem(key, value)
   } catch {
-    // 静默失败 — storage 满或隐私模式禁止写入
+    // 静默失败
   }
 }
 
@@ -44,15 +41,24 @@ export const useUserStore = defineStore('user', () => {
   const accessToken = ref(safeGetItem('accessToken'))
   const refreshToken = ref(safeGetItem('refreshToken'))
   const userInfo = ref(safeGetJSON('userInfo'))
+  const unreadCount = ref(0)
 
   const isLoggedIn = computed(() => !!accessToken.value)
   const isAdmin = computed(() => userInfo.value?.role === 'admin')
 
+  function getAccessToken() {
+    return accessToken.value
+  }
+
+  function getRefreshToken() {
+    return refreshToken.value
+  }
+
   function setAuth(loginData) {
-    accessToken.value = loginData.token
+    accessToken.value = loginData.accessToken
     refreshToken.value = loginData.refreshToken
     userInfo.value = loginData.userInfo
-    safeSetItem('accessToken', loginData.token)
+    safeSetItem('accessToken', loginData.accessToken)
     safeSetItem('refreshToken', loginData.refreshToken)
     safeSetItem('userInfo', JSON.stringify(loginData.userInfo))
   }
@@ -74,13 +80,28 @@ export const useUserStore = defineStore('user', () => {
   async function refreshAccessToken() {
     const res = await refreshTokenApi(refreshToken.value)
     setAuth(res.data)
-    return res.data.token
+    return res.data.accessToken
   }
 
   async function fetchProfile() {
     const res = await getProfile()
     updateUserInfo(res.data)
     return res.data
+  }
+
+  async function fetchUnreadCount() {
+    try {
+      const res = await getUnreadCount()
+      if (res.code === 200) {
+        unreadCount.value = res.data || 0
+      }
+    } catch {
+      // 静默失败
+    }
+  }
+
+  function clearUnreadCount() {
+    unreadCount.value = 0
   }
 
   async function logout() {
@@ -97,11 +118,16 @@ export const useUserStore = defineStore('user', () => {
     userInfo,
     isLoggedIn,
     isAdmin,
+    unreadCount,
+    getAccessToken,
+    getRefreshToken,
     setAuth,
     updateUserInfo,
     clearAuth,
     refreshAccessToken,
     fetchProfile,
+    fetchUnreadCount,
+    clearUnreadCount,
     logout
   }
 })

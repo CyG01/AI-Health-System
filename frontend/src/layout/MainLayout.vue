@@ -14,13 +14,25 @@
         router
       >
         <el-menu-item
-          v-for="item in menuItems"
+          v-for="item in mainMenuItems"
           :key="item.path"
           :index="item.path"
         >
           <el-icon><component :is="item.icon" /></el-icon>
           <template #title>{{ item.title }}</template>
         </el-menu-item>
+
+        <template v-if="isAdmin">
+          <div class="menu-group-title" v-show="!appStore.sidebarCollapsed">系统管理</div>
+          <el-menu-item
+            v-for="item in adminMenuItems"
+            :key="item.path"
+            :index="item.path"
+          >
+            <el-icon><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.title }}</template>
+          </el-menu-item>
+        </template>
       </el-menu>
     </aside>
 
@@ -35,6 +47,9 @@
           <span class="page-title">{{ currentTitle }}</span>
         </div>
         <div class="header-right">
+          <el-badge :value="userStore.unreadCount" :hidden="userStore.unreadCount === 0" :max="99" class="header-badge">
+            <el-button :icon="'Bell'" text @click="router.push('/notification')" />
+          </el-badge>
           <el-dropdown trigger="click" @command="handleCommand">
             <div class="user-info">
               <el-avatar :size="32" :src="userStore.userInfo?.avatar">
@@ -61,7 +76,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
@@ -73,15 +88,22 @@ const router = useRouter()
 const userStore = useUserStore()
 const appStore = useAppStore()
 
-const menuItems = [
+const mainMenuItems = [
   { path: '/dashboard', title: '工作台', icon: 'Odometer' },
   { path: '/checkin/calendar', title: '每日打卡', icon: 'Calendar' },
   { path: '/statistics', title: '数据看板', icon: 'PieChart' },
   { path: '/health/view', title: '健康档案', icon: 'Monitor' },
   { path: '/plan/list', title: 'AI计划', icon: 'MagicStick' },
+  { path: '/notification', title: '通知中心', icon: 'Bell' },
   { path: '/profile', title: '个人中心', icon: 'User' }
 ]
 
+const adminMenuItems = [
+  { path: '/admin/user', title: '用户管理', icon: 'UserFilled' },
+  { path: '/admin/announcement', title: '公告管理', icon: 'Notification' }
+]
+
+const isAdmin = computed(() => userStore.userInfo?.role === 'admin')
 const activeMenu = computed(() => route.path)
 const currentTitle = computed(() => route.meta.title || 'AI健康管理系统')
 const avatarText = computed(() => {
@@ -102,6 +124,12 @@ async function handleCommand(command) {
     router.push('/login')
   }
 }
+
+onMounted(() => {
+  if (userStore.isLoggedIn) {
+    userStore.fetchUnreadCount()
+  }
+})
 </script>
 
 <style scoped lang="scss">
@@ -166,6 +194,13 @@ async function handleCommand(command) {
 .header-right {
   display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+.header-badge {
+  :deep(.el-badge__content) {
+    border: 2px solid #0d1117;
+  }
 }
 
 .user-info {
@@ -191,5 +226,16 @@ async function handleCommand(command) {
   flex: 1;
   overflow: auto;
   border-radius: var(--radius-base);
+}
+
+.menu-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #484f58;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 16px 20px 8px;
+  border-top: 1px solid rgba(48, 54, 61, 0.5);
+  margin-top: 4px;
 }
 </style>

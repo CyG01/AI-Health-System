@@ -26,6 +26,6 @@ public class RedisConfig {
 
     @Bean
     public Duration redisDefaultExpire() {
-        return Duration.ofHours(2);
+        return Duration.ofHours(1);
     }
 }

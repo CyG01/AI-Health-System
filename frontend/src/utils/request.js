@@ -12,22 +12,18 @@ const request = axios.create({
 })
 
 let isRefreshing = false
-const refreshSubscribers = []
+const requests = []
 
-function subscribeTokenRefresh(callback) {
-  refreshSubscribers.push(callback)
-}
-
-function onRefreshed(token) {
-  refreshSubscribers.forEach((callback) => callback(token))
-  refreshSubscribers.length = 0
+function onRefreshed(newAccessToken) {
+  requests.forEach((callback) => callback(newAccessToken))
+  requests.length = 0
 }
 
 request.interceptors.request.use(
   (config) => {
     const userStore = useUserStore()
-    if (userStore.accessToken) {
-      config.headers.Authorization = `Bearer ${userStore.accessToken}`
+    if (userStore.getAccessToken()) {
+      config.headers.Authorization = `Bearer ${userStore.getAccessToken()}`
     }
     return config
   },
@@ -50,24 +46,16 @@ request.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response
 
-      if (status === 401 && !originalRequest?.skipAuthRefresh && userStore.refreshToken) {
-        if (originalRequest._retry) {
-          userStore.clearAuth()
-          router.push('/login')
-          ElMessage.error(data?.msg || '未登录或token已过期')
-          return Promise.reject(error)
-        }
-
+      if (status === 401 && !originalRequest?.skipAuthRefresh && userStore.getRefreshToken()) {
         if (isRefreshing) {
           return new Promise((resolve) => {
-            subscribeTokenRefresh((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`
+            requests.push((newToken) => {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`
               resolve(request(originalRequest))
             })
           })
         }
 
-        originalRequest._retry = true
         isRefreshing = true
 
         try {
@@ -78,7 +66,7 @@ request.interceptors.response.use(
         } catch (refreshError) {
           userStore.clearAuth()
           router.push('/login')
-          ElMessage.error(data?.msg || '未登录或token已过期')
+          ElMessage.error('登录已过期，请重新登录')
           return Promise.reject(refreshError)
         } finally {
           isRefreshing = false

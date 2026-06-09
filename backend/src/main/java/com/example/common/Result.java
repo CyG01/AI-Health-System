@@ -51,6 +51,10 @@ public class Result<T> implements Serializable {
         return new Result<>(404, "资源不存在", null);
     }
 
+    public static <T> Result<T> error(Integer code, String msg) {
+        return new Result<>(code, msg, null);
+    }
+
     public Integer getCode() {
         return code;
     }

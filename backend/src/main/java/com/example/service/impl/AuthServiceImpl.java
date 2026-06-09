@@ -16,40 +16,42 @@ import com.example.vo.LoginVO;
 import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
     private static final String SMS_CODE_PREFIX = "sms:code:";
-    private static final String TOKEN_BLACKLIST_PREFIX = "token:blacklist:";
+    private static final String CAPTCHA_PREFIX = "captcha:";
+    private static final String AUTH_FAIL_PREFIX = "auth:fail:";
+    private static final String AUTH_LOCK_PREFIX = "auth:lock:";
+    private static final String AUTH_BLACKLIST_PREFIX = "auth:blacklist:";
     private static final long SMS_CODE_EXPIRE_MINUTES = 5;
+    private static final long LOCK_EXPIRE_MINUTES = 15;
+    private static final int MAX_FAIL_COUNT = 5;
     private static final String DEFAULT_ROLE = "user";
     private static final int USER_STATUS_ENABLED = 1;
-    private static final String DEV_SMS_CODE = "123456";
+    private static final String DEV_DEFAULT_CODE = "123456";
 
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
-    @Autowired
-    private SysUserMapper sysUserMapper;
+    @Value("${sms.dev-mode:true}")
+    private boolean smsDevMode;
 
-    @Autowired
-    private UserConvert userConvert;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
+    private final SysUserMapper sysUserMapper;
+    private final UserConvert userConvert;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -83,15 +85,45 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginVO login(UserLoginDTO dto) {
+        // 1. 校验验证码
+        String cachedCaptcha = stringRedisTemplate.opsForValue().get(CAPTCHA_PREFIX + dto.getCaptchaUuid());
+        if (cachedCaptcha == null || !cachedCaptcha.equalsIgnoreCase(dto.getCaptchaCode())) {
+            throw new BusinessException("验证码错误或已过期");
+        }
+        stringRedisTemplate.delete(CAPTCHA_PREFIX + dto.getCaptchaUuid());
+
+        // 2. 账号锁定检查
+        String lockKey = AUTH_LOCK_PREFIX + dto.getUsername();
+        Boolean isLocked = stringRedisTemplate.hasKey(lockKey);
+        if (Boolean.TRUE.equals(isLocked)) {
+            throw new BusinessException("账号已锁定，请15分钟后再试");
+        }
+
+        // 3. 查询用户
         SysUser user = sysUserMapper.selectOne(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, dto.getUsername()));
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
         checkUserEnabled(user);
+
+        // 4. 密码校验
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            throw new BusinessException("密码错误");
+            String failKey = AUTH_FAIL_PREFIX + dto.getUsername();
+            Long failCount = stringRedisTemplate.opsForValue().increment(failKey);
+            stringRedisTemplate.expire(failKey, LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
+            int remaining = MAX_FAIL_COUNT - failCount.intValue();
+            if (remaining <= 0) {
+                stringRedisTemplate.opsForValue().set(lockKey, "1", LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
+                stringRedisTemplate.delete(failKey);
+                throw new BusinessException("账号已锁定，请15分钟后再试");
+            }
+            throw new BusinessException("密码错误，还有" + remaining + "次机会");
         }
+
+        // 5. 密码正确：清除失败计数
+        stringRedisTemplate.delete(AUTH_FAIL_PREFIX + dto.getUsername());
+
         return buildLoginVO(user);
     }
 
@@ -112,14 +144,27 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void sendCode(SendCodeDTO dto) {
-        // 开发环境跳过第三方短信接口，使用固定验证码
-        String code = DEV_SMS_CODE;
+        String code;
+        if (smsDevMode) {
+            code = DEV_DEFAULT_CODE;
+        } else {
+            code = generateSmsCode(6);
+        }
         stringRedisTemplate.opsForValue().set(
                 SMS_CODE_PREFIX + dto.getPhone(),
                 code,
                 SMS_CODE_EXPIRE_MINUTES,
                 TimeUnit.MINUTES);
-        log.info("发送验证码 — 手机号: {}, 验证码: {}", dto.getPhone(), code);
+        log.info("发送验证码 — 手机号: {} mode={}", maskPhone(dto.getPhone()), smsDevMode ? "dev" : "prod");
+    }
+
+    private String generateSmsCode(int length) {
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(random.nextInt(10));
+        }
+        return sb.toString();
     }
 
     @Override
@@ -145,11 +190,24 @@ public class AuthServiceImpl implements AuthService {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new BusinessException(401, "未登录或token已过期");
         }
-        if (!jwtUtil.validateToken(refreshToken)) {
+
+        String token = jwtUtil.extractToken(refreshToken);
+        if (token == null || token.isBlank()) {
             throw new BusinessException(401, "未登录或token已过期");
         }
 
-        Claims claims = jwtUtil.parseToken(refreshToken);
+        // 检查refreshToken是否在黑名单
+        String blacklistKey = AUTH_BLACKLIST_PREFIX + token;
+        Boolean isBlacklisted = stringRedisTemplate.hasKey(blacklistKey);
+        if (Boolean.TRUE.equals(isBlacklisted)) {
+            throw new BusinessException(401, "Token已失效，请重新登录");
+        }
+
+        if (!jwtUtil.validateToken(token)) {
+            throw new BusinessException(401, "未登录或token已过期");
+        }
+
+        Claims claims = jwtUtil.parseToken(token);
         if (!"refresh".equals(claims.get("tokenType", String.class))) {
             throw new BusinessException(401, "未登录或token已过期");
         }
@@ -160,6 +218,13 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException("用户不存在");
         }
         checkUserEnabled(user);
+
+        // 将旧的refreshToken加入黑名单
+        long ttl = claims.getExpiration().getTime() - System.currentTimeMillis();
+        if (ttl > 0) {
+            stringRedisTemplate.opsForValue().set(
+                    blacklistKey, "1", ttl, TimeUnit.MILLISECONDS);
+        }
 
         return buildLoginVO(user);
     }
@@ -178,7 +243,7 @@ public class AuthServiceImpl implements AuthService {
         long ttl = claims.getExpiration().getTime() - System.currentTimeMillis();
         if (ttl > 0) {
             stringRedisTemplate.opsForValue().set(
-                    TOKEN_BLACKLIST_PREFIX + token,
+                    AUTH_BLACKLIST_PREFIX + token,
                     "1",
                     ttl,
                     TimeUnit.MILLISECONDS);
@@ -187,10 +252,10 @@ public class AuthServiceImpl implements AuthService {
 
     private LoginVO buildLoginVO(SysUser user) {
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), user.getRole());
-        String refreshToken = jwtUtil.generateRefreshToken(user.getId(), user.getUsername(), user.getRole());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
         LoginVO loginVO = new LoginVO();
-        loginVO.setToken(accessToken);
+        loginVO.setAccessToken(accessToken);
         loginVO.setRefreshToken(refreshToken);
         loginVO.setUserInfo(userConvert.toUserInfoVO(user));
         return loginVO;
@@ -214,5 +279,24 @@ public class AuthServiceImpl implements AuthService {
         if (user.getStatus() != null && user.getStatus() != USER_STATUS_ENABLED) {
             throw new BusinessException("账号已被禁用");
         }
+    }
+
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return email;
+        }
+        int atIndex = email.indexOf('@');
+        String prefix = email.substring(0, atIndex);
+        if (prefix.length() <= 2) {
+            return email.charAt(0) + "****" + email.substring(atIndex);
+        }
+        return prefix.charAt(0) + "****" + prefix.charAt(prefix.length() - 1) + email.substring(atIndex);
     }
 }
