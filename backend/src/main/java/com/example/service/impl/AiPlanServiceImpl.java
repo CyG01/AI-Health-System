@@ -26,6 +26,7 @@ import com.example.util.PromptSanitizer;
 import com.example.vo.AiPlanDetailVO;
 import com.example.vo.AiPlanVO;
 import com.example.vo.HealthRecordVO;
+import com.example.dto.AiTaskMessage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -634,5 +635,18 @@ public class AiPlanServiceImpl implements AiPlanService {
         detail.setStatus(1);
         aiPlanDetailMapper.updateById(detail);
         log.info("用户完成任务 userId={} detailId={} planId={}", userId, detailId, detail.getPlanId());
+    }
+
+    /**
+     * 同步生成 AI 计划（MQ Consumer 调用）。
+     */
+    public AiPlanDetailVO generatePlanSync(AiTaskMessage message) {
+        try {
+            PlanGenerateDTO dto = objectMapper.readValue(message.getPayload(), PlanGenerateDTO.class);
+            return generatePlan(dto, message.getUserId());
+        } catch (Exception e) {
+            log.error("解析计划生成消息失败 taskId={}", message.getTaskId(), e);
+            throw new RuntimeException("计划生成消息解析失败", e);
+        }
     }
 }

@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Prometheus 标准指标导出器。
@@ -26,6 +27,9 @@ import java.util.concurrent.TimeUnit;
  * - ai_circuit_breaker_state — 熔断器状态
  * - ai_average_safety_score — 滑动窗口平均安全分
  * - ai_model_success_rate — 各模型成功率
+ * - llm_total_cost_daily — 当日LLM总成本（Phase 4）
+ * - llm_active_users_daily — 当日活跃用户数（Phase 4）
+ * - llm_over_budget_users — 超预算用户数（Phase 4）
  */
 @Component
 public class PrometheusMetricsExporter {
@@ -53,6 +57,15 @@ public class PrometheusMetricsExporter {
 
     /** P95/P99 延迟滑动窗口（线程安全） */
     private final ConcurrentLinkedDeque<Long> latencyWindow = new ConcurrentLinkedDeque<>();
+
+    /** 当日LLM总成本（元）— 供Grafana面板使用 */
+    private final AtomicLong totalCostDailyNanos = new AtomicLong(0);
+
+    /** 当日活跃用户数 */
+    private final AtomicLong activeUsersDaily = new AtomicLong(0);
+
+    /** 当日超预算用户数 */
+    private final AtomicLong overBudgetUsers = new AtomicLong(0);
 
     public PrometheusMetricsExporter(MeterRegistry meterRegistry,
                                       OnlineSafetyCircuitBreaker circuitBreaker,
@@ -124,6 +137,26 @@ public class PrometheusMetricsExporter {
                         })
                 .description("模型成功率（取各模型最高值）")
                 .register(meterRegistry);
+
+        // ===== Phase 4: 成本监控指标 =====
+
+        // Gauge: 当日LLM总成本（元）
+        Gauge.builder("llm_total_cost_daily", this,
+                        PrometheusMetricsExporter::getTotalCostDaily)
+                .description("当日LLM调用总成本（元）")
+                .register(meterRegistry);
+
+        // Gauge: 当日活跃用户数
+        Gauge.builder("llm_active_users_daily", this,
+                        PrometheusMetricsExporter::getActiveUsersDaily)
+                .description("当日LLM活跃用户数")
+                .register(meterRegistry);
+
+        // Gauge: 超预算用户数
+        Gauge.builder("llm_over_budget_users", this,
+                        PrometheusMetricsExporter::getOverBudgetUsers)
+                .description("当日超预算用户数（>1元/天）")
+                .register(meterRegistry);
     }
 
     /**
@@ -193,6 +226,57 @@ public class PrometheusMetricsExporter {
         if (index >= sorted.size()) index = sorted.size() - 1;
 
         return sorted.get(index);
+    }
+
+    // ===== Phase 4: 成本监控指标更新方法 =====
+
+    private double getTotalCostDaily() {
+        return totalCostDailyNanos.get() / 1_000_000_000.0;
+    }
+
+    private double getActiveUsersDaily() {
+        return activeUsersDaily.get();
+    }
+
+    private double getOverBudgetUsers() {
+        return overBudgetUsers.get();
+    }
+
+    /**
+     * 更新当日总成本（由 MultiModelCostMonitor 调用）。
+     * @param costNanos 成本（以纳元为单位，精确到小数点后9位）
+     */
+    public void updateTotalCostDaily(long costNanos) {
+        totalCostDailyNanos.addAndGet(costNanos);
+    }
+
+    /**
+     * 设置当日总成本（纳元）。
+     */
+    public void setTotalCostDaily(long costNanos) {
+        totalCostDailyNanos.set(costNanos);
+    }
+
+    /**
+     * 更新当日活跃用户数。
+     */
+    public void setActiveUsersDaily(long count) {
+        activeUsersDaily.set(count);
+    }
+
+    /**
+     * 更新超预算用户数。
+     */
+    public void setOverBudgetUsers(long count) {
+        overBudgetUsers.set(count);
+    }
+
+    /**
+     * 记录成本到 Prometheus Counter（累积指标，不会被Gauge重置覆盖）。
+     */
+    public void recordCost(String intent, String modelName, String modelTier, double cost) {
+        meterRegistry.counter("llm_cost_total", "intent", intent,
+                "model_name", modelName, "model_tier", modelTier).increment((long)(cost * 1_000_000));
     }
 
     /**

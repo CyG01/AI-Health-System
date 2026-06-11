@@ -1,0 +1,263 @@
+{
+  "title": "AI-Health-System 核心监控面板",
+  "description": "Phase 3 可观测性闭环 — 业务指标、性能指标、安全指标、成本指标",
+  "panels": [
+    {
+      "id": 1,
+      "title": "LLM 调用量（1min）",
+      "type": "graph",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(llm_call_total[1m])",
+          "legendFormat": "{{model}} - {{scenario}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "首 Token 延迟 P99",
+      "type": "graph",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "llm_ttft_p99_seconds",
+          "legendFormat": "P99 TTFT"
+        }
+      ],
+      "thresholds": [
+        { "value": 3.0, "color": "yellow", "label": "警告 >3s" },
+        { "value": 5.0, "color": "red", "label": "紧急 >5s" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "端到端延迟 P99",
+      "type": "graph",
+      "gridPos": { "x": 0, "y": 6, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "llm_e2e_p99_seconds",
+          "legendFormat": "P99 E2E"
+        }
+      ],
+      "thresholds": [
+        { "value": 5.0, "color": "yellow", "label": "警告 >5s" },
+        { "value": 10.0, "color": "red", "label": "紧急 >10s" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "LLM 错误率",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 6, "w": 4, "h": 6 },
+      "targets": [
+        {
+          "expr": "llm_error_rate * 100",
+          "legendFormat": "错误率%"
+        }
+      ],
+      "thresholds": [
+        { "value": 1.0, "color": "green", "label": "正常" },
+        { "value": 5.0, "color": "yellow", "label": "警告" },
+        { "value": 10.0, "color": "red", "label": "紧急" }
+      ],
+      "unit": "percent"
+    },
+    {
+      "id": 5,
+      "title": "安全熔断器状态",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 6, "w": 4, "h": 6 },
+      "targets": [
+        {
+          "expr": "ai_circuit_breaker_state",
+          "legendFormat": "CircuitState"
+        }
+      ],
+      "valueMaps": [
+        { "value": "0", "text": "CLOSED（正常）" },
+        { "value": "1", "text": "OPEN（熔断）" },
+        { "value": "2", "text": "HALF_OPEN（探测）" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Token 消耗趋势",
+      "type": "graph",
+      "gridPos": { "x": 16, "y": 6, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(ai_token_consumption_total{type=\"input\"}[5m])",
+          "legendFormat": "Input Tokens/s"
+        },
+        {
+          "expr": "rate(ai_token_consumption_total{type=\"output\"}[5m])",
+          "legendFormat": "Output Tokens/s"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "日均成本趋势",
+      "type": "graph",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "ai_cost_daily",
+          "legendFormat": "日成本（元）"
+        }
+      ],
+      "thresholds": [
+        { "value": 5.0, "color": "yellow", "label": "预算 50%" },
+        { "value": 8.0, "color": "orange", "label": "预算 80%" },
+        { "value": 10.0, "color": "red", "label": "超预算" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "模型健康度",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "ai_model_health",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "安全评分趋势（滑动窗口平均）",
+      "type": "graph",
+      "gridPos": { "x": 0, "y": 18, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "ai_average_safety_score",
+          "legendFormat": "平均安全分"
+        }
+      ],
+      "thresholds": [
+        { "value": 9.0, "color": "yellow", "label": "预警" },
+        { "value": 7.5, "color": "red", "label": "熔断" }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "模型拦截次数",
+      "type": "graph",
+      "gridPos": { "x": 8, "y": 18, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(ai_safety_block_total[5m])",
+          "legendFormat": "安全拦截/s"
+        },
+        {
+          "expr": "rate(ai_circuit_breaker_trip_total[5m])",
+          "legendFormat": "熔断触发/s"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "方法级延迟（@Trace）Top 10",
+      "type": "graph",
+      "gridPos": { "x": 16, "y": 18, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(trace_method_latency_seconds_bucket[5m]))",
+          "legendFormat": "{{method}} P99"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "RAG 质量指标",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 24, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "eval:metrics:ragas:hallucination_rate * 100",
+          "legendFormat": "幻觉率%"
+        }
+      ],
+      "unit": "percent"
+    },
+    {
+      "id": 13,
+      "title": "上下文召回率",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 24, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "eval:metrics:ragas:context_recall * 100",
+          "legendFormat": "召回率%"
+        }
+      ],
+      "unit": "percent"
+    },
+    {
+      "id": 14,
+      "title": "加密操作监控",
+      "type": "graph",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(aes_encrypt_operations_total[5m])",
+          "legendFormat": "加密操作/s"
+        }
+      ]
+    }
+  ],
+  "alertRules": {
+    "p99_latency_high": {
+      "expr": "llm_e2e_p99_seconds > 5",
+      "for": "2m",
+      "severity": "CRITICAL",
+      "summary": "AI 响应 P99 延迟超过 5 秒",
+      "description": "当前 P99 端到端延迟 {{ $value }}s，可能影响用户体验"
+    },
+    "llm_error_rate_high": {
+      "expr": "llm_error_rate > 0.05",
+      "for": "1m",
+      "severity": "CRITICAL",
+      "summary": "LLM 错误率超过 5%",
+      "description": "当前错误率 {{ $value | humanizePercentage }}"
+    },
+    "safety_circuit_open": {
+      "expr": "ai_circuit_breaker_state == 1",
+      "for": "0m",
+      "severity": "P0",
+      "summary": "安全熔断器触发",
+      "description": "所有 AI 调用已切换至降级方案"
+    },
+    "daily_cost_high": {
+      "expr": "ai_cost_daily > 8",
+      "for": "5m",
+      "severity": "WARNING",
+      "summary": "日成本已超过预算 80%",
+      "description": "当前日成本 {{ $value }} 元"
+    },
+    "encryption_failure": {
+      "expr": "rate(aes_encrypt_failure_total[5m]) > 0",
+      "for": "0m",
+      "severity": "CRITICAL",
+      "summary": "检测到加密操作失败",
+      "description": "请立即检查 AES 密钥配置和加密模块状态"
+    },
+    "single_user_cost_high": {
+      "expr": "user_daily_cost_yuan > 1",
+      "for": "5m",
+      "severity": "WARNING",
+      "summary": "单用户日成本超过 1 元",
+      "description": "用户 {{ $labels.user_id }} 日成本 {{ $value }} 元"
+    },
+    "model_unhealthy": {
+      "expr": "ai_model_success_rate < 0.5",
+      "for": "2m",
+      "severity": "CRITICAL",
+      "summary": "模型成功率低于 50%",
+      "description": "当前成功率 {{ $value | humanizePercentage }}"
+    }
+  }
+}

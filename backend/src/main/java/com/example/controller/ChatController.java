@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -34,8 +35,17 @@ public class ChatController {
             new ThreadPoolExecutor.CallerRunsPolicy()
     );
 
+    /** SSE 响应缓存 Redis Key 前缀 */
+    private static final String SSE_CACHE_PREFIX = "sse:resume:";
+
+    /** SSE 响应缓存 TTL（秒） */
+    private static final long SSE_CACHE_TTL = 120;
+
     @Autowired
     private ChatService chatService;
+
+    @Autowired(required = false)
+    private StringRedisTemplate redisTemplate;
 
     @PreDestroy
     public void shutdown() {
@@ -75,31 +85,52 @@ public class ChatController {
     @PostMapping(value = "/send", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter send(@Validated @RequestBody ChatSendDTO dto,
                            @RequestAttribute("userId") Long userId) {
+
+        // 断点续传模式：从 cursor 位置开始续传
+        if (dto.getCursor() != null && dto.getCursor() > 0) {
+            return resumeSSE(dto, userId);
+        }
+
         SseEmitter emitter = new SseEmitter(120_000L);
+        String cacheKey = SSE_CACHE_PREFIX + dto.getSessionId() + ":" + userId;
 
         SSE_EXECUTOR.execute(() -> {
             try {
                 chatService.chat(dto.getSessionId(), userId, dto.getContent(),
                         delta -> {
                             try {
-                                emitter.send(SseEmitter.event().name("message").data(delta));
+                                // 发送增量数据
+                                emitter.send(SseEmitter.event()
+                                        .name("message")
+                                        .data(delta));
+                                // 缓存到 Redis 支持断点续传
+                                cacheDelta(cacheKey, delta);
                             } catch (IOException e) {
                                 emitter.completeWithError(e);
                             }
                         },
                         () -> {
                             try {
-                                emitter.send(SseEmitter.event().name("message").data("[DONE]"));
+                                emitter.send(SseEmitter.event()
+                                        .name("message")
+                                        .data("[DONE]"));
                                 emitter.complete();
+                                // 清理缓存
+                                clearCache(cacheKey);
                             } catch (IOException e) {
                                 emitter.completeWithError(e);
                             }
                         },
                         errorMsg -> {
                             try {
-                                emitter.send(SseEmitter.event().name("error").data(errorMsg));
-                                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                                emitter.send(SseEmitter.event()
+                                        .name("error")
+                                        .data(errorMsg));
+                                emitter.send(SseEmitter.event()
+                                        .name("message")
+                                        .data("[ERROR]"));
                                 emitter.complete();
+                                clearCache(cacheKey);
                             } catch (IOException e) {
                                 emitter.completeWithError(e);
                             }
@@ -110,5 +141,82 @@ public class ChatController {
         });
 
         return emitter;
+    }
+
+    /**
+     * 断点续传：从指定 cursor 位置开始重新发送 SSE 数据。
+     */
+    private SseEmitter resumeSSE(ChatSendDTO dto, Long userId) {
+        SseEmitter emitter = new SseEmitter(60_000L);
+        String cacheKey = SSE_CACHE_PREFIX + dto.getSessionId() + ":" + userId;
+        int cursor = dto.getCursor();
+
+        SSE_EXECUTOR.execute(() -> {
+            try {
+                if (redisTemplate == null) {
+                    emitter.send(SseEmitter.event().name("error").data("断点续传服务不可用"));
+                    emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                    emitter.complete();
+                    return;
+                }
+
+                // 从 Redis 读取缓存的完整响应
+                String cached = redisTemplate.opsForValue().get(cacheKey);
+                if (cached == null || cached.isEmpty()) {
+                    emitter.send(SseEmitter.event().name("error").data("缓存已过期，请重新发送"));
+                    emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                    emitter.complete();
+                    return;
+                }
+
+                // 从 cursor 位置开始发送
+                String remaining = cached.substring(Math.min(cursor, cached.length()));
+                if (remaining.isEmpty()) {
+                    emitter.send(SseEmitter.event().name("message").data("[DONE]"));
+                    emitter.complete();
+                    return;
+                }
+
+                // 发送剩余部分的分块
+                int chunkSize = 10;
+                for (int i = 0; i < remaining.length(); i += chunkSize) {
+                    int end = Math.min(i + chunkSize, remaining.length());
+                    String chunk = remaining.substring(i, end);
+                    emitter.send(SseEmitter.event().name("message").data(chunk));
+                    // 模拟快速追赶（无延迟，比正常流更快）
+                    Thread.sleep(5);
+                }
+
+                emitter.send(SseEmitter.event().name("message").data("[DONE]"));
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+
+        return emitter;
+    }
+
+    /**
+     * 缓存 SSE 增量到 Redis（追加模式）。
+     */
+    private void cacheDelta(String cacheKey, String delta) {
+        if (redisTemplate == null) return;
+        try {
+            redisTemplate.opsForValue().append(cacheKey, delta);
+            redisTemplate.expire(cacheKey, SSE_CACHE_TTL, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            // 缓存失败不影响主流程
+        }
+    }
+
+    /**
+     * 清理 SSE 缓存。
+     */
+    private void clearCache(String cacheKey) {
+        if (redisTemplate == null) return;
+        try {
+            redisTemplate.delete(cacheKey);
+        } catch (Exception ignored) {}
     }
 }

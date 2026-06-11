@@ -123,6 +123,13 @@ public class AgentOrchestrator {
             return fallbackService.getFallbackResponse(userId, userInput);
         }
 
+        // Step 0.5: 医疗红线 Layer1 正则硬匹配（AI 调用前拦截）
+        if (!safetyCheckerService.layer1MedicalCheck(userId, userInput)) {
+            log.warn("医疗红线Layer1拦截，拒绝AI调用 userId={}", userId);
+            return AiAgentResponse.textOnly(
+                    "为保障您的健康安全，您的问题涉及医疗诊断/处方/剂量相关内容，系统暂不支持回答。请咨询专业医疗机构。");
+        }
+
         List<AgentResult> results;
 
         // Step 1: 根据路由决策调用 Agent

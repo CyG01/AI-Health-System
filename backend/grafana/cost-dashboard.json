@@ -1,0 +1,237 @@
+{
+  "dashboard": {
+    "title": "AI-Health LLM 成本监控面板",
+    "uid": "ai-health-llm-cost",
+    "tags": ["ai", "cost", "llm", "phase4"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "当日总成本（元）",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cny",
+            "decimals": 4,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 5 },
+                { "color": "red", "value": 10 }
+              ]
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "sum(llm_total_cost_daily)",
+            "legendFormat": "总成本"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "人均日成本（元）",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cny",
+            "decimals": 4,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 0.08 },
+                { "color": "red", "value": 0.1 }
+              ]
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "sum(llm_total_cost_daily) / count(llm_active_users_daily)",
+            "legendFormat": "人均成本"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "当日调用次数",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "fieldConfig": {
+          "defaults": { "unit": "short" }
+        },
+        "targets": [
+          {
+            "expr": "sum(llm_call_count_daily)",
+            "legendFormat": "调用次数"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "超预算用户数（>1元/天）",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 1 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "count(llm_over_budget_users)",
+            "legendFormat": "超预算用户"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "成本趋势（按小时）",
+        "type": "graph",
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 4 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cny",
+            "decimals": 4
+          }
+        },
+        "targets": [
+          {
+            "expr": "rate(llm_total_cost[1h]) * 3600",
+            "legendFormat": "成本速率（元/h）"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "调用次数趋势（按小时）",
+        "type": "graph",
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 4 },
+        "fieldConfig": {
+          "defaults": { "unit": "short" }
+        },
+        "targets": [
+          {
+            "expr": "rate(llm_call_count_daily[1h]) * 3600",
+            "legendFormat": "调用速率（次/h）"
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "title": "各模型层级成本分布",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+        "fieldConfig": {
+          "defaults": { "unit": "cny", "decimals": 4 }
+        },
+        "targets": [
+          {
+            "expr": "sum by (model_tier) (llm_tier_cost_daily)",
+            "legendFormat": "{{model_tier}}"
+          }
+        ]
+      },
+      {
+        "id": 21,
+        "title": "各意图成本分布",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+        "fieldConfig": {
+          "defaults": { "unit": "cny", "decimals": 4 }
+        },
+        "targets": [
+          {
+            "expr": "sum by (intent) (llm_intent_cost_daily)",
+            "legendFormat": "{{intent}}"
+          }
+        ]
+      },
+      {
+        "id": 22,
+        "title": "各模型成本分布",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+        "fieldConfig": {
+          "defaults": { "unit": "cny", "decimals": 4 }
+        },
+        "targets": [
+          {
+            "expr": "sum by (model_name) (llm_model_cost_daily)",
+            "legendFormat": "{{model_name}}"
+          }
+        ]
+      },
+      {
+        "id": 30,
+        "title": "Token 消耗趋势",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+        "fieldConfig": {
+          "defaults": { "unit": "short" }
+        },
+        "targets": [
+          {
+            "expr": "rate(llm_input_tokens_total[1h]) * 3600",
+            "legendFormat": "输入Token/h"
+          },
+          {
+            "expr": "rate(llm_output_tokens_total[1h]) * 3600",
+            "legendFormat": "输出Token/h"
+          }
+        ]
+      },
+      {
+        "id": 31,
+        "title": "Top 10 高成本用户",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+        "targets": [
+          {
+            "expr": "topk(10, llm_user_cost_daily)",
+            "format": "table",
+            "legendFormat": "用户{{user_id}}"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": { "Time": true },
+              "renameByName": { "user_id": "用户ID", "Value": "日成本(元)" }
+            }
+          }
+        ]
+      },
+      {
+        "id": 40,
+        "title": "预算告警日志",
+        "type": "logs",
+        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 30 },
+        "targets": [
+          {
+            "expr": "{job=\"ai-health\"} |~ \"(预算超限|budget|cost.*alert)\""
+          }
+        ]
+      }
+    ]
+  }
+}

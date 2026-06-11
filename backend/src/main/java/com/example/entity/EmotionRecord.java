@@ -1,6 +1,7 @@
 package com.example.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -27,7 +28,8 @@ public class EmotionRecord implements Serializable {
     /** 置信度 0.00-1.00 */
     private BigDecimal confidence;
 
-    /** 原始用户输入 */
+    /** 原始用户输入 — 字段级加密 */
+    @TableField(typeHandler = com.example.util.EncryptedStringTypeHandler.class)
     private String originalText;
 
     /** 触发切换的语气 */

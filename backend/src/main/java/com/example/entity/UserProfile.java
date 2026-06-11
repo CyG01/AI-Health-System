@@ -1,6 +1,7 @@
 package com.example.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -49,6 +50,16 @@ public class UserProfile implements Serializable {
 
     /** 完成新手引导时间 */
     private LocalDateTime onboardingCompletedAt;
+
+    /** 用户真实姓名 — 字段级加密 */
+    @TableField(typeHandler = com.example.util.EncryptedStringTypeHandler.class)
+    private String realName;
+
+    /** 用户同意将数据用于模型训练 0=未授权 1=已授权 */
+    private Integer dataConsentForModel;
+
+    /** 用户同意将数据用于个性化推荐 0=未授权 1=已授权 */
+    private Integer dataConsentForRecommend;
 
     /** 注册第几天 */
     private Integer registrationDay;
@@ -106,6 +117,15 @@ public class UserProfile implements Serializable {
 
     public LocalDateTime getOnboardingCompletedAt() { return onboardingCompletedAt; }
     public void setOnboardingCompletedAt(LocalDateTime onboardingCompletedAt) { this.onboardingCompletedAt = onboardingCompletedAt; }
+
+    public String getRealName() { return realName; }
+    public void setRealName(String realName) { this.realName = realName; }
+
+    public Integer getDataConsentForModel() { return dataConsentForModel; }
+    public void setDataConsentForModel(Integer dataConsentForModel) { this.dataConsentForModel = dataConsentForModel; }
+
+    public Integer getDataConsentForRecommend() { return dataConsentForRecommend; }
+    public void setDataConsentForRecommend(Integer dataConsentForRecommend) { this.dataConsentForRecommend = dataConsentForRecommend; }
 
     public Integer getRegistrationDay() { return registrationDay; }
     public void setRegistrationDay(Integer registrationDay) { this.registrationDay = registrationDay; }

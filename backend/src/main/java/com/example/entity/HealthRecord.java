@@ -36,8 +36,12 @@ public class HealthRecord implements Serializable {
 
     private String goal;
 
+    /** 疾病史 — 字段级加密 */
+    @TableField(typeHandler = com.example.util.EncryptedStringTypeHandler.class)
     private String diseaseHistory;
 
+    /** 过敏史 — 字段级加密 */
+    @TableField(typeHandler = com.example.util.EncryptedStringTypeHandler.class)
     private String allergyHistory;
 
     /** 过敏类型（逗号分隔）：FOOD/DRUG/ENVIRONMENT */

@@ -49,4 +49,40 @@ public interface KnowledgeDocMapper extends BaseMapper<KnowledgeDoc> {
      */
     @Select("SELECT authority_level, COUNT(*) AS cnt FROM knowledge_doc WHERE is_active = 1 GROUP BY authority_level")
     List<java.util.Map<String, Object>> countByLevel();
+
+    /**
+     * 分页查询（用于批量构建向量索引）
+     */
+    @Select("SELECT * FROM knowledge_doc WHERE is_active = 1 ORDER BY id LIMIT #{offset}, #{limit}")
+    List<KnowledgeDoc> selectPage(@Param("offset") long offset, @Param("limit") int limit);
+
+    /**
+     * MySQL LIKE 模糊搜索（Qdrant 不可用时的降级方案）
+     */
+    @Select("<script>" +
+            "SELECT * FROM knowledge_doc WHERE is_active = 1 " +
+            "AND (title LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%')) " +
+            "<if test='authorityLevels != null and authorityLevels.size() > 0'>" +
+            "  AND authority_level IN " +
+            "  <foreach collection='authorityLevels' item='level' open='(' separator=',' close=')'>" +
+            "    #{level}" +
+            "  </foreach>" +
+            "</if>" +
+            "ORDER BY authority_level ASC LIMIT #{limit}" +
+            "</script>")
+    List<KnowledgeDoc> searchByKeyword(@Param("keyword") String keyword,
+                                        @Param("authorityLevels") List<String> authorityLevels,
+                                        @Param("limit") int limit);
+
+    /**
+     * 统计活跃文档数
+     */
+    @Select("SELECT COUNT(*) FROM knowledge_doc WHERE is_active = 1")
+    long count();
+
+    /**
+     * 查询所有活跃文档（用于批量索引）
+     */
+    @Select("SELECT * FROM knowledge_doc WHERE is_active = 1")
+    List<KnowledgeDoc> findAllActive();
 }

@@ -18,6 +18,7 @@ import com.example.util.MedicalDisclaimerFilter;
 import com.example.util.PromptSanitizer;
 import com.example.vo.ChatMessageVO;
 import com.example.vo.ChatSessionVO;
+import com.example.dto.AiTaskMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -163,6 +164,7 @@ public class ChatServiceImpl implements ChatService {
 
             // 保存用户消息
             ChatMessage userMsg = new ChatMessage();
+            userMsg.setUserId(userId);
             userMsg.setSessionId(sessionId);
             userMsg.setRole("user");
             userMsg.setContent(sanitizedContent);
@@ -207,6 +209,7 @@ public class ChatServiceImpl implements ChatService {
             // 保存助手消息
             if (!responseWithDisclaimer.isEmpty()) {
                 ChatMessage assistantMsg = new ChatMessage();
+                assistantMsg.setUserId(userId);
                 assistantMsg.setSessionId(sessionId);
                 assistantMsg.setRole("assistant");
                 assistantMsg.setContent(responseWithDisclaimer);
@@ -349,5 +352,27 @@ public class ChatServiceImpl implements ChatService {
             }
         }
         return true;
+    }
+
+    /**
+     * 同步对话响应（MQ Consumer 调用）。
+     * 返回完整的 AI 回复文本。
+     */
+    public String chatSync(AiTaskMessage message) {
+        Long sessionId = Long.parseLong(
+                message.getParams() != null ? message.getParams().getOrDefault("sessionId", "0") : "0");
+        String content = message.getPayload();
+        if (content == null || content.isBlank()) {
+            throw new RuntimeException("对话内容为空");
+        }
+
+        // 使用同步方式收集回复
+        StringBuilder fullResponse = new StringBuilder();
+        chat(sessionId, message.getUserId(), content,
+                fullResponse::append,           // onMessage
+                () -> {},                        // onComplete
+                error -> { throw new RuntimeException(error); }  // onError
+        );
+        return fullResponse.toString();
     }
 }

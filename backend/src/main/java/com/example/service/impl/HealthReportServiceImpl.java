@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 
 import com.example.util.PromptSanitizer;
 
+import com.example.dto.AiTaskMessage;
+
 @Slf4j
 @Service
 public class HealthReportServiceImpl implements HealthReportService {
@@ -325,5 +327,15 @@ public class HealthReportServiceImpl implements HealthReportService {
         vo.setCreateTime(report.getCreateTime());
         vo.setIsRead(report.getIsRead());
         return vo;
+    }
+
+    /**
+     * 同步生成健康报告（MQ Consumer 调用）。
+     */
+    public HealthReportVO generateReportSync(AiTaskMessage message) {
+        String reportType = message.getParams() != null
+                ? message.getParams().getOrDefault("reportType", "weekly")
+                : "weekly";
+        return generateReport(message.getUserId(), reportType);
     }
 }

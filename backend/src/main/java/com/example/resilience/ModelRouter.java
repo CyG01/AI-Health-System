@@ -1,9 +1,11 @@
 package com.example.resilience;
 
+import com.example.annotation.Trace;
 import com.example.billing.BillingService;
 import com.example.common.BusinessException;
 import com.example.monitor.DeepSeekCostMonitor;
 import com.example.monitor.ModelTier;
+import com.example.service.OllamaService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -26,6 +28,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -59,6 +62,7 @@ public class ModelRouter {
     private final ObjectMapper objectMapper;
     private final CircuitBreakerRegistry cbRegistry;
     private final RetryRegistry retryRegistry;
+    private final OllamaService ollamaService;
 
     /** 被质量降级的模型集合（幻觉率高或其他质量问题） */
     private final java.util.Set<String> deprioritizedModels = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -93,13 +97,15 @@ public class ModelRouter {
                         BillingService billingService,
                         ObjectMapper objectMapper,
                         CircuitBreakerRegistry cbRegistry,
-                        RetryRegistry retryRegistry) {
+                        RetryRegistry retryRegistry,
+                        OllamaService ollamaService) {
         this.healthChecker = healthChecker;
         this.costMonitor = costMonitor;
         this.billingService = billingService;
         this.objectMapper = objectMapper;
         this.cbRegistry = cbRegistry;
         this.retryRegistry = retryRegistry;
+        this.ollamaService = ollamaService;
     }
 
     /**
@@ -192,8 +198,21 @@ public class ModelRouter {
      * @param userId   用户ID（用于按订阅等级选择模型，null时仅按可用性选择）
      * @return AI 响应文本
      */
+    @Trace(spanName = "model-router-chat", recordArgs = false, recordResult = false, slowThresholdMs = 5000)
     public String chat(List<Map<String, String>> messages, String scenario, Long userId) {
         ensureInitialized();
+
+        // Phase 4: LOW-tier 请求优先走本地 Ollama 模型（替代 30% 云端调用）
+        if (isLowTierScenario(scenario) && ollamaService != null && ollamaService.isHealthy()) {
+            try {
+                log.debug("LOW-tier 请求路由到本地 Ollama scenario={} userId={}", scenario, userId);
+                return ollamaService.chat(messages, scenario, userId);
+            } catch (Exception e) {
+                log.warn("Ollama 调用失败，降级到云端模型 scenario={}", scenario, e);
+                // 降级到云端 MEDIUM 模型
+            }
+        }
+
         String modelId = selectModel(scenario, userId);
         ModelConfig config = models.get(modelId);
 
@@ -597,5 +616,174 @@ public class ModelRouter {
             status.put(entry.getKey(), info);
         }
         return status;
+    }
+
+    // ==================== Tier-Based Routing（Phase 2b） ====================
+
+    /** 每个 Tier 独立的熔断状态 */
+    private final Map<ModelTier, CircuitBreaker> tierCircuitBreakers = new ConcurrentHashMap<>();
+
+    /** 各 Tier 对应的模型 ID 池 */
+    private static final Map<ModelTier, List<String>> TIER_MODEL_POOLS = Map.of(
+            ModelTier.LOW, List.of("ollama-local"),
+            ModelTier.MEDIUM, List.of(GLM, MOONSHOT),
+            ModelTier.HIGH, List.of(DEEPSEEK, QWEN),
+            ModelTier.CRITICAL, List.of(DEEPSEEK)
+    );
+
+    /**
+     * 按 ModelTier 智能路由（Phase 2b 核心方法）。
+     *
+     * 策略：
+     * - LOW → 本地 Ollama 模型（成本≈0）
+     * - MEDIUM → 低成本云端模型（GLM/Moonshot）
+     * - HIGH → 高质量模型（DeepSeek/Qwen）
+     * - CRITICAL → 最高安全模型（DeepSeek，强制安全审查）
+     *
+     * 降级链：LOW → MEDIUM → HIGH → 预设应答
+     * 每个 Tier 独立熔断状态，不可用时自动升级到下一级。
+     *
+     * @param tier     模型层级
+     * @param messages 消息列表
+     * @param scenario 调用场景
+     * @return AI 响应文本
+     */
+    public String chat(ModelTier tier, List<Map<String, String>> messages, String scenario) {
+        ensureInitialized();
+        ModelTier currentTier = tier;
+
+        while (currentTier != null) {
+            try {
+                // 检查该 Tier 的熔断状态
+                CircuitBreaker cb = getTierCircuitBreaker(currentTier);
+                if (cb != null && cb.getState() == CircuitBreaker.State.OPEN) {
+                    log.warn("Tier {} 熔断状态 OPEN，尝试降级", currentTier);
+                    currentTier = currentTier.downgrade();
+                    continue;
+                }
+
+                String modelId = selectModelForTier(currentTier, scenario);
+                if (modelId != null) {
+                    ModelConfig config = models.get(modelId);
+                    if (config != null && healthChecker.canCall(modelId)) {
+                        String result;
+                        if (cb != null) {
+                            result = callWithTierBreaker(cb, currentTier, modelId, config, messages, scenario);
+                        } else {
+                            result = callModel(modelId, config, messages, scenario);
+                        }
+                        return result;
+                    }
+                }
+
+                log.warn("Tier {} 无可用模型，降级到下一级", currentTier);
+                currentTier = currentTier.downgrade();
+            } catch (Exception e) {
+                log.error("Tier {} 调用失败，降级到下一级", currentTier, e);
+                currentTier = currentTier.downgrade();
+            }
+        }
+
+        // 所有 Tier 不可用 → 返回预设安全应答
+        String fallback = "系统繁忙，请稍后重试。当前AI服务暂时不可用，已切换至安全基础模式。"
+                + "如有紧急健康问题，请立即就医或咨询专业医生。";
+        log.warn("所有模型 Tier 不可用，返回预设安全应答 tier={} scenario={}", tier, scenario);
+        return fallback;
+    }
+
+    /**
+     * 按 Tier 选择最佳模型。
+     */
+    private String selectModelForTier(ModelTier tier, String scenario) {
+        List<String> pool = TIER_MODEL_POOLS.getOrDefault(tier, List.of(DEEPSEEK));
+
+        // 按场景适配：优先选择适合该场景的模型
+        for (String modelId : pool) {
+            ModelConfig config = models.get(modelId);
+            if (config != null
+                    && config.getSuitableScenarios().contains(scenario)
+                    && healthChecker.canCall(modelId)
+                    && !deprioritizedModels.contains(modelId)) {
+                return modelId;
+            }
+        }
+
+        // 场景不匹配，选择池中任意可用模型
+        return pool.stream()
+                .filter(id -> models.containsKey(id)
+                        && healthChecker.canCall(id)
+                        && !deprioritizedModels.contains(id))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * 获取或创建 Tier 专属熔断器。
+     */
+    private CircuitBreaker getTierCircuitBreaker(ModelTier tier) {
+        return tierCircuitBreakers.computeIfAbsent(tier, t -> {
+            String name = "tier-" + t.name().toLowerCase();
+            try {
+                return cbRegistry.circuitBreaker(name);
+            } catch (Exception e) {
+                // 配置不存在时使用默认熔断器
+                log.warn("Tier 熔断器配置不存在，使用默认配置 tier={}", t);
+                return cbRegistry.circuitBreaker("deepseek");
+            }
+        });
+    }
+
+    /**
+     * 用 Tier 专属熔断器包裹调用。
+     */
+    private String callWithTierBreaker(CircuitBreaker cb, ModelTier tier,
+                                        String modelId, ModelConfig config,
+                                        List<Map<String, String>> messages, String scenario) {
+        Supplier<String> supplier = CircuitBreaker.decorateSupplier(cb,
+                () -> callModel(modelId, config, messages, scenario));
+
+        try {
+            String result = supplier.get();
+            costMonitor.recordCall(estimateTokens(result) / 2, estimateTokens(result), tier);
+            return result;
+        } catch (Exception e) {
+            log.error("Tier {} 熔断器拦截调用失败 model={}", tier, modelId, e);
+            throw new BusinessException("Tier " + tier + " 不可用: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取各 Tier 的熔断状态（供运维 API）。
+     */
+    public Map<String, Object> getTierCircuitBreakerStatus() {
+        Map<String, Object> status = new HashMap<>();
+        for (ModelTier tier : ModelTier.values()) {
+            CircuitBreaker cb = tierCircuitBreakers.get(tier);
+            Map<String, Object> tierStatus = new HashMap<>();
+            if (cb != null) {
+                tierStatus.put("state", cb.getState().name());
+                tierStatus.put("failureRate", cb.getMetrics().getFailureRate());
+                tierStatus.put("slowCallRate", cb.getMetrics().getSlowCallRate());
+            } else {
+                tierStatus.put("state", "NOT_INITIALIZED");
+            }
+            tierStatus.put("modelPool", TIER_MODEL_POOLS.getOrDefault(tier, List.of()));
+            status.put(tier.name(), tierStatus);
+        }
+        return status;
+    }
+
+    // ===== Phase 4: 本地 Ollama 模型路由辅助方法 =====
+
+    /** LOW-tier 场景列表（走本地 Ollama，替代 30% 云端调用） */
+    private static final java.util.Set<String> LOW_TIER_SCENARIOS = java.util.Set.of(
+            "chitchat", "greeting", "simple_query", "sentiment_analysis"
+    );
+
+    /**
+     * 判断场景是否为 LOW-tier（可走本地模型）。
+     */
+    private boolean isLowTierScenario(String scenario) {
+        return scenario != null && LOW_TIER_SCENARIOS.contains(scenario);
     }
 }

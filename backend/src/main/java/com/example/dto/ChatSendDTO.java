@@ -17,4 +17,10 @@ public class ChatSendDTO {
     @NotBlank(message = "消息内容不能为空")
     @Schema(description = "消息内容", example = "减脂期可以吃水果吗？")
     private String content;
+
+    @Schema(description = "SSE 断点续传游标（从该位置开始续传）", example = "42")
+    private Integer cursor;
+
+    @Schema(description = "是否为重新生成请求", example = "false")
+    private Boolean regenerate;
 }

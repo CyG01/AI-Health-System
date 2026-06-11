@@ -2,16 +2,19 @@ package com.example.service;
 
 import com.example.entity.ComplianceRule;
 import com.example.entity.HealthRecord;
+import com.example.entity.SafetyReviewLog;
 import com.example.entity.SafetyRule;
 import com.example.entity.UserProfile;
 import com.example.mapper.ComplianceRuleMapper;
 import com.example.mapper.HealthRecordMapper;
+import com.example.mapper.SafetyReviewLogMapper;
 import com.example.mapper.SafetyRuleMapper;
 import com.example.mapper.UserProfileMapper;
 import com.example.vo.SafetyCheckResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -20,8 +23,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * 安全检查服务 — 硬编码规则表 + 合规校验 + 判别式 AI 第二道防线。
- * 在计划生成/调整链路中嵌入，拦截危险运动计划。
+ * 安全检查服务 — Layer1 医疗红线正则拦截 + 规则表匹配 + 合规校验。
+ *
+ * 三层防线：
+ * 1. Layer1（新增）：MedicalSafetyDict 正则硬匹配，AI 调用前拦截处方药/诊断/剂量
+ * 2. Layer2：SafetyRule 规则表硬匹配（运动禁忌）
+ * 3. Layer3：SafetyReviewAgent LLM 审查（第二道防线）
  */
 @Slf4j
 @Service
@@ -31,6 +38,8 @@ public class SafetyCheckerService {
     private final ComplianceRuleMapper complianceRuleMapper;
     private final HealthRecordMapper healthRecordMapper;
     private final UserProfileMapper userProfileMapper;
+    private final SafetyReviewLogMapper safetyReviewLogMapper;
+    private final MedicalSafetyDict medicalSafetyDict;
 
     /** 常见健康状况关键词映射（用于识别用户健康记录中的关键病症） */
     private static final String[] COMMON_CONDITIONS = {
@@ -42,11 +51,15 @@ public class SafetyCheckerService {
     public SafetyCheckerService(SafetyRuleMapper safetyRuleMapper,
                                  ComplianceRuleMapper complianceRuleMapper,
                                  HealthRecordMapper healthRecordMapper,
-                                 UserProfileMapper userProfileMapper) {
+                                 UserProfileMapper userProfileMapper,
+                                 SafetyReviewLogMapper safetyReviewLogMapper,
+                                 MedicalSafetyDict medicalSafetyDict) {
         this.safetyRuleMapper = safetyRuleMapper;
         this.complianceRuleMapper = complianceRuleMapper;
         this.healthRecordMapper = healthRecordMapper;
         this.userProfileMapper = userProfileMapper;
+        this.safetyReviewLogMapper = safetyReviewLogMapper;
+        this.medicalSafetyDict = medicalSafetyDict;
     }
 
     /**
@@ -187,5 +200,62 @@ public class SafetyCheckerService {
         return Arrays.stream(rule.getForbiddenKeywords().split(","))
                 .map(String::trim)
                 .anyMatch(k -> planTask.toLowerCase().contains(k.toLowerCase()));
+    }
+
+    // ==================== Layer1 医疗红线正则拦截 ====================
+
+    /**
+     * 医疗红线 Layer1 正则硬匹配 — 在 AI 调用前执行。
+     *
+     * 检查用户输入或 AI 输出中是否包含处方药名、疾病诊断术语、剂量相关词汇。
+     * 拦截时写入 SafetyReviewLog，便于后续规则优化。
+     *
+     * @param userId 用户ID
+     * @param text   待检查文本
+     * @return true = 通过检查（无违规），false = 被拦截
+     */
+    public boolean layer1MedicalCheck(Long userId, String text) {
+        if (text == null || text.isBlank()) {
+            return true;
+        }
+
+        long start = System.currentTimeMillis();
+        MedicalSafetyDict.MedicalSafetyResult result = medicalSafetyDict.check(text);
+        long latencyMs = System.currentTimeMillis() - start;
+
+        if (result.isPassed()) {
+            return true;
+        }
+
+        // 被拦截：写入 SafetyReviewLog
+        List<String> matchDetails = result.getMatches().stream()
+                .map(m -> m.getCategory() + ":" + m.getKeyword())
+                .collect(Collectors.toList());
+        String issuesJson = "[\"" + String.join("\",\"", matchDetails) + "\"]";
+
+        log.warn("医疗红线Layer1拦截 userId={} matches={} text={}",
+                userId, matchDetails, truncate(text, 200));
+
+        try {
+            SafetyReviewLog logEntry = new SafetyReviewLog();
+            logEntry.setUserId(userId);
+            logEntry.setVerdict("BLOCK");
+            logEntry.setRiskLevel("high");
+            logEntry.setIssues(issuesJson);
+            logEntry.setSuggestions("[\"请勿提供处方药、诊断或剂量建议\"]");
+            logEntry.setFallbackMode(false);
+            logEntry.setContentDigest(truncate(text, 500));
+            logEntry.setLatencyMs(latencyMs);
+            logEntry.setCreatedAt(LocalDateTime.now());
+            safetyReviewLogMapper.insert(logEntry);
+        } catch (Exception e) {
+            log.error("Layer1拦截日志写入失败 userId={}", userId, e);
+        }
+
+        return false;
+    }
+
+    private static String truncate(String s, int maxLen) {
+        return s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 }

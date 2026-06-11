@@ -24,6 +24,9 @@ spring:
       leak-detection-threshold: 60000
       validation-timeout: 5000
       connection-test-query: SELECT 1
+  # ShardingSphere 读写分离与分片（Phase 4，生产环境启用）
+  shardingsphere:
+    enabled: ${SHARDING_ENABLED:false}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -79,6 +82,14 @@ app:
 sms:
   dev-mode: ${SMS_DEV_MODE:true}
 
+# 字段级加密密钥（Base64 编码的 32 字节 AES-256 密钥）
+# 开发环境可复制 .env.example 到 .env 后设置
+# 生成密钥示例: openssl rand -base64 32
+aes:
+  encryption:
+    key: ${AES_ENCRYPTION_KEY}
+    legacy-key: ${AES_ENCRYPTION_LEGACY_KEY:}
+
 deepseek:
   base-url: https://api.deepseek.com/v1
   api-key: ${DEEPSEEK_API_KEY:}
@@ -131,6 +142,31 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 120s
         permitted-number-of-calls-in-half-open-state: 2
+      # Tier 级熔断器（Phase 2b）
+      tier-low:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+      tier-medium:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+      tier-high:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 40
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 3
+      tier-critical:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 5
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 1
   ratelimiter:
     instances:
       ai-api:
@@ -143,7 +179,7 @@ resilience4j:
         max-concurrent-calls: 5
         max-wait-duration: 10s
 
-# 多模型容灾配置
+# 多模型容灾配置 + 本地模型（Phase 4）
 resilience:
   # 通义千问（备选模型1）
   qwen:
@@ -154,6 +190,21 @@ resilience:
   # 月之暗面 Moonshot（备选模型3）
   moonshot:
     api-key: ${MOONSHOT_API_KEY:}
+  # 本地 Ollama 模型（Phase 4，LOW Tier 兜底，替代30%云端调用）
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:qwen2:7b}
+    backup-model: ${OLLAMA_BACKUP_MODEL:llama3:8b}
+    enabled: ${OLLAMA_ENABLED:false}
+    timeout: 30000
+    max-concurrent: 4
+
+# 成本预算配置（Phase 4）
+cost:
+  budget:
+    daily-per-user: ${COST_DAILY_PER_USER:1.0}
+    alert-webhook: ${COST_ALERT_WEBHOOK:}
+    auto-pause-threshold: ${COST_AUTO_PAUSE:1.0}
 
 # 安全熔断器配置
 safety:
@@ -164,6 +215,11 @@ safety:
     sliding-window-minutes: 30
     half-open-test-interval: 10
     half-open-test-count: 3
+  # BERT 医疗红线判别服务（Layer2）
+  bert:
+    enabled: true
+    service-url: ${BERT_SERVICE_URL:http://localhost:5001}
+    timeout-ms: 2000
 
 # LLMOps 运维配置
 llmops:
@@ -189,11 +245,131 @@ cors:
   allow-credentials: true
   max-age: 3600
 
+# ========================================
+# TDengine 时序数据库配置（Phase 2a）
+# ========================================
+tdengine:
+  # 总开关：开发/生产环境按需开启
+  # 第 1 周：仅开发环境 enabled=true
+  # 第 2 周：生产环境 enabled=true，查询仍走 MySQL
+  # 第 3 周：灰度放开查询走 TDengine
+  enabled: ${TDENGINE_ENABLED:false}
+
+  # Master 节点（写操作）
+  master:
+    url: ${TDENGINE_MASTER_URL:jdbc:TAOS://localhost:6030/ai_health}
+    username: ${TDENGINE_USERNAME:root}
+    password: ${TDENGINE_PASSWORD:taosdata}
+
+  # Slave1 节点（读操作，可选）
+  slave1:
+    url: ${TDENGINE_SLAVE1_URL:}
+    username: ${TDENGINE_SLAVE1_USERNAME:root}
+    password: ${TDENGINE_SLAVE1_PASSWORD:taosdata}
+
+  # Slave2 节点（读操作，可选）
+  slave2:
+    url: ${TDENGINE_SLAVE2_URL:}
+    username: ${TDENGINE_SLAVE2_USERNAME:root}
+    password: ${TDENGINE_SLAVE2_PASSWORD:taosdata}
+
+  # 连接池配置
+  pool:
+    max-write-connections: ${TDENGINE_POOL_WRITE_MAX:5}
+    max-read-connections-per-node: ${TDENGINE_POOL_READ_MAX:5}
+    heartbeat-interval-seconds: ${TDENGINE_HEARTBEAT_INTERVAL:30}
+    connection-timeout-millis: ${TDENGINE_CONN_TIMEOUT:5000}
+
+  # 数据一致性校验配置
+  consistency:
+    cron: ${TDENGINE_CONSISTENCY_CRON:0 0 2 * * ?}
+    sample-size: ${TDENGINE_CONSISTENCY_SAMPLE:100}
+    tolerance: ${TDENGINE_CONSISTENCY_TOLERANCE:0.1}
+
+  # 存量数据迁移配置（命令行参数启用）
+  migration:
+    enabled: ${TDENGINE_MIGRATION_ENABLED:false}
+    batch-size: ${TDENGINE_MIGRATION_BATCH:5000}
+    verify-months: ${TDENGINE_MIGRATION_VERIFY_MONTHS:1}
+
 logging:
   level:
     root: ERROR
     com.example: ${LOG_LEVEL:INFO}
     org.springframework.web: WARN
+
+# ========================================
+# Qdrant 向量数据库配置（Phase 2b）
+# ========================================
+qdrant:
+  # Qdrant Cloud 托管版（推荐）或自建节点
+  host: ${QDRANT_HOST:localhost}
+  port: ${QDRANT_PORT:6334}
+  api-key: ${QDRANT_API_KEY:}
+  use-tls: ${QDRANT_USE_TLS:true}
+  # 集合名称
+  collection:
+    knowledge-doc: knowledge_doc
+  # 向量维度（DeepSeek Embedding = 1536）
+  vector-dim: 1536
+  # 稀疏向量（BM25）开关
+  sparse-vector:
+    enabled: ${QDRANT_SPARSE_ENABLED:true}
+  # 混合检索
+  hybrid:
+    # 向量检索 Top-N
+    vector-top: 50
+    # BM25 检索 Top-N
+    bm25-top: 50
+    # RRF 融合参数 k（默认 60）
+    rrf-k: 60
+    # 最终返回 Top-N
+    final-top: 5
+  # 灰度切换
+  traffic:
+    # 灰度比例：0.0~1.0，1.0=全量走 Qdrant，0.0=全量走 MySQL
+    ratio: ${QDRANT_TRAFFIC_RATIO:0.0}
+    # 灰度开关：true=启用灰度，false=直接全量
+    enabled: ${QDRANT_TRAFFIC_ENABLED:false}
+  # 降级重试
+  retry:
+    max-attempts: 3
+    initial-delay-ms: 1000
+    max-delay-ms: 8000
+
+# Cohere Rerank 配置
+cohere:
+  api-key: ${COHERE_API_KEY:}
+  rerank-model: rerank-v3.5
+  # 本地 BGE-Reranker 替代方案（Phase 2b 后期）
+  local-rerank:
+    enabled: ${LOCAL_RERANK_ENABLED:false}
+
+# RocketMQ 配置
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: ai-health-producer-group
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 2
+    retry-times-when-send-async-failed: 2
+  consumer:
+    # 消费者线程池配置
+    pull-batch-size: 32
+
+# AI 任务异步化配置
+ai-task:
+  mq:
+    enabled: ${AI_TASK_MQ_ENABLED:true}
+    # 灰度比例：0.0~1.0，1.0=全量走MQ，0.0=全量走内存队列
+    traffic-ratio: ${AI_TASK_MQ_RATIO:1.0}
+  retry:
+    max-attempts: 5
+    initial-delay-ms: 1000
+    max-delay-ms: 16000
+    multiplier: 2.0
+  result:
+    ttl-hours: 24
 
 management:
   server:

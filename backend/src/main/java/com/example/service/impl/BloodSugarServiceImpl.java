@@ -2,6 +2,7 @@ package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.annotation.TsdbDoubleWrite;
 import com.example.common.BusinessException;
 import com.example.dto.BloodSugarSubmitDTO;
 import com.example.entity.BloodSugar;
@@ -9,7 +10,9 @@ import com.example.entity.SysNotification;
 import com.example.event.BloodSugarAbnormalEvent;
 import com.example.mapper.BloodSugarMapper;
 import com.example.mapper.SysNotificationMapper;
+import com.example.scheduler.DataConsistencyJob;
 import com.example.service.BloodSugarService;
+import com.example.tsdb.TSDBConnectionPool;
 import com.example.vo.BloodSugarVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,9 +39,12 @@ public class BloodSugarServiceImpl implements BloodSugarService {
     private final BloodSugarMapper bloodSugarMapper;
     private final SysNotificationMapper sysNotificationMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final TSDBConnectionPool tsdbPool;
+    private final DataConsistencyJob dataConsistencyJob;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @TsdbDoubleWrite(dataType = "blood_sugar")
     public BloodSugarVO submitRecord(Long userId, BloodSugarSubmitDTO dto) {
         BloodSugar record = new BloodSugar();
         record.setUserId(userId);
@@ -115,6 +121,72 @@ public class BloodSugarServiceImpl implements BloodSugarService {
         }
         bloodSugarMapper.deleteById(recordId);
         log.info("删除血糖记录 userId={} recordId={}", userId, recordId);
+    }
+
+    @Override
+    public BigDecimal getDailyAvg(Long userId, LocalDate date) {
+        // 检查该用户是否在一致性问题黑名单中
+        if (dataConsistencyJob.isUserInconsistent(userId)) {
+            log.debug("User {} is in inconsistent list, using MySQL for daily avg", userId);
+            return bloodSugarMapper.getDailyAvg(userId, date);
+        }
+
+        // 优先走 TDengine
+        if (tsdbPool.isAvailable()) {
+            try {
+                BigDecimal tsdbResult = tsdbPool.getDailyAvgBloodSugar(userId, date);
+                if (tsdbResult != null) {
+                    return tsdbResult;
+                }
+            } catch (Exception e) {
+                log.warn("TDengine query failed for userId={} date={}, falling back to MySQL: {}",
+                        userId, date, e.getMessage());
+            }
+        }
+
+        // 降级到 MySQL
+        return bloodSugarMapper.getDailyAvg(userId, date);
+    }
+
+    @Override
+    public List<BloodSugarVO> getYearTrend(Long userId) {
+        // 检查该用户是否在一致性问题黑名单中
+        if (dataConsistencyJob.isUserInconsistent(userId)) {
+            log.debug("User {} is in inconsistent list, using MySQL for yearly trend", userId);
+            return getTrend(userId, 365);
+        }
+
+        // 优先走 TDengine（按月聚合，大幅提升性能）
+        if (tsdbPool.isAvailable()) {
+            try {
+                List<Object[]> tsdbResults = tsdbPool.getBloodSugarYearTrend(userId);
+                if (!tsdbResults.isEmpty()) {
+                    return tsdbResults.stream().map(row -> {
+                        BloodSugarVO vo = new BloodSugarVO();
+                        vo.setUserId(userId);
+                        // row[0]: _wstart (Timestamp)
+                        if (row[0] != null) {
+                            if (row[0] instanceof java.sql.Timestamp ts) {
+                                vo.setRecordDate(ts.toLocalDateTime().toLocalDate());
+                            } else if (row[0] instanceof java.time.LocalDate ld) {
+                                vo.setRecordDate(ld);
+                            }
+                        }
+                        // row[1]: AVG
+                        if (row[1] != null) {
+                            vo.setGlucoseValue(new BigDecimal(row[1].toString()));
+                        }
+                        return vo;
+                    }).toList();
+                }
+            } catch (Exception e) {
+                log.warn("TDengine yearly trend query failed for userId={}, falling back to MySQL: {}",
+                        userId, e.getMessage());
+            }
+        }
+
+        // 降级到 MySQL
+        return getTrend(userId, 365);
     }
 
     private void pushAbnormalAlert(Long userId, BigDecimal value, int flag, Long recordId) {

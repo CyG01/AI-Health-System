@@ -64,15 +64,38 @@
             <div class="message-avatar">
               {{ msg.role === 'user' ? '我' : 'AI' }}
             </div>
-            <div class="message-bubble">
-              <div class="message-text" v-html="formatContent(msg.content)"></div>
+            <div class="message-bubble-wrapper">
+              <div class="message-bubble">
+                <div class="message-text" v-html="formatContent(msg.content)"></div>
+              </div>
+              <!-- AI 回复操作按钮 -->
+              <div v-if="msg.role === 'assistant' && msg.content" class="message-actions">
+                <el-button text size="small" :icon="Refresh" @click="handleRegenerate(msg)" title="重新生成">
+                  重新生成
+                </el-button>
+                <el-button text size="small" :icon="CircleCheck" @click="handleFeedback(msg, 'useful')" title="有用">
+                  <el-icon :size="14" :color="msg.feedback === 'useful' ? '#3fb950' : ''"><CircleCheck /></el-icon>
+                </el-button>
+                <el-button text size="small" :icon="CircleClose" @click="handleFeedback(msg, 'useless')" title="没用">
+                  <el-icon :size="14" :color="msg.feedback === 'useless' ? '#f85149' : ''"><CircleClose /></el-icon>
+                </el-button>
+                <el-button text size="small" :icon="WarningFilled" @click="handleFeedback(msg, 'incorrect')" title="有误">
+                  <el-icon :size="14" :color="msg.feedback === 'incorrect' ? '#d29922' : ''"><WarningFilled /></el-icon>
+                </el-button>
+              </div>
             </div>
           </div>
 
           <div v-if="streaming" class="message-row assistant">
             <div class="message-avatar">AI</div>
-            <div class="message-bubble streaming">
-              <div class="message-text">{{ streamingText }}<span class="cursor-blink">|</span></div>
+            <div class="message-bubble-wrapper">
+              <div class="message-bubble streaming">
+                <div class="message-text">{{ streamingText }}<span class="cursor-blink">|</span></div>
+              </div>
+              <div class="streaming-progress">
+                <span class="progress-dot" />
+                <span class="progress-text">AI 正在生成回复... {{ progressChars }} 字</span>
+              </div>
             </div>
           </div>
         </div>
@@ -95,7 +118,7 @@
             :loading="streaming"
             :disabled="!inputText.trim() || streaming"
             @click="handleSend"
-          >发送</el-button>
+          >{{ streaming ? '生成中...' : '发送' }}</el-button>
         </div>
 
         <!-- 医疗免责声明（始终显示） -->
@@ -110,15 +133,18 @@
 <script setup>
 import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Delete, Plus, Close, Promotion } from '@element-plus/icons-vue'
+import { ChatDotRound, Delete, Plus, Close, Promotion, CircleCheck, CircleClose, WarningFilled, Refresh } from '@element-plus/icons-vue'
 import { createSession, getSessionList, getMessages, deleteSession, sendMessage } from '@/api/chat'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { isOnline, getCachedChatMessages, cacheChatMessages } from '@/utils/offlineCache'
 
 const visible = ref(false)
 const showSessionList = ref(false)
 const streaming = ref(false)
 const inputText = ref('')
 const streamingText = ref('')
+const progressChars = ref(0)
+let currentSseAbort = null
 const currentSessionId = ref(null)
 const sessions = ref([])
 const messages = ref([])
@@ -216,46 +242,102 @@ function handleSend() {
   const text = inputText.value.trim()
   if (!text || streaming.value || !currentSessionId.value) return
 
-  // 添加用户消息到列表
+  // 取消上一次未完成的请求
+  if (currentSseAbort) {
+    currentSseAbort.abort()
+    currentSseAbort = null
+  }
+
+  // 添加用户消息到列表并缓存
   messages.value.push({ role: 'user', content: text })
+  cacheChatMessages(currentSessionId.value, messages.value)
   inputText.value = ''
   streaming.value = true
   streamingText.value = ''
+  progressChars.value = 0
 
   nextTick(() => scrollToBottom())
 
   const currentSession = currentSessionId.value
 
-  try {
-    sendMessage({ sessionId: currentSession, content: text })
-      .onMessage((delta) => {
+  const stream = sendMessage(
+    { sessionId: currentSession, content: text },
+    {
+      onMessage: (delta) => {
         if (delta === '[DONE]') {
           // AI回复完成
           messages.value.push({ role: 'assistant', content: streamingText.value })
           streaming.value = false
           streamingText.value = ''
+          progressChars.value = 0
+          // 缓存完整的消息列表
+          cacheChatMessages(currentSessionId.value, messages.value)
           nextTick(() => scrollToBottom())
           // 刷新会话列表以更新标题
           getSessionList().then(res => { sessions.value = res.data || [] })
         } else if (delta === '[ERROR]') {
           streaming.value = false
           streamingText.value = ''
+          progressChars.value = 0
           ElMessage.error('AI回复失败')
         } else {
           streamingText.value += delta
+          progressChars.value = (progressChars.value || 0) + (delta ? delta.length : 0)
           nextTick(() => scrollToBottom())
         }
-      })
-      .onError((err) => {
+      },
+      onProgress: (chars) => {
+        progressChars.value = chars
+      },
+      onDone: () => {
+        // done via [DONE] message
+      },
+      onError: (err) => {
         streaming.value = false
         streamingText.value = ''
+        progressChars.value = 0
         ElMessage.error(err?.message || '发送失败')
-      })
-  } catch {
-    streaming.value = false
-    streamingText.value = ''
-    ElMessage.error('发送失败')
+      },
+      onResume: (cursor) => {
+        ElMessage.info(`连接恢复中...已恢复 ${cursor} 字`)
+      }
+    }
+  )
+
+  currentSseAbort = stream
+}
+
+function handleRegenerate(msg) {
+  if (streaming.value) return
+  // 找到该AI消息之前最后一条用户消息
+  const idx = messages.value.indexOf(msg)
+  if (idx <= 0) return
+  // 找到此AI回复对应的用户问题
+  let userMsg = null
+  for (let i = idx - 1; i >= 0; i--) {
+    if (messages.value[i].role === 'user') {
+      userMsg = messages.value[i]
+      break
+    }
   }
+  if (!userMsg) return
+  // 移除当前AI回复
+  messages.value.splice(idx, 1)
+  // 重新发送用户消息
+  inputText.value = userMsg.content
+  handleSend()
+}
+
+function handleFeedback(msg, type) {
+  // 切换反馈状态
+  if (msg.feedback === type) {
+    msg.feedback = null
+  } else {
+    msg.feedback = type
+  }
+  // 可扩展：发送反馈到后端
+  // request({ url: '/chat/feedback', method: 'post', data: { sessionId, messageIndex, feedback: type } })
+  ElMessage.success(type === 'useful' ? '感谢反馈！' : '已记录反馈')
 }
 
 function formatContent(text) {
@@ -485,6 +567,57 @@ function scrollToBottom() {
 @keyframes blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
+}
+
+/* 消息操作按钮 */
+.message-bubble-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message-actions {
+  display: flex;
+  gap: 2px;
+  padding-left: 4px;
+}
+
+.message-actions .el-button {
+  color: #8b949e;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.message-actions .el-button:hover {
+  color: #e6edf3;
+}
+
+/* 流式进度提示 */
+.streaming-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.progress-dot {
+  width: 6px;
+  height: 6px;
+  background: #58a6ff;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #8b949e;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
 }
 
 .chatbot-input {
