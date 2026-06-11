@@ -1,5 +1,7 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.SleepRecordSubmitDTO;
 import com.example.service.SleepService;
@@ -22,7 +24,9 @@ public class SleepController {
     @Autowired
     private SleepService sleepService;
 
+    @RateLimit(time = 60, count = 5)
     @Operation(summary = "提交睡眠记录")
+    @NoRepeatSubmit
     @PostMapping("/submit")
     public Result<SleepRecordVO> submit(@Validated @RequestBody SleepRecordSubmitDTO dto,
                                         @RequestAttribute("userId") Long userId) {
@@ -47,5 +51,15 @@ public class SleepController {
     public Result<Map<String, String>> analyze(@RequestAttribute("userId") Long userId) {
         String analysis = sleepService.analyzeSleep(userId);
         return Result.success(Map.of("analysis", analysis));
+    }
+
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
+    @Operation(summary = "删除睡眠记录")
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Long id,
+                               @RequestAttribute("userId") Long userId) {
+        sleepService.delete(userId, id);
+        return Result.success();
     }
 }

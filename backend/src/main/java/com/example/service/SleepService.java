@@ -26,4 +26,9 @@ public interface SleepService {
      * AI睡眠分析
      */
     String analyzeSleep(Long userId);
+
+    /**
+     * 删除睡眠记录
+     */
+    void delete(Long userId, Long id);
 }

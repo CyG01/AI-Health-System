@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.common.BusinessException;
 import com.example.convert.AiPlanConvert;
 import com.example.dto.PlanGenerateDTO;
+import com.example.entity.AiCallAuditLog;
 import com.example.entity.AiPlan;
 import com.example.entity.AiPlanDetail;
 import com.example.entity.AiPlanFeedback;
+import com.example.mapper.AiCallAuditLogMapper;
 import com.example.mapper.AiPlanDetailMapper;
 import com.example.mapper.AiPlanFeedbackMapper;
 import com.example.mapper.AiPlanMapper;
@@ -16,6 +18,11 @@ import com.example.properties.DeepSeekProperties;
 import com.example.service.AiPlanService;
 import com.example.service.DeepSeekService;
 import com.example.service.HealthService;
+import com.example.service.MemoryService;
+import com.example.resilience.ModelRouter;
+import com.example.util.AiResponseParser;
+import com.example.util.DataMaskingService;
+import com.example.util.PromptSanitizer;
 import com.example.vo.AiPlanDetailVO;
 import com.example.vo.AiPlanVO;
 import com.example.vo.HealthRecordVO;
@@ -64,6 +71,10 @@ public class AiPlanServiceImpl implements AiPlanService {
     private final AiPlanConvert aiPlanConvert;
     private final ObjectMapper objectMapper;
     private final AiPlanServiceImpl self;
+    private final AiCallAuditLogMapper auditLogMapper;
+    private final DataMaskingService dataMaskingService;
+    private final MemoryService memoryService;
+    private final ModelRouter modelRouter;
 
     public AiPlanServiceImpl(HealthService healthService,
                              DeepSeekService deepSeekService,
@@ -75,7 +86,11 @@ public class AiPlanServiceImpl implements AiPlanService {
                              AiPlanFeedbackMapper aiPlanFeedbackMapper,
                              AiPlanConvert aiPlanConvert,
                              ObjectMapper objectMapper,
-                             @Lazy AiPlanServiceImpl self) {
+                             @Lazy AiPlanServiceImpl self,
+                             AiCallAuditLogMapper auditLogMapper,
+                             DataMaskingService dataMaskingService,
+                             MemoryService memoryService,
+                             ModelRouter modelRouter) {
         this.healthService = healthService;
         this.deepSeekService = deepSeekService;
         this.deepSeekCostMonitor = deepSeekCostMonitor;
@@ -87,6 +102,10 @@ public class AiPlanServiceImpl implements AiPlanService {
         this.aiPlanConvert = aiPlanConvert;
         this.objectMapper = objectMapper;
         this.self = self;
+        this.auditLogMapper = auditLogMapper;
+        this.dataMaskingService = dataMaskingService;
+        this.memoryService = memoryService;
+        this.modelRouter = modelRouter;
     }
 
     @Override
@@ -125,13 +144,30 @@ public class AiPlanServiceImpl implements AiPlanService {
         String model = selectModel(dto, healthRecord);
 
         String preference = buildPreference(dto);
-        String userProfile = buildUserProfile(healthRecord);
+        String userProfile = buildUserProfile(healthRecord, userId);
         String planTypeLabel = getPlanTypeLabel(dto.getPlanType());
         String planTypeNote = getPlanTypeNote(dto.getPlanType());
-        String aiContent = deepSeekService.callApi(
-                BigDecimal.valueOf(healthRecord.getHeight()), BigDecimal.valueOf(healthRecord.getWeight()),
-                healthRecord.getGoal(), dto.getDurationDays(),
-                preference, userProfile, planTypeLabel, planTypeNote, model);
+
+        // 调用AI生成计划（DeepSeek 主路径 + ModelRouter 降级）
+        String aiContent;
+        try {
+            aiContent = deepSeekService.callApi(
+                    BigDecimal.valueOf(healthRecord.getHeight()), BigDecimal.valueOf(healthRecord.getWeight()),
+                    healthRecord.getGoal(), dto.getDurationDays(),
+                    preference, userProfile, planTypeLabel, planTypeNote, model);
+        } catch (Exception e) {
+            log.warn("DeepSeek V1 计划生成失败，降级到 ModelRouter userId={}", userId, e);
+            try {
+                String fallbackPrompt = buildFallbackPrompt(healthRecord, dto, userProfile, planTypeLabel, planTypeNote);
+                aiContent = modelRouter.singleChat(
+                        "你是专业健康教练，根据用户数据生成健康计划JSON。只输出JSON。",
+                        fallbackPrompt,
+                        "plan_generate");
+            } catch (Exception fallbackError) {
+                log.error("ModelRouter 降级也失败 userId={}", userId, fallbackError);
+                throw new BusinessException("AI服务暂时不可用，请稍后重试");
+            }
+        }
 
         AiPlan plan = new AiPlan();
         plan.setUserId(userId);
@@ -198,7 +234,7 @@ public class AiPlanServiceImpl implements AiPlanService {
 
             String model = selectModel(dto, healthRecord);
             String preference = buildPreference(dto);
-            String userProfile = buildUserProfile(healthRecord);
+            String userProfile = buildUserProfile(healthRecord, userId);
             String planTypeLabel = getPlanTypeLabel(dto.getPlanType());
             String planTypeNote = getPlanTypeNote(dto.getPlanType());
 
@@ -364,7 +400,7 @@ public class AiPlanServiceImpl implements AiPlanService {
 
     private void savePlanDetails(Long planId, String aiContent, String planType) {
         try {
-            JsonNode root = objectMapper.readTree(aiContent);
+            JsonNode root = AiResponseParser.extractJson(aiContent);
             JsonNode days = root.path("days");
             if (!days.isArray()) {
                 log.warn("AI返回内容中无days数组 planId={}", planId);
@@ -448,12 +484,39 @@ public class AiPlanServiceImpl implements AiPlanService {
     }
 
     private String selectModel(PlanGenerateDTO dto, HealthRecordVO healthRecord) {
+        // 检查主模型健康状态，不健康时记录告警（实际降级由 DeepSeekService 内部重试处理）
+        if (!modelRouter.isPrimaryHealthy()) {
+            log.warn("DeepSeek 主模型健康状态异常，将以告警模式调用 model={}",
+                    modelRouter.getModelStatus().get("deepseek"));
+        }
+
         boolean hasSevereHistory = healthRecord.getDiseaseHistory() != null
                 && !healthRecord.getDiseaseHistory().isBlank();
         if (dto.getDurationDays() <= 7 && !hasSevereHistory) {
             return "deepseek-chat";
         }
         return "deepseek-reasoner";
+    }
+
+    /**
+     * 构建 ModelRouter 降级时使用的 Prompt（将结构化参数转为自然语言描述）
+     */
+    private String buildFallbackPrompt(HealthRecordVO healthRecord, PlanGenerateDTO dto,
+                                        String userProfile, String planTypeLabel, String planTypeNote) {
+        return String.format(
+                "请为用户生成一个%d天的%s健康计划。\n" +
+                "用户信息：身高%.1fcm，体重%.1fkg，健康目标：%s。\n" +
+                "%s\n" +
+                "计划类型：%s。%s\n" +
+                "偏好：%s\n" +
+                "请输出JSON格式：{\"days\":[{\"d\":天数,\"items\":[\"具体可执行任务1\",\"任务2\"]}]}",
+                dto.getDurationDays(), planTypeLabel,
+                healthRecord.getHeight(), healthRecord.getWeight(),
+                healthRecord.getGoal() != null ? healthRecord.getGoal() : "未设定",
+                userProfile,
+                planTypeLabel, planTypeNote,
+                buildPreference(dto)
+        );
     }
 
     private String buildPreference(PlanGenerateDTO dto) {
@@ -497,19 +560,44 @@ public class AiPlanServiceImpl implements AiPlanService {
         };
     }
 
-    private String buildUserProfile(HealthRecordVO healthRecord) {
+    private String buildUserProfile(HealthRecordVO healthRecord, Long userId) {
         StringBuilder sb = new StringBuilder();
         if (healthRecord.getDiseaseHistory() != null && !healthRecord.getDiseaseHistory().isBlank()) {
-            sb.append("病史:").append(healthRecord.getDiseaseHistory()).append(";");
+            // 敏感疾病泛化 + 注入防护
+            String masked = dataMaskingService.maskDiseaseHistory(healthRecord.getDiseaseHistory());
+            String sanitized = PromptSanitizer.sanitize(masked);
+            if (!sanitized.isBlank()) {
+                sb.append("病史:").append(sanitized).append(";");
+            }
         }
         if (healthRecord.getAllergyHistory() != null && !healthRecord.getAllergyHistory().isBlank()) {
-            sb.append("过敏史:").append(healthRecord.getAllergyHistory()).append(";");
+            String masked = dataMaskingService.maskAllergyHistory(healthRecord.getAllergyHistory());
+            String sanitized = PromptSanitizer.sanitize(masked);
+            if (!sanitized.isBlank()) {
+                sb.append("过敏史:").append(sanitized).append(";");
+            }
+        }
+        if (healthRecord.getFamilyHistory() != null && !healthRecord.getFamilyHistory().isBlank()) {
+            String masked = dataMaskingService.maskFamilyHistory(healthRecord.getFamilyHistory());
+            String sanitized = PromptSanitizer.sanitize(masked);
+            if (!sanitized.isBlank()) {
+                sb.append("家族病史:").append(sanitized).append(";");
+            }
+        }
+        if (healthRecord.getMedication() != null && !healthRecord.getMedication().isBlank()) {
+            String masked = dataMaskingService.maskMedication(healthRecord.getMedication());
+            String sanitized = PromptSanitizer.sanitize(masked);
+            if (!sanitized.isBlank()) {
+                sb.append("当前用药:").append(sanitized).append(";");
+            }
         }
         if (healthRecord.getExerciseHabit() != null && !healthRecord.getExerciseHabit().isBlank()) {
-            sb.append("运动习惯:").append(healthRecord.getExerciseHabit()).append(";");
+            String sanitized = PromptSanitizer.sanitize(healthRecord.getExerciseHabit());
+            sb.append("运动习惯:").append(sanitized).append(";");
         }
         if (healthRecord.getDietHabit() != null && !healthRecord.getDietHabit().isBlank()) {
-            sb.append("饮食习惯:").append(healthRecord.getDietHabit()).append(";");
+            String sanitized = PromptSanitizer.sanitize(healthRecord.getDietHabit());
+            sb.append("饮食习惯:").append(sanitized).append(";");
         }
         if (healthRecord.getTargetWeight() != null) {
             sb.append("目标体重:").append(healthRecord.getTargetWeight()).append("kg;");
@@ -517,6 +605,18 @@ public class AiPlanServiceImpl implements AiPlanService {
         if (sb.isEmpty()) {
             sb.append("无特殊病史,一般健康人群;");
         }
+
+        // Phase 2.1: 注入用户长期记忆上下文
+        try {
+            String memoryContext = memoryService.buildMemoryContext(userId,
+                    "运动偏好 伤病 过敏 饮食禁忌 习惯 反馈", 5);
+            if (!memoryContext.isEmpty()) {
+                sb.append(" ").append(memoryContext);
+            }
+        } catch (Exception e) {
+            log.warn("计划生成记忆检索失败 userId={}", userId, e);
+        }
+
         return sb.toString();
     }
 

@@ -27,4 +27,9 @@ public interface WaterService {
      * 获取指定日期的饮水汇总
      */
     int getDailyTotal(Long userId, LocalDate date);
+
+    /**
+     * 删除饮水记录
+     */
+    void delete(Long userId, Long id);
 }

@@ -16,8 +16,10 @@ import com.example.mapper.SysNotificationMapper;
 import com.example.service.DeepSeekService;
 import com.example.service.HealthService;
 import com.example.service.PlanFeedbackService;
+import com.example.util.PromptSanitizer;
 import com.example.vo.HealthRecordVO;
 import com.example.vo.PlanFeedbackVO;
+import com.example.service.impl.AutoPlanAdjustService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +43,7 @@ public class PlanFeedbackServiceImpl implements PlanFeedbackService {
     private final PlanConvert planConvert;
     private final DeepSeekService deepSeekService;
     private final HealthService healthService;
+    private final AutoPlanAdjustService autoPlanAdjustService;
 
     private static final double AUTO_ADJUST_THRESHOLD = 0.3;   // 完成率 < 30% 触发自动调整
     private static final int AUTO_ADJUST_MIN_DAYS = 3;          // 至少需要 3 天数据
@@ -74,6 +77,13 @@ public class PlanFeedbackServiceImpl implements PlanFeedbackService {
 
                 // 发送通知
                 sendAutoAdjustNotification(userId, dto.getPlanId(), completionRate);
+
+                // 如果满意度评分 ≤ 2（不满意）且用户有反馈内容，触发自动计划调整
+                if (dto.getSatisfactionScore() != null && dto.getSatisfactionScore() <= 2
+                        && dto.getContent() != null && !dto.getContent().isBlank()) {
+                    autoPlanAdjustService.adjustForDifficultyFeedback(
+                            userId, dto.getContent(), dto.getSatisfactionScore());
+                }
             } catch (Exception e) {
                 log.warn("AI自动调整建议生成失败 planId={}", dto.getPlanId(), e);
             }
@@ -96,9 +106,13 @@ public class PlanFeedbackServiceImpl implements PlanFeedbackService {
 
     private String generateAdjustmentSuggestion(AiPlan plan, double completionRate,
                                                  PlanFeedbackDTO dto) {
+        String sanitizedType = PromptSanitizer.sanitize(
+                dto.getFeedbackType() != null ? dto.getFeedbackType() : "general");
+        String sanitizedContent = PromptSanitizer.sanitize(
+                dto.getContent() != null ? dto.getContent() : "");
         String prompt = String.format(
                 "用户健康计划完成率仅%.0f%%，反馈类型: %s，反馈内容: %s。计划类型: %s，共%d天。请分析原因并给出3条具体可执行的计划调整建议，每条不超过50字。直接输出建议，不要格式标记。",
-                completionRate * 100, dto.getFeedbackType(), dto.getContent(),
+                completionRate * 100, sanitizedType, sanitizedContent,
                 plan.getPlanType(), plan.getDurationDays()
         );
 
@@ -128,6 +142,17 @@ public class PlanFeedbackServiceImpl implements PlanFeedbackService {
         } catch (Exception e) {
             log.warn("发送自动调整通知失败 userId={}", userId, e);
         }
+    }
+
+    @Override
+    public List<PlanFeedbackVO> getFeedbacksByUserIdAndPlanId(Long userId, Long planId) {
+        LambdaQueryWrapper<AiPlanFeedback> wrapper = new LambdaQueryWrapper<AiPlanFeedback>()
+                .eq(AiPlanFeedback::getUserId, userId)
+                .eq(AiPlanFeedback::getPlanId, planId)
+                .orderByDesc(AiPlanFeedback::getCreateTime);
+        return aiPlanFeedbackMapper.selectList(wrapper).stream()
+                .map(planConvert::toFeedbackVO)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -216,13 +241,18 @@ public class PlanFeedbackServiceImpl implements PlanFeedbackService {
         // 获取用户健康档案用于 AI 调整
         HealthRecordVO healthRecord = healthService.getLatestHealthRecord(originalPlan.getUserId());
 
-        // 构建调整偏好：原计划信息 + 用户反馈意见
+        // 构建调整偏好：原计划信息 + 用户反馈意见（经注入防护过滤）
         StringBuilder preference = new StringBuilder();
         if (feedback.getAdjustmentSuggestion() != null && !feedback.getAdjustmentSuggestion().isBlank()) {
-            preference.append("AdjustmentSuggestion:").append(feedback.getAdjustmentSuggestion()).append(".");
+            preference.append("AdjustmentSuggestion:")
+                    .append(PromptSanitizer.sanitize(feedback.getAdjustmentSuggestion()))
+                    .append(".");
         }
         if (feedback.getContent() != null && !feedback.getContent().isBlank()) {
-            preference.append("Feedback:").append(feedback.getContent().substring(0, Math.min(100, feedback.getContent().length()))).append(".");
+            String safeContent = PromptSanitizer.sanitize(feedback.getContent());
+            preference.append("Feedback:")
+                    .append(safeContent, 0, Math.min(100, safeContent.length()))
+                    .append(".");
         }
         String adjustPreference = !preference.isEmpty() ? preference.toString() : "General adjustment";
 
@@ -234,7 +264,10 @@ public class PlanFeedbackServiceImpl implements PlanFeedbackService {
                     BigDecimal.valueOf(healthRecord.getWeight()),
                     healthRecord.getGoal(),
                     originalPlan.getDurationDays(),
-                    adjustPreference);
+                    adjustPreference,
+                    "",
+                    "",
+                    "");
         } catch (Exception e) {
             log.error("AI调整计划生成失败 feedbackId={}", feedbackId, e);
             // 降级：使用原内容

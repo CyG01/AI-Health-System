@@ -27,7 +27,12 @@ public class ExerciseItem implements Serializable {
 
     private String videoUrl;
 
+    /** AI 生成的指导说明 */
+    private String aiGuidance;
+
     private Integer status;
+
+    // ... getters/setters ...
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -49,6 +54,9 @@ public class ExerciseItem implements Serializable {
 
     public String getVideoUrl() { return videoUrl; }
     public void setVideoUrl(String videoUrl) { this.videoUrl = videoUrl; }
+
+    public String getAiGuidance() { return aiGuidance; }
+    public void setAiGuidance(String aiGuidance) { this.aiGuidance = aiGuidance; }
 
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }

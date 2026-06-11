@@ -27,6 +27,10 @@ public class ExerciseRecord implements Serializable {
 
     private Integer caloriesBurned;
 
+    private String exerciseType;
+
+    private String note;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
@@ -47,6 +51,12 @@ public class ExerciseRecord implements Serializable {
 
     public Integer getCaloriesBurned() { return caloriesBurned; }
     public void setCaloriesBurned(Integer caloriesBurned) { this.caloriesBurned = caloriesBurned; }
+
+    public String getExerciseType() { return exerciseType; }
+    public void setExerciseType(String exerciseType) { this.exerciseType = exerciseType; }
+
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
 
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }

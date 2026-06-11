@@ -20,10 +20,6 @@ public abstract class BaseTest {
     @MockBean
     protected StringRedisTemplate stringRedisTemplate;
 
-    @MockBean
-    @SuppressWarnings("rawtypes")
-    protected RedisTemplate redisTemplate;
-
     protected void mockRedisSetIfAbsent(boolean result) {
         ValueOperations<String, String> ops = mockValueOps();
         when(stringRedisTemplate.opsForValue()).thenReturn(ops);

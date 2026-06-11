@@ -59,12 +59,19 @@ public class SleepServiceImpl implements SleepService {
             throw new BusinessException("睡眠时长不合理，请检查入睡和起床时间");
         }
 
+        // 计算睡眠时长（小时）和深睡估算（约20%总时长）
+        java.math.BigDecimal sleepHours = java.math.BigDecimal.valueOf(diffMin)
+                .divide(java.math.BigDecimal.valueOf(60), 1, java.math.RoundingMode.HALF_UP);
+        int deepSleepMinutes = (int) (diffMin * 0.2);
+
         // 检查当日是否已有记录
         SleepRecord existing = getByDateEntity(userId, dto.getRecordDate());
         if (existing != null) {
             existing.setSleepTime(dto.getSleepTime());
             existing.setWakeTime(dto.getWakeTime());
             existing.setDurationMin((int) diffMin);
+            existing.setSleepHours(sleepHours);
+            existing.setDeepSleepMinutes(deepSleepMinutes);
             existing.setQuality(dto.getQuality());
             existing.setDreamNotes(dto.getDreamNotes());
             sleepRecordMapper.updateById(existing);
@@ -77,6 +84,8 @@ public class SleepServiceImpl implements SleepService {
         record.setSleepTime(dto.getSleepTime());
         record.setWakeTime(dto.getWakeTime());
         record.setDurationMin((int) diffMin);
+        record.setSleepHours(sleepHours);
+        record.setDeepSleepMinutes(deepSleepMinutes);
         record.setQuality(dto.getQuality());
         record.setDreamNotes(dto.getDreamNotes());
         sleepRecordMapper.insert(record);
@@ -155,6 +164,16 @@ public class SleepServiceImpl implements SleepService {
         }
     }
 
+    @Override
+    public void delete(Long userId, Long id) {
+        SleepRecord record = sleepRecordMapper.selectById(id);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "睡眠记录不存在");
+        }
+        sleepRecordMapper.deleteById(id);
+        log.info("删除睡眠记录 userId={} recordId={}", userId, id);
+    }
+
     private SleepRecord getByDateEntity(Long userId, LocalDate date) {
         LambdaQueryWrapper<SleepRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SleepRecord::getUserId, userId)
@@ -169,6 +188,8 @@ public class SleepServiceImpl implements SleepService {
         vo.setSleepTime(record.getSleepTime());
         vo.setWakeTime(record.getWakeTime());
         vo.setDurationMin(record.getDurationMin());
+        vo.setSleepHours(record.getSleepHours());
+        vo.setDeepSleepMinutes(record.getDeepSleepMinutes());
         vo.setQuality(record.getQuality());
         vo.setDreamNotes(record.getDreamNotes());
         vo.setCreateTime(record.getCreateTime());

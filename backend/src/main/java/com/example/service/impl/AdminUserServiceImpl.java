@@ -88,7 +88,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         AdminUserDetailVO vo = new AdminUserDetailVO();
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
-        vo.setPhone(user.getPhone());
+        vo.setPhone(maskPhone(user.getPhone()));
         vo.setAvatar(user.getAvatar());
         vo.setRole(user.getRole());
         vo.setStatus(user.getStatus());
@@ -211,6 +211,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     /**
      * 计算从今天开始的连续打卡天数
      */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
     private int calculateConsecutiveDays(List<DailyCheckin> records, LocalDate today) {
         if (records.isEmpty()) return 0;
         int consecutive = 0;

@@ -4,6 +4,7 @@ import com.example.vo.BmiTrendVO;
 import com.example.vo.CalorieDeficitVO;
 import com.example.vo.CalorieTrendVO;
 import com.example.vo.CheckinTrendVO;
+import com.example.vo.DietTrendComparisonVO;
 import com.example.vo.ExerciseDistributionVO;
 import com.example.vo.ExerciseTrendVO;
 import com.example.vo.NutrientRatioVO;
@@ -32,4 +33,7 @@ public interface StatisticsService {
 
     /** 运动类型分布 */
     ExerciseDistributionVO getExerciseDistribution(Long userId, Integer days);
+
+    /** 饮食热量多维度趋势对比（本周 vs 上周） */
+    DietTrendComparisonVO getDietTrendComparison(Long userId);
 }

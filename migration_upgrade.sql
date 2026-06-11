@@ -2,7 +2,10 @@
 -- AI Health System 升级迁移脚本
 -- 包含: 运动字典扩展、食物字典扩展、通知偏好等
 -- ============================================
-
+-- 创建数据库（如果不存在）
+CREATE DATABASE IF NOT EXISTS ai_health_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 使用该数据库
+USE ai_health_system;
 -- ----------------------------
 -- 1. exercise_item 增加 target_muscle 和 difficulty 字段
 -- ----------------------------

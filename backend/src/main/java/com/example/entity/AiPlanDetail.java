@@ -28,6 +28,21 @@ public class AiPlanDetail implements Serializable {
 
     private Integer status;
 
+    /** 子阶段名称（如 热身、核心训练、放松拉伸） */
+    private String subPhase;
+
+    /** 子阶段类型：warmup / core / cooldown */
+    private String subPhaseType;
+
+    /** 子阶段排序 */
+    private Integer phaseOrder;
+
+    /** 子阶段时长（分钟） */
+    private Integer phaseDurationMinutes;
+
+    /** 场景标签：workday / weekend / travel */
+    private String scenarioTag;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -51,4 +66,19 @@ public class AiPlanDetail implements Serializable {
 
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+
+    public String getSubPhase() { return subPhase; }
+    public void setSubPhase(String subPhase) { this.subPhase = subPhase; }
+
+    public String getSubPhaseType() { return subPhaseType; }
+    public void setSubPhaseType(String subPhaseType) { this.subPhaseType = subPhaseType; }
+
+    public Integer getPhaseOrder() { return phaseOrder; }
+    public void setPhaseOrder(Integer phaseOrder) { this.phaseOrder = phaseOrder; }
+
+    public Integer getPhaseDurationMinutes() { return phaseDurationMinutes; }
+    public void setPhaseDurationMinutes(Integer phaseDurationMinutes) { this.phaseDurationMinutes = phaseDurationMinutes; }
+
+    public String getScenarioTag() { return scenarioTag; }
+    public void setScenarioTag(String scenarioTag) { this.scenarioTag = scenarioTag; }
 }

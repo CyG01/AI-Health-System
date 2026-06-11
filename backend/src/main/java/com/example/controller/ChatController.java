@@ -1,11 +1,14 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.ChatSendDTO;
 import com.example.service.ChatService;
 import com.example.vo.ChatSessionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
@@ -14,15 +17,30 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Tag(name = "AI健康咨询机器人")
 @RestController
 @RequestMapping("/api/chat")
 public class ChatController {
 
+    /** 共享线程池，避免每次 SSE 请求创建新线程导致泄漏 */
+    private static final ExecutorService SSE_EXECUTOR = new ThreadPoolExecutor(
+            4, 20, 60L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(100),
+            new ThreadPoolExecutor.CallerRunsPolicy()
+    );
+
     @Autowired
     private ChatService chatService;
+
+    @PreDestroy
+    public void shutdown() {
+        SSE_EXECUTOR.shutdown();
+    }
 
     @Operation(summary = "创建新会话")
     @PostMapping("/session/create")
@@ -51,13 +69,15 @@ public class ChatController {
         return Result.success();
     }
 
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
     @Operation(summary = "发送消息（SSE流式）")
     @PostMapping(value = "/send", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter send(@Validated @RequestBody ChatSendDTO dto,
                            @RequestAttribute("userId") Long userId) {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(120_000L);
 
-        Executors.newSingleThreadExecutor().execute(() -> {
+        SSE_EXECUTOR.execute(() -> {
             try {
                 chatService.chat(dto.getSessionId(), userId, dto.getContent(),
                         delta -> {

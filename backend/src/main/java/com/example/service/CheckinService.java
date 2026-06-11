@@ -6,6 +6,8 @@ import com.example.dto.CheckinSupplementDTO;
 import com.example.vo.CheckinStatsVO;
 import com.example.vo.CheckinVO;
 
+import java.util.List;
+
 public interface CheckinService {
 
     CheckinVO submitCheckin(Long userId, CheckinSubmitDTO dto);
@@ -17,4 +19,6 @@ public interface CheckinService {
     Page<CheckinVO> getCheckinPage(Long userId, int page, int size);
 
     CheckinStatsVO getStats(Long userId);
+
+    CheckinVO getTodayCheckin(Long userId);
 }

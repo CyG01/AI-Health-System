@@ -1,7 +1,10 @@
 -- ============================================
 -- 数据库索引优化（生产环境）
 -- ============================================
-
+-- 创建数据库（如果不存在）
+CREATE DATABASE IF NOT EXISTS ai_health_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 使用该数据库
+USE ai_health_system;
 -- 1. 健康档案表：高频查询条件 user_id + create_time
 CREATE INDEX idx_health_record_user_id ON health_record(user_id);
 CREATE INDEX idx_health_record_user_created ON health_record(user_id, create_time);

@@ -28,6 +28,9 @@
                 登录
               </el-button>
             </el-form-item>
+            <el-form-item>
+              <el-checkbox v-model="rememberMe">记住我（30天内自动登录）</el-checkbox>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="验证码登录" name="phone">
@@ -46,6 +49,9 @@
                 登录
               </el-button>
             </el-form-item>
+            <el-form-item>
+              <el-checkbox v-model="rememberMe">记住我（30天内自动登录）</el-checkbox>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
       </el-tabs>
@@ -58,7 +64,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -77,6 +83,12 @@ const loading = ref(false)
 const codeSending = ref(false)
 const countdown = ref(0)
 let countdownTimer = null
+const rememberMe = ref(localStorage.getItem('rememberMe') === 'true')
+
+// 持久化"记住我"状态
+watch(rememberMe, (val) => {
+  localStorage.setItem('rememberMe', val ? 'true' : 'false')
+})
 
 const captchaBase64 = ref('')
 const captchaUuid = ref('')
@@ -175,7 +187,8 @@ async function handleAccountLogin() {
         username: accountForm.username,
         password: accountForm.password,
         captchaCode: accountForm.captchaCode,
-        captchaUuid: captchaUuid.value
+        captchaUuid: captchaUuid.value,
+        rememberMe: rememberMe.value
       })
       await handleLoginSuccess(res)
     } catch {
@@ -195,7 +208,8 @@ async function handlePhoneLogin() {
     try {
       const res = await loginByPhone({
         phone: phoneForm.phone,
-        verifyCode: phoneForm.verifyCode
+        verifyCode: phoneForm.verifyCode,
+        rememberMe: rememberMe.value
       })
       await handleLoginSuccess(res)
     } finally {

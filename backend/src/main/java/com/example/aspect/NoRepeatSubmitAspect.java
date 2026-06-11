@@ -7,6 +7,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 
 @Aspect
 @Component
+@Order(2)
 public class NoRepeatSubmitAspect {
 
     private static final Logger log = LoggerFactory.getLogger(NoRepeatSubmitAspect.class);

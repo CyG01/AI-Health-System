@@ -49,7 +49,7 @@ public class AuthController {
     @Operation(summary = "获取验证码")
     @GetMapping("/captcha")
     public Result<CaptchaVO> captcha() {
-        SpecCaptcha captcha = new SpecCaptcha(120, 40, 4);
+        SpecCaptcha captcha = new SpecCaptcha(130, 48, 5);
         String captchaText = captcha.text();
         String uuid = UUID.randomUUID().toString();
         stringRedisTemplate.opsForValue().set(
@@ -117,8 +117,9 @@ public class AuthController {
     @Operation(summary = "退出登录")
     @PostMapping("/logout")
     public Result<Void> logout(
-            @Parameter(description = "访问Token") @RequestHeader("Authorization") String authorization) {
-        authService.logout(authorization);
+            @Parameter(description = "访问Token") @RequestHeader("Authorization") String authorization,
+            @Parameter(description = "刷新Token") @RequestHeader(value = "Refresh-Token", required = false) String refreshToken) {
+        authService.logout(authorization, refreshToken);
         return Result.success();
     }
 }

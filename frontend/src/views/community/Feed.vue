@@ -28,7 +28,7 @@
                 </div>
               </div>
               <el-dropdown v-if="post.userId === currentUserId" trigger="click" @command="(cmd) => handlePostAction(cmd, post)">
-                <el-button text :icon="'MoreFilled'" />
+                <el-button text :icon="MoreFilled" />
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item command="delete" style="color: #ff4d4f">删除</el-dropdown-item>
@@ -52,12 +52,12 @@
               <el-button
                 text
                 :type="post.isLiked ? 'primary' : 'default'"
-                :icon="post.isLiked ? 'StarFilled' : 'Star'"
+                :icon="post.isLiked ? StarFilled : Star"
                 @click="handleLike(post)"
               >
                 {{ post.likeCount || 0 }}
               </el-button>
-              <el-button text :icon="'ChatDotRound'" @click="openComments(post)">
+              <el-button text :icon="ChatDotRound" @click="openComments(post)">
                 {{ post.commentCount || 0 }}
               </el-button>
             </div>
@@ -159,7 +159,7 @@
             text
             size="small"
             type="danger"
-            :icon="'Delete'"
+            :icon="Delete"
             @click="handleDeleteComment(c)"
           />
         </div>
@@ -183,6 +183,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Edit, MoreFilled, StarFilled, Star, ChatDotRound, Delete } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {
   createPost, deletePost, getPostList, toggleLike,

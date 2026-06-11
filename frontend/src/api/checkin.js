@@ -30,3 +30,18 @@ export function getCheckinStats() {
     method: 'get'
   })
 }
+
+export function getCheckinPage(params) {
+  return request({
+    url: '/checkin/page',
+    method: 'get',
+    params
+  })
+}
+
+export function getTodayCheckin() {
+  return request({
+    url: '/checkin/today',
+    method: 'get'
+  })
+}

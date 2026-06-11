@@ -70,3 +70,11 @@ export function getExerciseDistribution(params) {
     params
   })
 }
+
+/** 饮食热量多维度趋势对比（本周 vs 上周） */
+export function getDietTrendComparison() {
+  return request({
+    url: '/statistics/diet-trend-comparison',
+    method: 'get'
+  })
+}

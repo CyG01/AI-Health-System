@@ -2,6 +2,7 @@ package com.example.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.ExerciseRecordSubmitDTO;
 import com.example.service.ExerciseService;
@@ -15,6 +16,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +45,7 @@ public class ExerciseController {
         return Result.success(exerciseService.listActiveItems());
     }
 
+    @RateLimit(time = 60, count = 10)
     @NoRepeatSubmit
     @Operation(summary = "提交运动记录")
     @PostMapping("/record")
@@ -53,8 +57,10 @@ public class ExerciseController {
 
     @Operation(summary = "查询某次打卡的运动记录")
     @GetMapping("/record/checkin/{checkinId}")
-    public Result<List<ExerciseRecordVO>> getRecordsByCheckinId(@PathVariable Long checkinId) {
-        return Result.success(exerciseService.getRecordsByCheckinId(checkinId));
+    public Result<List<ExerciseRecordVO>> getRecordsByCheckinId(
+            @RequestAttribute("userId") Long userId,
+            @PathVariable Long checkinId) {
+        return Result.success(exerciseService.getRecordsByCheckinId(userId, checkinId));
     }
 
     @Operation(summary = "查询用户运动记录")
@@ -82,5 +88,27 @@ public class ExerciseController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         return Result.success(exerciseService.getRecordsByDate(userId, date, page, size));
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
+    @Operation(summary = "更新运动记录")
+    @PutMapping("/record/{id}")
+    public Result<ExerciseRecordVO> updateRecord(
+            @PathVariable Long id,
+            @Validated @RequestBody ExerciseRecordSubmitDTO dto,
+            @RequestAttribute("userId") Long userId) {
+        return Result.success(exerciseService.updateRecord(userId, id, dto));
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
+    @Operation(summary = "删除运动记录")
+    @DeleteMapping("/record/{id}")
+    public Result<Void> deleteRecord(
+            @PathVariable Long id,
+            @RequestAttribute("userId") Long userId) {
+        exerciseService.deleteRecord(userId, id);
+        return Result.success();
     }
 }

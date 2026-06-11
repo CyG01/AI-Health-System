@@ -89,9 +89,10 @@ public class ExerciseServiceImpl implements ExerciseService {
     }
 
     @Override
-    public List<ExerciseRecordVO> getRecordsByCheckinId(Long checkinId) {
+    public List<ExerciseRecordVO> getRecordsByCheckinId(Long userId, Long checkinId) {
         LambdaQueryWrapper<ExerciseRecord> wrapper = new LambdaQueryWrapper<ExerciseRecord>()
                 .eq(ExerciseRecord::getCheckinId, checkinId)
+                .eq(ExerciseRecord::getUserId, userId)
                 .orderByDesc(ExerciseRecord::getCreateTime);
         List<ExerciseRecord> records = exerciseRecordMapper.selectList(wrapper);
         return mapToRecordVOs(records);
@@ -147,6 +148,39 @@ public class ExerciseServiceImpl implements ExerciseService {
             return vo;
         }).toList());
         return voPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ExerciseRecordVO updateRecord(Long userId, Long recordId, ExerciseRecordSubmitDTO dto) {
+        ExerciseRecord record = exerciseRecordMapper.selectById(recordId);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "运动记录不存在");
+        }
+        record.setCheckinId(dto.getCheckinId());
+        record.setItemId(dto.getItemId());
+        record.setDurationMinutes(dto.getDurationMinutes());
+        record.setCaloriesBurned(dto.getCaloriesBurned());
+        exerciseRecordMapper.updateById(record);
+
+        ExerciseItem item = exerciseItemMapper.selectById(dto.getItemId());
+        ExerciseRecordVO vo = exerciseConvert.toVO(record);
+        if (item != null) {
+            vo.setItemName(item.getName());
+        }
+        log.info("更新运动记录 userId={} recordId={}", userId, recordId);
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteRecord(Long userId, Long recordId) {
+        ExerciseRecord record = exerciseRecordMapper.selectById(recordId);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "运动记录不存在");
+        }
+        exerciseRecordMapper.deleteById(recordId);
+        log.info("删除运动记录 userId={} recordId={}", userId, recordId);
     }
 
     // --- Admin 运动项目管理 ---

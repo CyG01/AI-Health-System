@@ -125,6 +125,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { submitSleep, getTodaySleep, getSleepList, analyzeSleep } from '@/api/sleep'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const pageLoading = ref(false)
 const submitting = ref(false)
@@ -219,7 +220,7 @@ function formatTime(timeStr) {
 
 function formatAnalysis(text) {
   if (!text) return ''
-  return text.replace(/\n/g, '<br>')
+  return sanitizeHtml(text.replace(/\n/g, '<br>'))
 }
 
 onMounted(() => {

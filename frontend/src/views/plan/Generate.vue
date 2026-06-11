@@ -1,5 +1,6 @@
 <template>
   <div class="generate-page">
+    <MedicalDisclaimerBanner />
     <div v-if="!streaming" class="form-card glass-card">
       <h2 class="page-title">AI 智能计划生成</h2>
       <p class="page-desc">基于您的健康档案，由 DeepSeek 为您量身定制个性化健康计划（运动/饮食/综合/康复/冥想）</p>
@@ -100,6 +101,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { generatePlanStream } from '@/api/aiPlan'
+import MedicalDisclaimerBanner from '@/components/MedicalDisclaimerBanner.vue'
 
 const router = useRouter()
 const formRef = ref(null)

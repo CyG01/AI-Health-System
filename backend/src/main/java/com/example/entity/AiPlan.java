@@ -35,6 +35,9 @@ public class AiPlan implements Serializable {
 
     private Integer status;
 
+    /** 场景标签：workday / weekend / travel / hotel */
+    private String scenarioTag;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
@@ -110,6 +113,9 @@ public class AiPlan implements Serializable {
     public void setStatus(Integer status) {
         this.status = status;
     }
+
+    public String getScenarioTag() { return scenarioTag; }
+    public void setScenarioTag(String scenarioTag) { this.scenarioTag = scenarioTag; }
 
     public LocalDateTime getCreateTime() {
         return createTime;

@@ -21,5 +21,5 @@ public interface AuthService {
 
     LoginVO refresh(String refreshToken);
 
-    void logout(String authorization);
+    void logout(String authorization, String refreshToken);
 }

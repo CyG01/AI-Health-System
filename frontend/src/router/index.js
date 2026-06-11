@@ -30,8 +30,18 @@ const SleepRecord = () => import('@/views/sleep/Record.vue')
 const HealthReport = () => import('@/views/health/Report.vue')
 const WaterRecord = () => import('@/views/water/Record.vue')
 const BodyMeasurement = () => import('@/views/body/Measurement.vue')
+const BloodSugar = () => import('@/views/health/BloodSugar.vue')
 const GoalMilestones = () => import('@/views/goal/Milestones.vue')
 const CommunityFeed = () => import('@/views/community/Feed.vue')
+const ChatBot = () => import('@/views/chat/ChatBot.vue')
+const Billing = () => import('@/views/billing/Billing.vue')
+const RefundInvoice = () => import('@/views/billing/RefundInvoice.vue')
+const EnterpriseActivate = () => import('@/views/enterprise/Activate.vue')
+const DataExport = () => import('@/views/export/Export.vue')
+const AdminApproval = () => import('@/views/admin/ApprovalManage.vue')
+const AdminRuleSuggestion = () => import('@/views/admin/RuleSuggestion.vue')
+const AdminAiFeedback = () => import('@/views/admin/AiFeedback.vue')
+const NotificationPreference = () => import('@/views/settings/NotificationPreference.vue')
 
 const routes = [
   {
@@ -203,6 +213,12 @@ const routes = [
         meta: { title: '身体围度', icon: 'DataLine', requiresAuth: true }
       },
       {
+        path: 'blood-sugar',
+        name: 'BloodSugar',
+        component: BloodSugar,
+        meta: { title: '血糖监测', icon: 'Odometer', requiresAuth: true }
+      },
+      {
         path: 'goal',
         name: 'GoalMilestones',
         component: GoalMilestones,
@@ -213,6 +229,60 @@ const routes = [
         name: 'CommunityFeed',
         component: CommunityFeed,
         meta: { title: '健康社区', icon: 'ChatDotRound', requiresAuth: true }
+      },
+      {
+        path: 'chat',
+        name: 'ChatBot',
+        component: ChatBot,
+        meta: { title: 'AI健康助手', icon: 'Service', requiresAuth: true }
+      },
+      {
+        path: 'billing',
+        name: 'Billing',
+        component: Billing,
+        meta: { title: '计费与消费', icon: 'Money', requiresAuth: true }
+      },
+      {
+        path: 'billing/refund-invoice',
+        name: 'RefundInvoice',
+        component: RefundInvoice,
+        meta: { title: '退款与发票', icon: 'Receipt', requiresAuth: true }
+      },
+      {
+        path: 'enterprise',
+        name: 'EnterpriseActivate',
+        component: EnterpriseActivate,
+        meta: { title: '企业版订阅', icon: 'OfficeBuilding', requiresAuth: true }
+      },
+      {
+        path: 'export',
+        name: 'DataExport',
+        component: DataExport,
+        meta: { title: '数据导出', icon: 'Download', requiresAuth: true }
+      },
+      {
+        path: 'settings/notification',
+        name: 'NotificationPreference',
+        component: NotificationPreference,
+        meta: { title: '通知偏好', icon: 'Setting', requiresAuth: true }
+      },
+      {
+        path: 'admin/approval',
+        name: 'AdminApproval',
+        component: AdminApproval,
+        meta: { title: '审批管理', icon: 'Checked', requiresAuth: true, roles: ['admin'] }
+      },
+      {
+        path: 'admin/rule-suggestion',
+        name: 'AdminRuleSuggestion',
+        component: AdminRuleSuggestion,
+        meta: { title: '规则建议审核', icon: 'Warning', requiresAuth: true, roles: ['admin'] }
+      },
+      {
+        path: 'admin/ai-feedback',
+        name: 'AdminAiFeedback',
+        component: AdminAiFeedback,
+        meta: { title: 'AI反馈审核', icon: 'ChatLineSquare', requiresAuth: true, roles: ['admin'] }
       }
     ]
   },
@@ -226,21 +296,45 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  // 滚动行为优化
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    if (to.hash) {
+      return { el: to.hash, behavior: 'smooth' }
+    }
+    return { top: 0, behavior: 'smooth' }
+  }
 })
 
-router.beforeEach((to, from, next) => {
+// 避免重复初始化
+let authInitialized = false
+let lastAuthInit = 0
+const AUTH_INIT_INTERVAL = 30000 // 30秒内不重复初始化
+
+router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const appStore = useAppStore()
 
+  // 页面加载过渡
   appStore.setPageLoading(true)
+
+  // 防抖：短期内不重复调用 initAuth
+  const now = Date.now()
+  if (!authInitialized || (!from.name && now - lastAuthInit > AUTH_INIT_INTERVAL)) {
+    await userStore.initAuth()
+    authInitialized = true
+    lastAuthInit = now
+  }
 
   if (to.meta.public) {
     if (userStore.isLoggedIn && (to.path === '/login' || to.path === '/register')) {
       next('/dashboard')
-    } else {
-      next()
+      return
     }
+    next()
     return
   }
 
@@ -257,12 +351,20 @@ router.beforeEach((to, from, next) => {
     }
   }
 
+  // 首次进入受保护页面时，启动 Token 主动刷新定时器
+  if (userStore.isLoggedIn) {
+    userStore.scheduleTokenRefresh()
+  }
+
   next()
 })
 
+// 路由切换完成，关闭加载状态
 router.afterEach(() => {
   const appStore = useAppStore()
-  appStore.setPageLoading(false)
+  requestAnimationFrame(() => {
+    appStore.setPageLoading(false)
+  })
 })
 
 export default router

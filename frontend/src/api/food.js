@@ -46,11 +46,44 @@ export function getFoodRecordsByDate(date) {
   })
 }
 
-export function recognizeFood(data) {
+export function recognizeFood(formData) {
   return request({
-    url: '/food-recognition/recognize',
+    url: '/food/recognize',
     method: 'post',
-    data,
+    data: formData,
     timeout: 30000
+  })
+}
+
+/** 查询用户常用食物 */
+export function getFrequentItems(params) {
+  return request({
+    url: '/food/items/frequent',
+    method: 'get',
+    params
+  })
+}
+
+/** 文字快捷录入食物 */
+export function parseFoodText(params) {
+  return request({
+    url: '/food/items/parse',
+    method: 'get',
+    params
+  })
+}
+
+export function updateFoodRecord(id, data) {
+  return request({
+    url: `/food/record/${id}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteFoodRecord(id) {
+  return request({
+    url: `/food/record/${id}`,
+    method: 'delete'
   })
 }

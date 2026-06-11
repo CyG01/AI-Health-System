@@ -19,11 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import com.example.util.PromptSanitizer;
 
 @Slf4j
 @Service
@@ -72,7 +75,31 @@ public class HealthReportServiceImpl implements HealthReportService {
             throw new BusinessException("今日AI调用额度已用尽，请明天再试");
         }
 
-        HealthRecordVO health = healthService.getLatestHealthRecord(userId);
+        // Issue 6: 健康档案显式校验，避免异常信息被吞没
+        HealthRecordVO health;
+        try {
+            health = healthService.getLatestHealthRecord(userId);
+        } catch (BusinessException e) {
+            throw new BusinessException("请先创建健康档案后再生成报告");
+        }
+
+        // Issue 3: 同周期重复报告生成防护
+        String period = "weekly".equals(reportType)
+                ? LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy'W'w"))
+                : LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        Long existingCount = healthReportMapper.selectCount(
+                new LambdaQueryWrapper<HealthReport>()
+                        .eq(HealthReport::getUserId, userId)
+                        .eq(HealthReport::getReportType, reportType)
+                        .eq(HealthReport::getReportPeriod, period));
+        if (existingCount > 0) {
+            throw new BusinessException("该周期报告已存在，无需重复生成");
+        }
+
+        // Issue 5: Prompt 注入防护
+        String sanitizedGoal = PromptSanitizer.sanitize(
+                health.getGoal() != null ? health.getGoal() : "未设定");
+
         String stats = gatherStats(userId, reportType);
         String periodLabel = getPeriodLabel(reportType);
 
@@ -85,7 +112,7 @@ public class HealthReportServiceImpl implements HealthReportService {
                         "\"score\":数字(1-100综合评分)}。只输出JSON。",
                 periodLabel,
                 health.getHeight(), health.getWeight(), health.getBmi(),
-                health.getGoal() != null ? health.getGoal() : "未设定",
+                sanitizedGoal,
                 stats);
 
         try {
@@ -98,11 +125,13 @@ public class HealthReportServiceImpl implements HealthReportService {
                     "response_format", Map.of("type", "json_object")
             );
 
+            // Issue 2: 添加超时配置
             String response = webClient.post()
                     .uri("/chat/completions")
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(String.class)
+                    .timeout(Duration.ofMillis(deepSeekProperties.getTimeout()))
                     .block();
 
             com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(response);
@@ -111,10 +140,12 @@ public class HealthReportServiceImpl implements HealthReportService {
             costMonitor.recordCall(inputTokens, outputTokens);
 
             String content = root.path("choices").get(0).path("message").path("content").asText();
+            if (content == null || content.isBlank()) {
+                throw new BusinessException("AI返回内容为空");
+            }
 
-            String period = "weekly".equals(reportType)
-                    ? LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy'W'w"))
-                    : LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            // Issue 1: 校验 AI 返回的 JSON 内容格式与字段完整性
+            validateAiReportContent(content);
 
             HealthReport report = new HealthReport();
             report.setUserId(userId);
@@ -125,9 +156,28 @@ public class HealthReportServiceImpl implements HealthReportService {
             healthReportMapper.insert(report);
 
             return toVO(report);
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("生成健康报告失败", e);
             throw new BusinessException("生成报告失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 校验 AI 返回的健康报告 JSON 格式是否包含必要字段
+     */
+    private void validateAiReportContent(String content) {
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(content);
+            if (!node.has("summary") || !node.has("score")) {
+                throw new BusinessException("AI报告格式不完整，缺少必要字段");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("AI报告JSON解析失败 content={}", content.length() > 500 ? content.substring(0, 500) : content);
+            throw new BusinessException("AI报告格式异常，请稍后重试");
         }
     }
 
@@ -175,6 +225,9 @@ public class HealthReportServiceImpl implements HealthReportService {
             try {
                 generateReport(user.getId(), "weekly");
                 log.info("周报生成成功 userId={}", user.getId());
+            } catch (BusinessException e) {
+                // Issue 7: 无健康档案/已有报告的用户跳过，不产生warn噪音
+                log.debug("周报跳过 userId={} reason={}", user.getId(), e.getMessage());
             } catch (Exception e) {
                 log.warn("周报生成失败 userId={} err={}", user.getId(), e.getMessage());
             }
@@ -196,6 +249,9 @@ public class HealthReportServiceImpl implements HealthReportService {
             try {
                 generateReport(user.getId(), "monthly");
                 log.info("月报生成成功 userId={}", user.getId());
+            } catch (BusinessException e) {
+                // Issue 7: 无健康档案/已有报告的用户跳过，不产生warn噪音
+                log.debug("月报跳过 userId={} reason={}", user.getId(), e.getMessage());
             } catch (Exception e) {
                 log.warn("月报生成失败 userId={} err={}", user.getId(), e.getMessage());
             }
@@ -207,10 +263,11 @@ public class HealthReportServiceImpl implements HealthReportService {
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(days);
 
-        // 打卡统计
+        // 打卡统计（Issue 4: 按日期排序确保体重变化计算正确）
         LambdaQueryWrapper<DailyCheckin> checkinW = new LambdaQueryWrapper<>();
         checkinW.eq(DailyCheckin::getUserId, userId)
-                .between(DailyCheckin::getCheckDate, start, end);
+                .between(DailyCheckin::getCheckDate, start, end)
+                .orderByAsc(DailyCheckin::getCheckDate);
         List<DailyCheckin> checkins = checkinMapper.selectList(checkinW);
 
         int totalDays = days;

@@ -24,6 +24,11 @@ public class DashboardTodayVO implements Serializable {
     private Integer dietCaloriesConsumed;
     private Integer dietRecordsCount;
 
+    /** 最新体重 */
+    private Integer weight;
+    /** 最新 BMI */
+    private java.math.BigDecimal bmi;
+
     public boolean getIsCheckedIn() { return isCheckedIn; }
     public void setIsCheckedIn(boolean isCheckedIn) { this.isCheckedIn = isCheckedIn; }
 
@@ -56,6 +61,12 @@ public class DashboardTodayVO implements Serializable {
 
     public Integer getDietRecordsCount() { return dietRecordsCount; }
     public void setDietRecordsCount(Integer dietRecordsCount) { this.dietRecordsCount = dietRecordsCount; }
+
+    public Integer getWeight() { return weight; }
+    public void setWeight(Integer weight) { this.weight = weight; }
+
+    public java.math.BigDecimal getBmi() { return bmi; }
+    public void setBmi(java.math.BigDecimal bmi) { this.bmi = bmi; }
 
     public static class TaskItem implements Serializable {
         private static final long serialVersionUID = 1L;

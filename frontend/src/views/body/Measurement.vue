@@ -164,7 +164,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { submitBodyMeasurement, getLatestBodyMeasurement, getBodyMeasurementHistory, getBodyMeasurementTrend } from '@/api/bodyMeasurement'
-import * as echarts from 'echarts'
+import echarts from '@/utils/echarts'
 
 const pageLoading = ref(false)
 const submitting = ref(false)

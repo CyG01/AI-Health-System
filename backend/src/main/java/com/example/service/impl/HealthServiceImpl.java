@@ -8,10 +8,13 @@ import com.example.dto.HealthCreateDTO;
 import com.example.dto.HealthUpdateDTO;
 import com.example.entity.HealthRecord;
 import com.example.entity.SysUser;
+import com.example.entity.UserProfile;
 import com.example.mapper.HealthRecordMapper;
 import com.example.mapper.SysUserMapper;
+import com.example.mapper.UserProfileMapper;
 import com.example.service.DeepSeekService;
 import com.example.service.HealthService;
+import com.example.util.DataMaskingService;
 import com.example.vo.HealthAssessmentVO;
 import com.example.vo.HealthHistoryVO;
 import com.example.vo.HealthProgressVO;
@@ -35,9 +38,11 @@ public class HealthServiceImpl implements HealthService {
 
     private final HealthRecordMapper healthRecordMapper;
     private final SysUserMapper sysUserMapper;
+    private final UserProfileMapper userProfileMapper;
     private final HealthConvert healthConvert;
     private final StringRedisTemplate stringRedisTemplate;
     private final DeepSeekService deepSeekService;
+    private final DataMaskingService dataMaskingService;
 
     private static final String USER_GENDER_CACHE_PREFIX = "user:gender:";
     private static final long USER_GENDER_CACHE_TTL = 1;
@@ -51,6 +56,9 @@ public class HealthServiceImpl implements HealthService {
         HealthRecord record = healthConvert.toEntity(dto);
         record.setUserId(userId);
         record.setIsLatest(1);
+
+        // 合并 UserProfile 中的 chronicDiseases 和 injuries 到 diseaseHistory
+        record.setDiseaseHistory(mergeDiseaseHistory(dto.getDiseaseHistory(), userId));
 
         BigDecimal bmi = calculateBmi(dto.getHeight(), dto.getWeight());
         record.setBmi(bmi);
@@ -86,6 +94,9 @@ public class HealthServiceImpl implements HealthService {
         newRecord.setGoal(dto.getGoal() != null ? dto.getGoal() : latest.getGoal());
         newRecord.setDiseaseHistory(dto.getDiseaseHistory() != null ? dto.getDiseaseHistory() : latest.getDiseaseHistory());
         newRecord.setAllergyHistory(dto.getAllergyHistory() != null ? dto.getAllergyHistory() : latest.getAllergyHistory());
+        newRecord.setAllergyType(dto.getAllergyType() != null ? dto.getAllergyType() : latest.getAllergyType());
+        newRecord.setFamilyHistory(dto.getFamilyHistory() != null ? dto.getFamilyHistory() : latest.getFamilyHistory());
+        newRecord.setMedication(dto.getMedication() != null ? dto.getMedication() : latest.getMedication());
         newRecord.setExerciseHabit(dto.getExerciseHabit() != null ? dto.getExerciseHabit() : latest.getExerciseHabit());
         newRecord.setDietHabit(dto.getDietHabit() != null ? dto.getDietHabit() : latest.getDietHabit());
         newRecord.setTargetWeight(dto.getTargetWeight() != null ? dto.getTargetWeight() : latest.getTargetWeight());
@@ -232,8 +243,31 @@ public class HealthServiceImpl implements HealthService {
         sb.append("身高").append(record.getHeight()).append("cm, ");
         sb.append("体重").append(record.getWeight()).append("kg, ");
         sb.append("BMI").append(bmi).append(", ");
-        sb.append("疾病史: ").append(record.getDiseaseHistory() != null ? record.getDiseaseHistory() : "无").append(", ");
-        sb.append("过敏史: ").append(record.getAllergyHistory() != null ? record.getAllergyHistory() : "无").append(", ");
+
+        // 疾病史脱敏
+        if (record.getDiseaseHistory() != null && !record.getDiseaseHistory().isBlank()) {
+            String masked = dataMaskingService.maskDiseaseHistory(record.getDiseaseHistory());
+            sb.append("疾病史: ").append(masked).append(", ");
+        } else {
+            sb.append("疾病史: 无, ");
+        }
+        // 过敏史脱敏
+        if (record.getAllergyHistory() != null && !record.getAllergyHistory().isBlank()) {
+            String masked = dataMaskingService.maskAllergyHistory(record.getAllergyHistory());
+            sb.append("过敏史: ").append(masked).append(", ");
+        } else {
+            sb.append("过敏史: 无, ");
+        }
+        // 家族病史脱敏
+        if (record.getFamilyHistory() != null && !record.getFamilyHistory().isBlank()) {
+            String masked = dataMaskingService.maskFamilyHistory(record.getFamilyHistory());
+            sb.append("家族病史: ").append(masked).append(", ");
+        }
+        // 当前用药脱敏
+        if (record.getMedication() != null && !record.getMedication().isBlank()) {
+            String masked = dataMaskingService.maskMedication(record.getMedication());
+            sb.append("当前用药: ").append(masked).append(", ");
+        }
         sb.append("健康评分: ").append(score).append("/100. ");
 
         // 最近体重变化
@@ -466,6 +500,39 @@ public class HealthServiceImpl implements HealthService {
         if (bmi < 18.5) return "体重偏轻，建议以力量训练增肌为主，减少长时间有氧运动";
         if (!hasHabit) return "建议每周进行3-5次中等强度运动，可从快走、慢跑开始";
         return "运动习惯良好，可根据目标肌群制定针对性训练计划";
+    }
+
+    /**
+     * 合并 HealthRecord 输入的疾病史和 UserProfile 中 Onboarding 阶段收集的慢性病/损伤，
+     * 避免两套数据割裂导致安全检查遗漏。
+     */
+    private String mergeDiseaseHistory(String inputDiseaseHistory, Long userId) {
+        UserProfile profile = userProfileMapper.selectById(userId);
+        if (profile == null) {
+            return inputDiseaseHistory;
+        }
+
+        StringBuilder merged = new StringBuilder();
+        if (inputDiseaseHistory != null && !inputDiseaseHistory.isBlank()) {
+            merged.append(inputDiseaseHistory);
+        }
+
+        // 追加 UserProfile 中的慢性病
+        if (profile.getChronicDiseases() != null && !profile.getChronicDiseases().isBlank()
+                && !"无".equals(profile.getChronicDiseases())) {
+            if (merged.length() > 0) merged.append("；");
+            merged.append(profile.getChronicDiseases());
+        }
+
+        // 追加 UserProfile 中的运动损伤
+        if (profile.getInjuries() != null && !profile.getInjuries().isBlank()
+                && !"无".equals(profile.getInjuries())) {
+            if (merged.length() > 0) merged.append("；");
+            merged.append(profile.getInjuries());
+        }
+
+        String result = merged.toString();
+        return result.isBlank() ? inputDiseaseHistory : result;
     }
 
 }

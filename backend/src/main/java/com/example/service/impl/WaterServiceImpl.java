@@ -1,6 +1,7 @@
 package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.common.BusinessException;
 import com.example.dto.WaterRecordSubmitDTO;
 import com.example.entity.WaterRecord;
 import com.example.mapper.WaterRecordMapper;
@@ -78,6 +79,16 @@ public class WaterServiceImpl implements WaterService {
                 .eq(WaterRecord::getRecordDate, date);
         WaterRecord record = waterRecordMapper.selectOne(wrapper);
         return record != null ? record.getAmountMl() : 0;
+    }
+
+    @Override
+    public void delete(Long userId, Long id) {
+        WaterRecord record = waterRecordMapper.selectById(id);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "饮水记录不存在");
+        }
+        waterRecordMapper.deleteById(id);
+        log.info("删除饮水记录 userId={} recordId={}", userId, id);
     }
 
     private WaterRecordVO toVO(WaterRecord record) {

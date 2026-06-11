@@ -19,6 +19,8 @@ public class UserLoginByPhoneDTO implements Serializable {
     @Pattern(regexp = "^\\d{6}$", message = "验证码必须为6位数字")
     private String verifyCode;
 
+    private boolean rememberMe;
+
     public String getPhone() {
         return phone;
     }
@@ -33,5 +35,13 @@ public class UserLoginByPhoneDTO implements Serializable {
 
     public void setVerifyCode(String verifyCode) {
         this.verifyCode = verifyCode;
+    }
+
+    public boolean isRememberMe() {
+        return rememberMe;
+    }
+
+    public void setRememberMe(boolean rememberMe) {
+        this.rememberMe = rememberMe;
     }
 }

@@ -44,7 +44,7 @@
                 {{ goal.goalTypeLabel }}
               </el-tag>
               <el-dropdown trigger="click" @command="(cmd) => handleGoalAction(cmd, goal)">
-                <el-button text :icon="'MoreFilled'" />
+                <el-button text :icon="MoreFilled" />
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item command="edit">编辑</el-dropdown-item>
@@ -170,7 +170,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheckFilled, Plus } from '@element-plus/icons-vue'
+import { CircleCheckFilled, Plus, MoreFilled } from '@element-plus/icons-vue'
 import { createGoal, updateGoal, deleteGoal, getGoalList, updateGoalStatus } from '@/api/goal'
 
 const pageLoading = ref(false)

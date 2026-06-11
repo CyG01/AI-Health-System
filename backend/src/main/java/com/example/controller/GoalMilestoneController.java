@@ -1,5 +1,7 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.GoalMilestoneDTO;
 import com.example.service.GoalMilestoneService;
@@ -20,6 +22,8 @@ public class GoalMilestoneController {
     @Autowired
     private GoalMilestoneService goalMilestoneService;
 
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
     @Operation(summary = "创建目标")
     @PostMapping("/create")
     public Result<GoalMilestoneVO> create(@Validated @RequestBody GoalMilestoneDTO dto,
@@ -27,6 +31,8 @@ public class GoalMilestoneController {
         return Result.success(goalMilestoneService.create(userId, dto));
     }
 
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
     @Operation(summary = "更新目标")
     @PutMapping("/update")
     public Result<GoalMilestoneVO> update(@Validated @RequestBody GoalMilestoneDTO dto,
@@ -34,6 +40,8 @@ public class GoalMilestoneController {
         return Result.success(goalMilestoneService.update(userId, dto));
     }
 
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
     @Operation(summary = "删除目标")
     @DeleteMapping("/{goalId}")
     public Result<Void> delete(@PathVariable Long goalId,
@@ -55,6 +63,7 @@ public class GoalMilestoneController {
         return Result.success(goalMilestoneService.getById(userId, goalId));
     }
 
+    @RateLimit(time = 60, count = 5)
     @Operation(summary = "更新目标状态 (完成/放弃)")
     @PutMapping("/{goalId}/status")
     public Result<GoalMilestoneVO> updateStatus(@PathVariable Long goalId,

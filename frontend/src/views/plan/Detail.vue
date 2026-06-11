@@ -1,6 +1,7 @@
 <template>
   <div class="detail-page" v-loading="pageLoading">
     <div v-if="plan" class="detail-container">
+      <MedicalDisclaimerBanner />
       <div class="detail-card glass-card">
         <div class="card-header">
           <div class="header-left">
@@ -34,9 +35,44 @@
             <span class="day-date">{{ formatDayDate(day.d) }}</span>
           </div>
           <ul class="item-list">
-            <li v-for="(item, idx) in day.items" :key="idx" class="item-row">
-              <el-icon color="#58a6ff" :size="14"><Check /></el-icon>
-              <span>{{ item }}</span>
+            <li v-for="(item, idx) in day.items" :key="idx">
+              <!-- 结构化 phase 格式 -->
+              <template v-if="isPhaseItem(item)">
+                <div class="phase-item">
+                  <div class="phase-item-header">
+                    <el-icon color="#58a6ff" :size="14"><Check /></el-icon>
+                    <span class="phase-item-name">{{ item.name }}</span>
+                    <el-tag size="small" type="info">{{ item.durationMin }}分钟</el-tag>
+                  </div>
+                  <div class="phase-steps">
+                    <div
+                      v-for="(phase, pi) in item.phases"
+                      :key="pi"
+                      class="phase-step"
+                    >
+                      <div class="phase-step-indicator">
+                        <span class="phase-step-dot" :class="'phase-' + phase.type"></span>
+                        <span v-if="pi < item.phases.length - 1" class="phase-step-line"></span>
+                      </div>
+                      <div class="phase-step-body">
+                        <div class="phase-step-top">
+                          <el-tag :type="phaseTagType(phase.type)" size="small" effect="dark">
+                            {{ phaseTypeLabel(phase.type) }}
+                          </el-tag>
+                          <span class="phase-step-name">{{ phase.name }}</span>
+                          <span class="phase-step-duration">{{ phase.minutes }}分钟</span>
+                        </div>
+                        <p v-if="phase.instruction" class="phase-step-instruction">{{ phase.instruction }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <!-- 扁平字符串格式（兼容旧版） -->
+              <template v-else>
+                <el-icon color="#58a6ff" :size="14"><Check /></el-icon>
+                <span>{{ item }}</span>
+              </template>
             </li>
           </ul>
         </div>
@@ -77,7 +113,7 @@
         </div>
       </div>
 
-      <el-empty v-else description="计划内容为空" />
+      <el-empty v-if="planDays.length === 0" description="计划内容为空" />
     </div>
   </div>
 </template>
@@ -89,6 +125,7 @@ import { ArrowLeft, Check } from '@element-plus/icons-vue'
 import { getPlanDetail } from '@/api/aiPlan'
 import { adjustPlan } from '@/api/aiPlan'
 import { ElMessage } from 'element-plus'
+import MedicalDisclaimerBanner from '@/components/MedicalDisclaimerBanner.vue'
 
 const route = useRoute()
 const pageLoading = ref(false)
@@ -105,6 +142,31 @@ const planDays = computed(() => {
     return []
   }
 })
+
+/** 判断 item 是否为带 phases 的结构化对象 */
+function isPhaseItem(item) {
+  return item && typeof item === 'object' && item.phases && Array.isArray(item.phases) && item.phases.length > 0
+}
+
+/** 获取 phase 类型的标签颜色 */
+function phaseTagType(phaseType) {
+  switch (phaseType) {
+    case 'warmup': return 'warning'
+    case 'core': return 'danger'
+    case 'cooldown': return 'success'
+    default: return 'info'
+  }
+}
+
+/** 获取 phase 类型的中文名称 */
+function phaseTypeLabel(phaseType) {
+  switch (phaseType) {
+    case 'warmup': return '热身'
+    case 'core': return '核心'
+    case 'cooldown': return '放松'
+    default: return phaseType
+  }
+}
 
 function formatDayDate(dayNum) {
   if (!plan.value?.startDate) return ''
@@ -157,7 +219,7 @@ async function handleAdjustPlan() {
   adjusting.value = true
   adjustResult.value = null
   try {
-    const res = await adjustPlan(plan.value.id)
+    const res = await adjustPlan({ originalPlanId: plan.value.id })
     adjustResult.value = res.data
     ElMessage.success('计划调整建议已生成')
   } catch {
@@ -259,6 +321,104 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.item-list li {
+  list-style: none;
+}
+
+/* Phase 结构化渲染 */
+.phase-item {
+  border: 1px solid rgba(48, 54, 61, 0.4);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: rgba(22, 27, 34, 0.5);
+}
+
+.phase-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+}
+
+.phase-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6edf3;
+  flex: 1;
+}
+
+.phase-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.phase-step {
+  display: flex;
+  gap: 12px;
+}
+
+.phase-step-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.phase-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.phase-step-dot.phase-warmup { background: #d29922; }
+.phase-step-dot.phase-core { background: #f85149; }
+.phase-step-dot.phase-cooldown { background: #3fb950; }
+
+.phase-step-line {
+  width: 2px;
+  flex: 1;
+  min-height: 18px;
+  background: rgba(48, 54, 61, 0.5);
+  margin-top: 3px;
+}
+
+.phase-step-body {
+  flex: 1;
+  padding-bottom: 12px;
+}
+
+.phase-step-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.phase-step-name {
+  font-size: 13px;
+  color: #c9d1d9;
+  font-weight: 500;
+}
+
+.phase-step-duration {
+  font-size: 12px;
+  color: #8b949e;
+  margin-left: auto;
+}
+
+.phase-step-instruction {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8b949e;
+  line-height: 1.5;
+}
+
+/* 旧版扁平格式兼容 */
 .item-row {
   display: flex;
   align-items: flex-start;

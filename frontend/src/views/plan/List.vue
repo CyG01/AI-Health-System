@@ -1,5 +1,6 @@
 <template>
   <div class="list-page" v-loading="pageLoading">
+    <MedicalDisclaimerBanner />
     <div class="list-card glass-card">
       <div class="card-header">
         <h2 class="page-title">我的 AI 计划</h2>
@@ -64,6 +65,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPlanList, activePlan, deletePlan } from '@/api/aiPlan'
+import MedicalDisclaimerBanner from '@/components/MedicalDisclaimerBanner.vue'
 
 const router = useRouter()
 const pageLoading = ref(false)

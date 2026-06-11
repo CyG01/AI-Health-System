@@ -1,7 +1,7 @@
 import request from '@/utils/request'
 
 export function generateReport(reportType = 'weekly') {
-  return request({ url: '/health-report/generate', method: 'post', params: { reportType } })
+  return request({ url: '/health-report/generate', method: 'post', data: { reportType } })
 }
 
 export function getReportList(page = 1, size = 10) {

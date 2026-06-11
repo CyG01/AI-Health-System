@@ -48,7 +48,7 @@
         </div>
         <div class="header-right">
           <el-badge :value="userStore.unreadCount" :hidden="userStore.unreadCount === 0" :max="99" class="header-badge">
-            <el-button :icon="'Bell'" text @click="router.push('/notification')" />
+            <el-button :icon="Bell" text @click="router.push('/notification')" />
           </el-badge>
           <el-dropdown trigger="click" @command="handleCommand">
             <div class="user-info">
@@ -78,46 +78,42 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
+import { Fold, Expand, ArrowDown, Bell } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
-import ChatBot from '@/views/chat/ChatBot.vue'
+
+const ChatBot = defineAsyncComponent(() => import('@/views/chat/ChatBot.vue'))
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const appStore = useAppStore()
 
-const mainMenuItems = [
-  { path: '/dashboard', title: '工作台', icon: 'Odometer' },
-  { path: '/checkin/calendar', title: '每日打卡', icon: 'Calendar' },
-  { path: '/food', title: '饮食记录', icon: 'Dish' },
-  { path: '/water', title: '饮水记录', icon: 'Dish' },
-  { path: '/exercise', title: '运动记录', icon: 'Bicycle' },
-  { path: '/sleep', title: '睡眠管理', icon: 'Moon' },
-  { path: '/body-measurement', title: '身体围度', icon: 'DataLine' },
-  { path: '/goal', title: '目标里程碑', icon: 'Trophy' },
-  { path: '/statistics', title: '数据看板', icon: 'PieChart' },
-  { path: '/health/view', title: '健康档案', icon: 'Monitor' },
-  { path: '/health/report', title: 'AI健康报告', icon: 'Document' },
-  { path: '/plan/list', title: 'AI计划', icon: 'MagicStick' },
-  { path: '/community', title: '健康社区', icon: 'ChatDotRound' },
-  { path: '/notification', title: '通知中心', icon: 'Bell' },
-  { path: '/profile', title: '个人中心', icon: 'User' }
-]
+// 从路由配置动态生成菜单项，避免与 router/index.js 双重维护
+const mainLayoutRoutes = router.options.routes.find(r => r.path === '/')?.children || []
 
-const adminMenuItems = [
-  { path: '/admin/user', title: '用户管理', icon: 'UserFilled' },
-  { path: '/admin/announcement', title: '公告管理', icon: 'Notification' },
-  { path: '/admin/food', title: '食物字典', icon: 'Dish' },
-  { path: '/admin/exercise', title: '运动字典', icon: 'Bicycle' },
-  { path: '/admin/notification', title: '发送通知', icon: 'Message' },
-  { path: '/admin/feedback', title: '计划反馈', icon: 'ChatDotSquare' },
-  { path: '/admin/audit', title: '审计日志', icon: 'Document' }
-]
+function buildMenuItem(r) {
+  return {
+    path: '/' + r.path.replace(/^\//, ''),
+    title: r.meta?.title || '',
+    icon: r.meta?.icon || 'Menu'
+  }
+}
+
+const mainMenuItems = computed(() =>
+  mainLayoutRoutes
+    .filter(r => r.meta?.requiresAuth && !r.meta?.roles)
+    .map(buildMenuItem)
+)
+
+const adminMenuItems = computed(() =>
+  mainLayoutRoutes
+    .filter(r => r.meta?.roles?.includes('admin'))
+    .map(buildMenuItem)
+)
 
 const isAdmin = computed(() => userStore.userInfo?.role === 'admin')
 const activeMenu = computed(() => route.path)

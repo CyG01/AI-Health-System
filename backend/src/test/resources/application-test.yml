@@ -15,3 +15,26 @@ spring:
 
 deepseek:
   api-key: test-key
+  base-url: http://localhost:${wiremock.server.port:0}
+  model: deepseek-chat
+  timeout: 30000
+
+# 禁用 resilience 重试/熔断（集成测试中不需要）
+resilience4j:
+  retry:
+    instances:
+      deepseek:
+        max-attempts: 1
+  circuitbreaker:
+    instances:
+      deepseek:
+        sliding-window-size: 100
+        failure-rate-threshold: 100
+        wait-duration-in-open-state: 1ms
+
+# 安全熔断器（测试环境）
+safety:
+  circuit:
+    safety-threshold: 10.0
+    meltdown-threshold: 10.0
+    consecutive-fails-to-open: 999

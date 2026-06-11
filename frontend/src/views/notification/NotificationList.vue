@@ -40,7 +40,7 @@
                 type="danger"
                 size="small"
                 text
-                :icon="'Delete'"
+                :icon="Delete"
                 @click.stop="handleDelete(item)"
               />
             </div>

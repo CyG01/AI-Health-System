@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 
 /**
@@ -45,20 +44,19 @@ public class CheckinReminderScheduler {
         try {
             log.info("开始执行早晨智能提醒");
             LocalDate today = LocalDate.now();
-            List<SysUser> users = getActiveUsers();
-            int checkinSent = 0, waterSent = 0;
+            int[] sent = new int[2]; // [0]=checkin, [1]=water
 
-            for (SysUser user : users) {
+            processActiveUsers(user -> {
                 try {
                     // 1. 打卡提醒
-                    checkinSent += sendCheckinReminder(user, today) ? 1 : 0;
+                    if (sendCheckinReminder(user, today)) sent[0]++;
                     // 2. 饮水提醒
-                    waterSent += sendWaterReminder(user, today) ? 1 : 0;
+                    if (sendWaterReminder(user, today)) sent[1]++;
                 } catch (Exception e) {
                     log.warn("发送早晨提醒失败 userId={}", user.getId(), e);
                 }
-            }
-            log.info("早晨提醒完成 - 打卡:{}条 饮水:{}条", checkinSent, waterSent);
+            });
+            log.info("早晨提醒完成 - 打卡:{}条 饮水:{}条", sent[0], sent[1]);
         } finally {
             stringRedisTemplate.delete(lockKey);
         }
@@ -82,17 +80,16 @@ public class CheckinReminderScheduler {
 
         try {
             LocalDate today = LocalDate.now();
-            List<SysUser> users = getActiveUsers();
-            int sent = 0;
+            int[] sent = new int[1];
 
-            for (SysUser user : users) {
+            processActiveUsers(user -> {
                 try {
-                    if (sendWaterReminder(user, today)) sent++;
+                    if (sendWaterReminder(user, today)) sent[0]++;
                 } catch (Exception e) {
                     log.warn("发送饮水提醒失败 userId={}", user.getId(), e);
                 }
-            }
-            log.info("饮水提醒({})完成 发送:{}条", timeSlot, sent);
+            });
+            log.info("饮水提醒({})完成 发送:{}条", timeSlot, sent[0]);
         } finally {
             stringRedisTemplate.delete(lockKey);
         }
@@ -109,18 +106,17 @@ public class CheckinReminderScheduler {
         try {
             log.info("开始执行晚间智能提醒");
             LocalDate today = LocalDate.now();
-            List<SysUser> users = getActiveUsers();
-            int exerciseSent = 0, sleepSent = 0;
+            int[] sent = new int[2]; // [0]=exercise, [1]=sleep
 
-            for (SysUser user : users) {
+            processActiveUsers(user -> {
                 try {
-                    exerciseSent += sendExerciseReminder(user, today) ? 1 : 0;
-                    sleepSent += sendSleepReminder(user, today) ? 1 : 0;
+                    if (sendExerciseReminder(user, today)) sent[0]++;
+                    if (sendSleepReminder(user, today)) sent[1]++;
                 } catch (Exception e) {
                     log.warn("发送晚间提醒失败 userId={}", user.getId(), e);
                 }
-            }
-            log.info("晚间提醒完成 - 运动:{}条 睡眠:{}条", exerciseSent, sleepSent);
+            });
+            log.info("晚间提醒完成 - 运动:{}条 睡眠:{}条", sent[0], sent[1]);
         } finally {
             stringRedisTemplate.delete(lockKey);
         }
@@ -129,22 +125,17 @@ public class CheckinReminderScheduler {
     // ====================== 各类型提醒逻辑 ======================
 
     private boolean sendCheckinReminder(SysUser user, LocalDate today) {
-        // 已打卡则跳过
-        DailyCheckin checkin = dailyCheckinMapper.selectOne(
+        // 检查用户是否单独关闭了打卡提醒
+        if (user.getNotifyCheckin() == null || user.getNotifyCheckin() != 1) {
+            return false;
+        }
+
+        // 已打卡则跳过（使用 selectCount 避免脏数据导致的 TooManyResultsException）
+        Long count = dailyCheckinMapper.selectCount(
                 new LambdaQueryWrapper<DailyCheckin>()
                         .eq(DailyCheckin::getUserId, user.getId())
                         .eq(DailyCheckin::getCheckDate, today));
-        if (checkin != null) return false;
-
-        // 尊重用户设置的提醒时间偏好
-        String reminderTime = user.getReminderTime();
-        if (reminderTime != null && !reminderTime.isBlank()) {
-            LocalTime userTime = LocalTime.parse(reminderTime);
-            LocalTime now = LocalTime.now();
-            if (Math.abs(now.toSecondOfDay() - userTime.toSecondOfDay()) > 300) {
-                return false;
-            }
-        }
+        if (count > 0) return false;
 
         SysNotification notification = new SysNotification();
         notification.setUserId(user.getId());
@@ -232,10 +223,28 @@ public class CheckinReminderScheduler {
 
     // ====================== 辅助方法 ======================
 
-    private List<SysUser> getActiveUsers() {
-        return sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getStatus, 1)
-                .eq(SysUser::getNotificationEnabled, 1));
+    private static final int USER_BATCH_SIZE = 200;
+
+    /** 分批获取活跃用户并处理，避免一次性全量加载 */
+    private void processActiveUsers(UserProcessor processor) {
+        int page = 0;
+        List<SysUser> users;
+        do {
+            users = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>()
+                            .eq(SysUser::getStatus, 1)
+                            .eq(SysUser::getNotificationEnabled, 1)
+                            .last("LIMIT " + (page * USER_BATCH_SIZE) + "," + USER_BATCH_SIZE));
+            for (SysUser user : users) {
+                processor.process(user);
+            }
+            page++;
+        } while (!users.isEmpty());
+    }
+
+    @FunctionalInterface
+    private interface UserProcessor {
+        void process(SysUser user);
     }
 
     private boolean acquireLock(String key) {

@@ -40,42 +40,165 @@
       </el-col>
     </el-row>
 
-    <!-- 打卡状态与连续天数 -->
-    <el-row :gutter="20" class="stats-cards" v-if="today.isCheckedIn !== undefined">
-      <el-col :span="24">
-        <el-card shadow="hover">
-          <div style="display:flex;align-items:center;gap:12px">
-            <el-icon size="24" :color="today.isCheckedIn ? '#52c41a' : '#fa8c16'">
-              <Calendar />
-            </el-icon>
-            <span style="font-size:16px;font-weight:600">
-              {{ today.isCheckedIn ? '今日已打卡' : '今日尚未打卡' }}
-            </span>
-            <el-tag v-if="today.streakDays" type="success" effect="plain" round>
-              连续打卡 {{ today.streakDays }} 天
-            </el-tag>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- 标签页 -->
+    <el-tabs v-model="activeTab" class="dashboard-tabs" @tab-change="handleTabChange">
+      <el-tab-pane label="今日" name="today">
+        <!-- 打卡状态与连续天数 -->
+        <el-row :gutter="20" class="stats-cards" v-if="today.isCheckedIn !== undefined">
+          <el-col :span="24">
+            <el-card shadow="hover">
+              <div style="display:flex;align-items:center;gap:12px">
+                <el-icon size="24" :color="today.isCheckedIn ? '#52c41a' : '#fa8c16'"><Calendar /></el-icon>
+                <span style="font-size:16px;font-weight:600">
+                  {{ today.isCheckedIn ? '今日已打卡' : '今日尚未打卡' }}
+                </span>
+                <el-tag v-if="today.streakDays" type="success" effect="plain" round>
+                  连续打卡 {{ today.streakDays }} 天
+                </el-tag>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
 
-    <!-- 图表区 -->
-    <el-row :gutter="20" class="chart-row">
-      <el-col :span="12">
-        <el-card class="chart-card" shadow="hover">
-          <template #header><span>体重趋势 (近30天)</span></template>
-          <div class="chart-container" ref="weightChartRef"></div>
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card class="chart-card" shadow="hover">
-          <template #header><span>打卡统计 (近30天)</span></template>
-          <div class="chart-container" ref="checkinChartRef"></div>
-        </el-card>
-      </el-col>
-    </el-row>
+        <!-- 图表区 -->
+        <el-row :gutter="20" class="chart-row">
+          <el-col :span="12">
+            <el-card class="chart-card" shadow="hover">
+              <template #header><span>体重趋势 (近30天)</span></template>
+              <div class="chart-container" ref="weightChartRef"></div>
+            </el-card>
+          </el-col>
+          <el-col :span="12">
+            <el-card class="chart-card" shadow="hover">
+              <template #header><span>打卡统计 (近30天)</span></template>
+              <div class="chart-container" ref="checkinChartRef"></div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
 
-    <!-- 计划进度与健康评估 -->
+      <el-tab-pane label="本周" name="week">
+        <el-row :gutter="20" class="stats-cards" v-if="weekData">
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ weekData.checkinDays ?? 0 }}<span style="font-size:14px"> 天</span></div>
+                <div class="stat-label">本周打卡</div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ weekData.exerciseCalories ?? 0 }}<span style="font-size:14px"> kcal</span></div>
+                <div class="stat-label">运动消耗</div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ weekData.dietCalories ?? 0 }}<span style="font-size:14px"> kcal</span></div>
+                <div class="stat-label">饮食摄入</div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ weekData.exerciseRecordsCount ?? 0 }}/{{ weekData.dietRecordsCount ?? 0 }}</div>
+                <div class="stat-label">运动/饮食记录</div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <!-- 每日明细 -->
+        <el-card v-if="weekData?.dailySummary" class="chart-card" shadow="hover">
+          <template #header><span>每日明细</span></template>
+          <el-table :data="weekData.dailySummary" style="width:100%" stripe>
+            <el-table-column prop="date" label="日期" width="100" />
+            <el-table-column prop="checkedIn" label="打卡" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.checkedIn ? 'success' : 'info'" size="small">{{ row.checkedIn ? '已打卡' : '未打卡' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="exerciseCalories" label="运动消耗 (kcal)" />
+            <el-table-column prop="dietCalories" label="饮食摄入 (kcal)" />
+            <el-table-column prop="exerciseCount" label="运动次数" />
+            <el-table-column prop="dietCount" label="饮食次数" />
+          </el-table>
+        </el-card>
+
+        <!-- 饮食热量周对比 -->
+        <el-row :gutter="20" class="chart-row">
+          <el-col :span="24">
+            <el-card class="chart-card" shadow="hover">
+              <template #header>
+                <span>饮食热量周对比</span>
+                <span v-if="dietComparison" style="font-size:12px;color:#8b949e;margin-left:12px">
+                  本周 {{ dietComparison.currentTotalCalories }}kcal vs 上周 {{ dietComparison.previousTotalCalories }}kcal
+                  <el-tag :type="dietComparison.calorieChangePercent > 0 ? 'warning' : 'success'" size="small" style="margin-left:8px">
+                    {{ dietComparison.calorieChangePercent > 0 ? '+' : '' }}{{ dietComparison.calorieChangePercent }}%
+                  </el-tag>
+                </span>
+              </template>
+              <div class="chart-container" ref="dietCompChartRef"></div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
+
+      <el-tab-pane label="本月" name="month">
+        <el-row :gutter="20" class="stats-cards" v-if="monthData">
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ monthData.checkinDays ?? 0 }} / {{ monthData.totalDays ?? 0 }}<span style="font-size:14px"> 天</span></div>
+                <div class="stat-label">本月打卡 / 已过天数</div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ monthData.checkinRate ?? 0 }}<span style="font-size:14px">%</span></div>
+                <div class="stat-label">打卡率</div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ monthData.exerciseCalories ?? 0 }}<span style="font-size:14px"> kcal</span></div>
+                <div class="stat-label">运动消耗</div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :span="6">
+            <el-card class="stat-card" shadow="hover">
+              <div class="stat-info">
+                <div class="stat-value">{{ monthData.dietCalories ?? 0 }}<span style="font-size:14px"> kcal</span></div>
+                <div class="stat-label">饮食摄入</div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <!-- 按周汇总 -->
+        <el-card v-if="monthData?.weeklySummary?.length" class="chart-card" shadow="hover">
+          <template #header><span>按周汇总</span></template>
+          <el-table :data="monthData.weeklySummary" style="width:100%" stripe>
+            <el-table-column prop="weekLabel" label="周" />
+            <el-table-column prop="checkinDays" label="打卡天数" />
+            <el-table-column prop="exerciseCalories" label="运动消耗 (kcal)" />
+            <el-table-column prop="dietCalories" label="饮食摄入 (kcal)" />
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 计划进度与健康评估（所有标签页共用） -->
     <el-row :gutter="20" class="bottom-row">
       <el-col :span="12">
         <el-card class="progress-card" shadow="hover">
@@ -167,10 +290,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { getLatestHealth, getHealthAssessment } from '@/api/health'
-import { getDashboardToday } from '@/api/dashboard'
-import { getWeightTrend, getCheckinTrend, getProgress } from '@/api/statistics'
+import { getDashboardToday, getDashboardWeek, getDashboardMonth } from '@/api/dashboard'
+import { getWeightTrend, getCheckinTrend, getProgress, getDietTrendComparison } from '@/api/statistics'
 import { getRecommendations } from '@/api/recommend'
-import * as echarts from 'echarts'
+import echarts from '@/utils/echarts'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const latestHealth = ref({})
 const today = ref({})
@@ -179,8 +303,15 @@ const onProgress = ref(null)
 const recommends = ref({})
 const weightChartRef = ref(null)
 const checkinChartRef = ref(null)
+const dietCompChartRef = ref(null)
 let weightChart = null
 let checkinChart = null
+let dietCompChart = null
+
+const activeTab = ref('today')
+const weekData = ref(null)
+const monthData = ref(null)
+const dietComparison = ref(null)
 
 const progressColor = computed(() => {
   const rate = onProgress.value?.progressPercent ?? 0
@@ -195,8 +326,8 @@ function initWeightChart(data) {
   if (!weightChart) {
     weightChart = echarts.init(weightChartRef.value)
   }
-  const dates = data.map(item => item.date)
-  const weights = data.map(item => item.weight)
+  const dates = data.xAxis || []
+  const weights = data.yAxis || []
   weightChart.setOption({
     tooltip: { trigger: 'axis' },
     grid: { left: 40, right: 20, top: 10, bottom: 30 },
@@ -220,8 +351,8 @@ function initCheckinChart(data) {
   if (!checkinChart) {
     checkinChart = echarts.init(checkinChartRef.value)
   }
-  const dates = data.map(item => item.date)
-  const counts = data.map(item => item.count)
+  const dates = data.xAxis || []
+  const counts = data.totalDays || []
   checkinChart.setOption({
     tooltip: { trigger: 'axis' },
     grid: { left: 40, right: 20, top: 10, bottom: 30 },
@@ -243,11 +374,90 @@ function initCheckinChart(data) {
 function handleResize() {
   weightChart?.resize()
   checkinChart?.resize()
+  dietCompChart?.resize()
 }
 
 function formatSuggestions(text) {
   if (!text) return ''
-  return text.replace(/\n/g, '<br>')
+  return sanitizeHtml(text.replace(/\n/g, '<br>'))
+}
+
+async function handleTabChange(tabName) {
+  // 切换标签页后延迟 resize 图表，确保容器尺寸已更新
+  await nextTick()
+  setTimeout(() => handleResize(), 50)
+
+  if (tabName === 'week' && !weekData.value) {
+    try {
+      const res = await getDashboardWeek()
+      weekData.value = res.data
+    } catch { /* ignore */ }
+    // 加载饮食对比数据
+    try {
+      const compRes = await getDietTrendComparison()
+      dietComparison.value = compRes.data
+      await nextTick()
+      initDietComparisonChart()
+    } catch { /* ignore */ }
+  } else if (tabName === 'month' && !monthData.value) {
+    try {
+      const res = await getDashboardMonth()
+      monthData.value = res.data
+    } catch { /* ignore */ }
+  }
+}
+
+/** 初始化饮食热量周对比图表 */
+function initDietComparisonChart() {
+  if (!dietCompChartRef.value || !dietComparison.value) return
+  if (!dietCompChart) {
+    dietCompChart = echarts.init(dietCompChartRef.value)
+  }
+  const data = dietComparison.value
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const xLabels = data.currentDaily?.map(d => d.dayLabel) || days
+  const currentData = data.currentDaily?.map(d => d.calories) || []
+  const previousData = data.previousDaily?.map(d => d.calories) || []
+
+  dietCompChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: [data.currentPeriodLabel, data.previousPeriodLabel], textStyle: { color: '#8b949e' } },
+    grid: { left: 50, right: 20, top: 40, bottom: 30 },
+    xAxis: {
+      type: 'category', data: xLabels,
+      axisLabel: { color: '#8b949e' }
+    },
+    yAxis: {
+      type: 'value', name: 'kcal',
+      axisLabel: { color: '#8b949e' }
+    },
+    series: [
+      {
+        name: data.currentPeriodLabel,
+        type: 'line', smooth: true, data: currentData,
+        lineStyle: { color: '#58a6ff', width: 2 },
+        itemStyle: { color: '#58a6ff' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(88,166,255,0.3)' },
+            { offset: 1, color: 'rgba(88,166,255,0.03)' }
+          ])
+        }
+      },
+      {
+        name: data.previousPeriodLabel,
+        type: 'line', smooth: true, data: previousData,
+        lineStyle: { color: '#8b949e', width: 2, type: 'dashed' },
+        itemStyle: { color: '#8b949e' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(139,148,158,0.2)' },
+            { offset: 1, color: 'rgba(139,148,158,0.02)' }
+          ])
+        }
+      }
+    ]
+  })
 }
 
 onMounted(async () => {
@@ -304,6 +514,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   weightChart?.dispose()
   checkinChart?.dispose()
+  dietCompChart?.dispose()
 })
 </script>
 

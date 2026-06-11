@@ -27,8 +27,24 @@
         <el-form-item label="昵称" prop="nickname">
           <el-input v-model="profileForm.nickname" placeholder="请输入昵称" maxlength="20" />
         </el-form-item>
-        <el-form-item label="头像" prop="avatar">
-          <el-input v-model="profileForm.avatar" placeholder="请输入头像URL" maxlength="500" />
+        <el-form-item label="头像">
+          <div class="avatar-upload">
+            <el-upload
+              class="avatar-uploader"
+              :show-file-list="false"
+              :before-upload="beforeAvatarUpload"
+              :http-request="handleAvatarUpload"
+              accept="image/*"
+            >
+              <el-avatar :size="72" :src="profileForm.avatar" class="clickable-avatar">
+                {{ avatarText }}
+              </el-avatar>
+              <div class="upload-hint">点击更换头像</div>
+            </el-upload>
+          </div>
+        </el-form-item>
+        <el-form-item label="头像URL" prop="avatar">
+          <el-input v-model="profileForm.avatar" placeholder="或直接输入头像URL" maxlength="500" />
         </el-form-item>
         <el-form-item label="性别" prop="gender">
           <el-radio-group v-model="profileForm.gender">
@@ -74,7 +90,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { updateProfile, updatePassword } from '@/api/user'
+import { updateProfile, updatePassword, uploadAvatar } from '@/api/user'
 import {
   passwordRules as basePasswordRules,
   createConfirmPasswordRule,
@@ -191,6 +207,33 @@ async function handleUpdatePassword() {
   })
 }
 
+function beforeAvatarUpload(file) {
+  const isImage = file.type.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件')
+    return false
+  }
+  const isLt2M = file.size / 1024 / 1024 < 2
+  if (!isLt2M) {
+    ElMessage.error('头像大小不能超过 2MB')
+    return false
+  }
+  return true
+}
+
+async function handleAvatarUpload({ file }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  try {
+    const res = await uploadAvatar(formData)
+    profileForm.avatar = res.data
+    userStore.updateUserInfo({ ...userStore.userInfo, avatar: res.data })
+    ElMessage.success('头像上传成功')
+  } catch {
+    ElMessage.error('头像上传失败')
+  }
+}
+
 onMounted(() => {
   if (userStore.userInfo) {
     fillProfileForm(userStore.userInfo)
@@ -247,5 +290,30 @@ onMounted(() => {
 :deep(.el-divider) {
   border-color: transparent;
   margin: 28px 0;
+}
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+}
+
+.avatar-uploader {
+  cursor: pointer;
+}
+
+.clickable-avatar {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.clickable-avatar:hover {
+  opacity: 0.8;
+}
+
+.upload-hint {
+  display: inline-block;
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 </style>

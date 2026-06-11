@@ -64,9 +64,12 @@ export function refreshToken(refreshTokenValue) {
   })
 }
 
-export function logout() {
+export function logout(refreshTokenValue) {
   return request({
     url: '/auth/logout',
-    method: 'post'
+    method: 'post',
+    headers: refreshTokenValue
+      ? { 'Refresh-Token': `Bearer ${refreshTokenValue}` }
+      : {}
   })
 }

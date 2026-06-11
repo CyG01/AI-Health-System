@@ -14,6 +14,7 @@ import com.example.vo.BmiTrendVO;
 import com.example.vo.CalorieDeficitVO;
 import com.example.vo.CalorieTrendVO;
 import com.example.vo.CheckinTrendVO;
+import com.example.vo.DietTrendComparisonVO;
 import com.example.vo.ExerciseDistributionVO;
 import com.example.vo.ExerciseTrendVO;
 import com.example.vo.NutrientRatioVO;
@@ -27,10 +28,14 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -356,10 +361,14 @@ public class StatisticsServiceImpl implements StatisticsService {
         return vo;
     }
 
-    private int resolveDays(Integer days) {
-
     @Override
     public CalorieDeficitVO getCalorieDeficit(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "deficit:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (CalorieDeficitVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDate startDate = LocalDate.now().minusDays(range - 1);
         LocalDateTime start = startDate.atStartOfDay();
@@ -400,11 +409,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         vo.setConsumed(consumed);
         vo.setBurned(burned);
         vo.setNet(net);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 
     @Override
     public NutrientRatioVO getNutrientRatio(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "nutrient:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (NutrientRatioVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDateTime start = LocalDate.now().minusDays(range - 1).atStartOfDay();
         LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
@@ -421,11 +438,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         NutrientRatioVO vo = new NutrientRatioVO();
         vo.setNames(List.of("蛋白质", "脂肪", "碳水"));
         vo.setValues(List.of(round2(totalProtein), round2(totalFat), round2(totalCarbs)));
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
     }
 
     @Override
     public ExerciseDistributionVO getExerciseDistribution(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "exDist:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (ExerciseDistributionVO) cached;
+        }
+
         int range = resolveDays(days);
         LocalDateTime start = LocalDate.now().minusDays(range - 1).atStartOfDay();
         LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
@@ -446,7 +471,80 @@ public class StatisticsServiceImpl implements StatisticsService {
         ExerciseDistributionVO vo = new ExerciseDistributionVO();
         vo.setNames(names);
         vo.setValues(values);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return vo;
+    }
+
+    @Override
+    public DietTrendComparisonVO getDietTrendComparison(Long userId) {
+        LocalDate today = LocalDate.now();
+        LocalDate thisWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate thisWeekEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        LocalDate lastWeekStart = thisWeekStart.minusWeeks(1);
+        LocalDate lastWeekEnd = thisWeekStart.minusDays(1);
+
+        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("M/d");
+        DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("M/d");
+
+        // 查询本周每日热量
+        Map<LocalDate, Integer> currentMap = queryDailyCalories(userId, thisWeekStart, thisWeekEnd);
+        // 查询上周每日热量
+        Map<LocalDate, Integer> previousMap = queryDailyCalories(userId, lastWeekStart, lastWeekEnd);
+
+        List<DietTrendComparisonVO.DailyCal> currentDaily = new ArrayList<>();
+        int currentTotal = 0;
+        for (LocalDate d = thisWeekStart; !d.isAfter(thisWeekEnd) && !d.isAfter(today); d = d.plusDays(1)) {
+            int cal = currentMap.getOrDefault(d, 0);
+            currentTotal += cal;
+            String dayLabel = d.getDayOfWeek().toString();
+            dayLabel = dayLabel.substring(0, 1) + dayLabel.substring(1, 3).toLowerCase(); // "Mon", "Tue"...
+            currentDaily.add(new DietTrendComparisonVO.DailyCal(
+                    d.format(dayFmt), cal, dayLabel));
+        }
+
+        List<DietTrendComparisonVO.DailyCal> previousDaily = new ArrayList<>();
+        int previousTotal = 0;
+        for (LocalDate d = lastWeekStart; !d.isAfter(lastWeekEnd); d = d.plusDays(1)) {
+            int cal = previousMap.getOrDefault(d, 0);
+            previousTotal += cal;
+            String dayLabel = d.getDayOfWeek().toString();
+            dayLabel = dayLabel.substring(0, 1) + dayLabel.substring(1, 3).toLowerCase();
+            previousDaily.add(new DietTrendComparisonVO.DailyCal(
+                    d.format(dayFmt), cal, dayLabel));
+        }
+
+        double changePercent = previousTotal > 0
+                ? round2((currentTotal - previousTotal) * 100.0 / previousTotal)
+                : 0;
+
+        DietTrendComparisonVO vo = new DietTrendComparisonVO();
+        vo.setCurrentTotalCalories(currentTotal);
+        vo.setPreviousTotalCalories(previousTotal);
+        vo.setCalorieChangePercent(changePercent);
+        vo.setCurrentPeriodLabel(thisWeekStart.format(labelFmt) + "-" + thisWeekEnd.format(labelFmt));
+        vo.setPreviousPeriodLabel(lastWeekStart.format(labelFmt) + "-" + lastWeekEnd.format(labelFmt));
+        vo.setCurrentDaily(currentDaily);
+        vo.setPreviousDaily(previousDaily);
+        return vo;
+    }
+
+    private Map<LocalDate, Integer> queryDailyCalories(Long userId, LocalDate start, LocalDate end) {
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .ge(DietRecord::getCreateTime, start.atStartOfDay())
+                .le(DietRecord::getCreateTime, end.atTime(LocalTime.MAX));
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        Map<LocalDate, Integer> map = new LinkedHashMap<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            map.put(d, 0);
+        }
+        for (DietRecord record : records) {
+            LocalDate date = record.getCreateTime().toLocalDate();
+            map.merge(date, record.getCaloriesConsumed() != null ? record.getCaloriesConsumed() : 0, Integer::sum);
+        }
+        return map;
     }
 
     private double round2(double v) { return Math.round(v * 100.0) / 100.0; }

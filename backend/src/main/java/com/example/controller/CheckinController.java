@@ -2,6 +2,7 @@ package com.example.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.CheckinSubmitDTO;
 import com.example.dto.CheckinSupplementDTO;
@@ -31,6 +32,7 @@ public class CheckinController {
     @Autowired
     private CheckinService checkinService;
 
+    @RateLimit(time = 60, count = 1)
     @NoRepeatSubmit
     @Operation(summary = "提交今日打卡")
     @PostMapping("/submit")
@@ -54,6 +56,7 @@ public class CheckinController {
         return Result.success(checkinService.getCheckinPage(userId, page, size));
     }
 
+    @RateLimit(time = 60, count = 3)
     @NoRepeatSubmit
     @Operation(summary = "补卡")
     @PostMapping("/supplement")
@@ -66,5 +69,12 @@ public class CheckinController {
     @GetMapping("/stats")
     public Result<CheckinStatsVO> stats(@RequestAttribute("userId") Long userId) {
         return Result.success(checkinService.getStats(userId));
+    }
+
+    @Operation(summary = "查询今日打卡状态")
+    @GetMapping("/today")
+    public Result<CheckinVO> today(@RequestAttribute("userId") Long userId) {
+        CheckinVO vo = checkinService.getTodayCheckin(userId);
+        return Result.success(vo);
     }
 }

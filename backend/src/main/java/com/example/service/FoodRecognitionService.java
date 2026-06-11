@@ -8,5 +8,5 @@ public interface FoodRecognitionService {
     /**
      * 识别食物图片
      */
-    FoodRecognizeVO recognize(MultipartFile image);
+    FoodRecognizeVO recognize(MultipartFile image, Long userId);
 }

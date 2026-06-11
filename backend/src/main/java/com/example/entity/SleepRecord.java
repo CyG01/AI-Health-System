@@ -28,6 +28,12 @@ public class SleepRecord implements Serializable {
 
     private Integer durationMin;
 
+    /** 睡眠时长（小时），计算字段或直接存储 */
+    private java.math.BigDecimal sleepHours;
+
+    /** 深睡眠时长（分钟） */
+    private Integer deepSleepMinutes;
+
     private Integer quality;
 
     private String dreamNotes;
@@ -51,6 +57,10 @@ public class SleepRecord implements Serializable {
     public void setWakeTime(LocalTime wakeTime) { this.wakeTime = wakeTime; }
     public Integer getDurationMin() { return durationMin; }
     public void setDurationMin(Integer durationMin) { this.durationMin = durationMin; }
+    public java.math.BigDecimal getSleepHours() { return sleepHours; }
+    public void setSleepHours(java.math.BigDecimal sleepHours) { this.sleepHours = sleepHours; }
+    public Integer getDeepSleepMinutes() { return deepSleepMinutes; }
+    public void setDeepSleepMinutes(Integer deepSleepMinutes) { this.deepSleepMinutes = deepSleepMinutes; }
     public Integer getQuality() { return quality; }
     public void setQuality(Integer quality) { this.quality = quality; }
     public String getDreamNotes() { return dreamNotes; }

@@ -1,5 +1,8 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
+import com.example.annotation.RequiresSubscription;
 import com.example.common.Result;
 import com.example.service.HealthReportService;
 import com.example.vo.HealthReportVO;
@@ -18,6 +21,9 @@ public class HealthReportController {
     @Autowired
     private HealthReportService healthReportService;
 
+    @RequiresSubscription(value = "pro", feature = "AI健康报告")
+    @RateLimit(time = 60, count = 1)
+    @NoRepeatSubmit
     @Operation(summary = "手动生成健康报告")
     @PostMapping("/generate")
     public Result<HealthReportVO> generate(@RequestParam(defaultValue = "weekly") String reportType,

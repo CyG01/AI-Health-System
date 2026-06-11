@@ -5,6 +5,7 @@ import com.example.annotation.NoRepeatSubmit;
 import com.example.common.Result;
 import com.example.dto.FoodItemCreateDTO;
 import com.example.dto.FoodItemUpdateDTO;
+import com.example.service.AdminApprovalService;
 import com.example.service.AuditLogService;
 import com.example.service.FoodService;
 import com.example.vo.FoodItemVO;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,6 +38,9 @@ public class AdminFoodController {
 
     @Autowired
     private AuditLogService auditLogService;
+
+    @Autowired
+    private AdminApprovalService approvalService;
 
     @Operation(summary = "查询所有食物项目")
     @GetMapping("/items")
@@ -70,12 +75,17 @@ public class AdminFoodController {
     @NoRepeatSubmit
     @Operation(summary = "删除食物项目")
     @DeleteMapping("/item/{id}")
-    public Result<Void> delete(@PathVariable Long id,
-                               @RequestAttribute("userId") Long userId,
-                               HttpServletRequest request) {
+    public Result<?> delete(@PathVariable Long id,
+                            @RequestAttribute("userId") Long userId,
+                            @RequestHeader(value = "X-Approval-Id", required = false) Long approvalId,
+                            HttpServletRequest request) {
+        if (!approvalService.checkApproval("delete_food", approvalId, userId)) {
+            return Result.error(403, "删除食物项目为敏感操作，请先发起审批申请: POST /api/admin/approvals/request");
+        }
         foodService.deleteFoodItem(id);
         auditLogService.log(userId, null, "DELETE", "food_item", id,
-                "删除食物项目", request.getRemoteAddr());
+                "删除食物项目 [审批ID:" + approvalId + "]", request.getRemoteAddr());
+        approvalService.markExecuted(approvalId);
         return Result.success();
     }
 }

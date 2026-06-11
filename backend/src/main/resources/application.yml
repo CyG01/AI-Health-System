@@ -62,10 +62,11 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# ⚠️ 生产环境必须覆盖 JWT_SECRET（至少256位强密钥）
-#    示例: openssl rand -base64 32
+# ⚠️ JWT_SECRET 必须在启动前设置（至少256位强密钥）
+#    开发环境可复制 .env.example 到 .env 后设置
+#    生成强密钥示例: openssl rand -base64 32
 jwt:
-  secret: ${JWT_SECRET:tmp-dev-key-only-for-local-development-replace-in-prod}
+  secret: ${JWT_SECRET}
   access-token-expire: 7200000
   refresh-token-expire: 604800000
   header: Authorization
@@ -76,7 +77,7 @@ app:
     avatar-dir: uploads/avatars
 
 sms:
-  dev-mode: true
+  dev-mode: ${SMS_DEV_MODE:true}
 
 deepseek:
   base-url: https://api.deepseek.com/v1
@@ -90,6 +91,20 @@ resilience4j:
       deepseek:
         max-attempts: 3
         wait-duration: 2s
+        retry-exceptions:
+          - java.lang.RuntimeException
+          - java.io.IOException
+        ignore-exceptions:
+          - com.example.common.BusinessException
+      qwen:
+        max-attempts: 2
+        wait-duration: 3s
+      glm:
+        max-attempts: 2
+        wait-duration: 3s
+      moonshot:
+        max-attempts: 2
+        wait-duration: 3s
   circuitbreaker:
     instances:
       deepseek:
@@ -98,6 +113,73 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 60s
         permitted-number-of-calls-in-half-open-state: 3
+      qwen:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 2
+      glm:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 2
+      moonshot:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 2
+  ratelimiter:
+    instances:
+      ai-api:
+        limit-for-period: 10
+        limit-refresh-period: 1s
+        timeout-duration: 5s
+  bulkhead:
+    instances:
+      ai-api:
+        max-concurrent-calls: 5
+        max-wait-duration: 10s
+
+# 多模型容灾配置
+resilience:
+  # 通义千问（备选模型1）
+  qwen:
+    api-key: ${QWEN_API_KEY:}
+  # 智谱 GLM-4（备选模型2）
+  glm:
+    api-key: ${GLM_API_KEY:}
+  # 月之暗面 Moonshot（备选模型3）
+  moonshot:
+    api-key: ${MOONSHOT_API_KEY:}
+
+# 安全熔断器配置
+safety:
+  circuit:
+    safety-threshold: 9.0
+    meltdown-threshold: 7.5
+    consecutive-fails-to-open: 5
+    sliding-window-minutes: 30
+    half-open-test-interval: 10
+    half-open-test-count: 3
+
+# LLMOps 运维配置
+llmops:
+  alert:
+    daily-budget: 10.00
+    cost-warning-threshold: 0.80
+    cost-critical-threshold: 0.95
+    safety-warning-threshold: 9.0
+    safety-critical-threshold: 7.5
+  webhook:
+    # 钉钉机器人 Webhook 地址
+    dingtalk: ${LLMOPS_WEBHOOK_DINGTALK:}
+    # 飞书机器人 Webhook 地址
+    feishu: ${LLMOPS_WEBHOOK_FEISHU:}
+    # 企业微信机器人 Webhook 地址
+    wecom: ${LLMOPS_WEBHOOK_WECOM:}
 
 # CORS 配置 — 生产环境通过 ALLOWED_ORIGINS 覆盖（逗号分隔多个域名）
 cors:
@@ -114,11 +196,17 @@ logging:
     org.springframework.web: WARN
 
 management:
+  server:
+    port: 8081
   endpoints:
     web:
       exposure:
-        # 生产环境仅暴露 health，内部监控需加 Spring Security 或独立端口
-        include: health
+        include: health,prometheus,info
   endpoint:
     health:
       show-details: never
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ai-health-system

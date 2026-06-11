@@ -76,7 +76,7 @@
 
       <div class="glass-card chart-card chart-half">
         <div class="chart-header">
-          <span class="chart-title">运动完成率</span>
+          <span class="chart-title">每日运动时长</span>
         </div>
         <div class="chart-body">
           <BaseChart :option="exerciseOption" />
@@ -226,15 +226,15 @@ async function loadAll() {
     )
 
     const e = exerciseRes.data || {}
-    exerciseOption.value = buildBarOption(
+    exerciseOption.value = buildLineOption(
       e.xAxis || [],
-      (e.completeRate || []).map(v => `${v}%`),
-      '运动完成率 (%)',
+      e.minutesPerDay || [],
+      '分钟/天',
       CHART_COLORS.green
     )
 
     const cal = calorieRes.data || {}
-    calorieOption.value = buildLineOption(cal.xAxis || [], cal.yAxis || [], '千卡/天', CHART_COLORS.amber)
+    calorieOption.value = buildLineOption(cal.xAxis || [], cal.dailyCalories || [], '千卡/天', CHART_COLORS.amber)
 
     const df = deficitRes.data || {}
     calorieDeficitOption.value = buildCalorieDeficitOption(

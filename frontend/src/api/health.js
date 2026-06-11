@@ -37,3 +37,10 @@ export function getHealthAssessment() {
     method: 'get'
   })
 }
+
+export function getHealthProgress() {
+  return request({
+    url: '/health/progress',
+    method: 'get'
+  })
+}

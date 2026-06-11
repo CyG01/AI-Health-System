@@ -17,6 +17,7 @@ public class CheckinVO implements Serializable {
     private Integer currentWeight;
     private String mood;
     private String note;
+    private Integer isSupplement;
     private LocalDateTime createTime;
 
     public Long getId() { return id; }
@@ -45,6 +46,9 @@ public class CheckinVO implements Serializable {
 
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+
+    public Integer getIsSupplement() { return isSupplement; }
+    public void setIsSupplement(Integer isSupplement) { this.isSupplement = isSupplement; }
 
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }

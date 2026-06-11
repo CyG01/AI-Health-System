@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.RequiresSubscription;
 import com.example.common.Result;
 import com.example.service.RecommendationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ public class RecommendationController {
     @Autowired
     private RecommendationService recommendationService;
 
+    @RequiresSubscription(value = "pro", feature = "个性化智能推荐")
     @Operation(summary = "获取个性化推荐")
     @GetMapping("/personalized")
     public Result<Map<String, Object>> personalized(@RequestAttribute("userId") Long userId) {

@@ -31,6 +31,15 @@ public class HealthUpdateDTO implements Serializable {
     @Size(max = 500, message = "过敏史不能超过500个字符")
     private String allergyHistory;
 
+    @Size(max = 200, message = "过敏类型不能超过200个字符")
+    private String allergyType;
+
+    @Size(max = 500, message = "家族病史不能超过500个字符")
+    private String familyHistory;
+
+    @Size(max = 500, message = "用药情况不能超过500个字符")
+    private String medication;
+
     @Size(max = 500, message = "运动习惯不能超过500个字符")
     private String exerciseHabit;
 
@@ -54,6 +63,15 @@ public class HealthUpdateDTO implements Serializable {
 
     public String getAllergyHistory() { return allergyHistory; }
     public void setAllergyHistory(String allergyHistory) { this.allergyHistory = allergyHistory; }
+
+    public String getAllergyType() { return allergyType; }
+    public void setAllergyType(String allergyType) { this.allergyType = allergyType; }
+
+    public String getFamilyHistory() { return familyHistory; }
+    public void setFamilyHistory(String familyHistory) { this.familyHistory = familyHistory; }
+
+    public String getMedication() { return medication; }
+    public void setMedication(String medication) { this.medication = medication; }
 
     public String getExerciseHabit() { return exerciseHabit; }
     public void setExerciseHabit(String exerciseHabit) { this.exerciseHabit = exerciseHabit; }

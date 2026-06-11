@@ -37,6 +37,10 @@ public class JwtUtil {
         return buildToken(userId, null, null, jwtProperties.getRefreshTokenExpire(), "refresh");
     }
 
+    public String generateRefreshToken(Long userId, Long customExpireMs) {
+        return buildToken(userId, null, null, customExpireMs, "refresh");
+    }
+
     private String buildToken(Long userId, String username, String role, Long expireMillis, String tokenType) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expireMillis);

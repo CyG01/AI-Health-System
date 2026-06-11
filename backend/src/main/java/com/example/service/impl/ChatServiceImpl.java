@@ -1,70 +1,82 @@
 package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.agent.model.RoutingDecision;
+import com.example.agent.orchestrator.AgentOrchestrator;
+import com.example.agent.orchestrator.IntentRouter;
 import com.example.common.BusinessException;
 import com.example.entity.*;
 import com.example.mapper.*;
 import com.example.monitor.DeepSeekCostMonitor;
-import com.example.properties.DeepSeekProperties;
+import com.example.sdui.AiAgentResponse;
 import com.example.service.ChatService;
 import com.example.service.HealthService;
+import com.example.service.KnowledgeService;
+import com.example.service.MemoryService;
+import com.example.util.EmotionAnalyzer;
+import com.example.util.MedicalDisclaimerFilter;
+import com.example.util.PromptSanitizer;
 import com.example.vo.ChatMessageVO;
 import com.example.vo.ChatSessionVO;
-import com.example.vo.HealthRecordVO;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Flux;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * 聊天服务实现 — Multi-Agent 架构版本。
+ * 通过 IntentRouter 分析用户意图，分发到 AgentOrchestrator 调度
+ * HealthCoachAgent / NutritionAgent / PsychologyAgent 协作回复。
+ */
 @Slf4j
 @Service
 public class ChatServiceImpl implements ChatService {
 
-    private static final String DONE_MARKER = "[DONE]";
     private static final int MAX_CONTEXT_MESSAGES = 20;
+    private static final int STREAM_CHUNK_SIZE = 10;
 
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final HealthService healthService;
     private final DeepSeekCostMonitor costMonitor;
-    private final DeepSeekProperties deepSeekProperties;
-    private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final WebClient webClient;
+    private final MedicalDisclaimerFilter disclaimerFilter;
+    private final AiCallAuditLogMapper auditLogMapper;
+    private final EmotionAnalyzer emotionAnalyzer;
+    private final KnowledgeService knowledgeService;
+    private final MemoryService memoryService;
+    private final IntentRouter intentRouter;
+    private final AgentOrchestrator agentOrchestrator;
 
     public ChatServiceImpl(ChatSessionMapper chatSessionMapper,
                            ChatMessageMapper chatMessageMapper,
                            HealthService healthService,
                            DeepSeekCostMonitor costMonitor,
-                           DeepSeekProperties deepSeekProperties,
-                           RedisTemplate<String, Object> redisTemplate,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           MedicalDisclaimerFilter disclaimerFilter,
+                           AiCallAuditLogMapper auditLogMapper,
+                           EmotionAnalyzer emotionAnalyzer,
+                           KnowledgeService knowledgeService,
+                           MemoryService memoryService,
+                           IntentRouter intentRouter,
+                           AgentOrchestrator agentOrchestrator) {
         this.chatSessionMapper = chatSessionMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.healthService = healthService;
         this.costMonitor = costMonitor;
-        this.deepSeekProperties = deepSeekProperties;
-        this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
-        this.webClient = WebClient.builder()
-                .baseUrl(deepSeekProperties.getBaseUrl())
-                .defaultHeader("Authorization", "Bearer " + deepSeekProperties.getApiKey())
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+        this.disclaimerFilter = disclaimerFilter;
+        this.auditLogMapper = auditLogMapper;
+        this.emotionAnalyzer = emotionAnalyzer;
+        this.knowledgeService = knowledgeService;
+        this.memoryService = memoryService;
+        this.intentRouter = intentRouter;
+        this.agentOrchestrator = agentOrchestrator;
     }
 
     @Override
@@ -100,7 +112,6 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<Object> getMessages(Long sessionId, Long userId) {
-        // 验证会话属于该用户
         ChatSession session = chatSessionMapper.selectById(sessionId);
         if (session == null || !session.getUserId().equals(userId)) {
             throw new BusinessException(404, "会话不存在");
@@ -123,13 +134,27 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public void chat(Long sessionId, Long userId, String content,
                      Consumer<String> onMessage, Runnable onComplete, Consumer<String> onError) {
+        long startTime = System.currentTimeMillis();
+        AiCallAuditLog auditLog = new AiCallAuditLog();
+        auditLog.setUserId(userId);
+        auditLog.setCallType("chat_multi_agent");
+        auditLog.setCreatedAt(LocalDateTime.now());
+
         try {
+            // 额度检查
             if (costMonitor.isGlobalCostExceeded()) {
+                auditLog.setSuccess(false);
+                auditLog.setErrorMessage("今日AI调用额度已用尽");
+                auditLogMapper.insert(auditLog);
                 onError.accept("今日AI调用额度已用尽，请明天再试");
                 return;
             }
 
-            // 验证会话
+            // 用户输入注入防护
+            String sanitizedContent = PromptSanitizer.sanitize(content);
+            auditLog.setRequestParams("sessionId=" + sessionId + ",content_length="
+                    + (sanitizedContent != null ? sanitizedContent.length() : 0));
+
             ChatSession session = chatSessionMapper.selectById(sessionId);
             if (session == null || !session.getUserId().equals(userId)) {
                 onError.accept("会话不存在");
@@ -140,69 +165,87 @@ public class ChatServiceImpl implements ChatService {
             ChatMessage userMsg = new ChatMessage();
             userMsg.setSessionId(sessionId);
             userMsg.setRole("user");
-            userMsg.setContent(content);
+            userMsg.setContent(sanitizedContent);
             chatMessageMapper.insert(userMsg);
 
             // 首次对话自动设置标题
             boolean isFirstMessage = isSessionFirstMessage(sessionId);
-            if (isFirstMessage && content.length() > 20) {
-                session.setTitle(content.substring(0, 20) + "...");
+            if (isFirstMessage && sanitizedContent.length() > 20) {
+                session.setTitle(sanitizedContent.substring(0, 20) + "...");
             } else if (isFirstMessage) {
-                session.setTitle(content);
+                session.setTitle(sanitizedContent);
             }
             session.setUpdateTime(LocalDateTime.now());
             chatSessionMapper.updateById(session);
 
-            // 构建上下文消息
-            List<Map<String, String>> messages = buildContextMessages(sessionId, userId);
+            // Step 1: 意图路由 — 决定调用哪些专家 Agent
+            RoutingDecision decision = intentRouter.route(sanitizedContent);
+            log.info("意图路由 userId={} intent={} agents={} parallel={} confidence={}",
+                    userId, decision.getIntent(), decision.getTargetAgents(),
+                    decision.isParallel(), decision.getConfidence());
+            auditLog.setModelName("multi-agent:" + String.join(",", decision.getTargetAgents()));
 
-            // 调用DeepSeek流式API
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", deepSeekProperties.getModel());
-            requestBody.put("messages", messages);
-            requestBody.put("stream", true);
+            // Step 2: 注入记忆 + 知识上下文到用户输入（增强语义）
+            String enrichedInput = enrichWithContext(userId, sessionId, sanitizedContent, decision);
+            auditLog.setPromptUsed("intent=" + decision.getIntent() + " emotion=" + decision.getEmotionLabel());
 
-            StringBuilder fullResponse = new StringBuilder();
+            // Step 3: 调用 AgentOrchestrator 执行多 Agent 工作流
+            AiAgentResponse agentResponse = agentOrchestrator.execute(decision, userId, enrichedInput);
 
-            webClient.post()
-                    .uri("/chat/completions")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(requestBody)
-                    .retrieve()
-                    .bodyToFlux(String.class)
-                    .timeout(Duration.ofMillis(deepSeekProperties.getTimeout()))
-                    .filter(line -> line != null && !line.isBlank())
-                    .filter(line -> !DONE_MARKER.equals(line.trim()))
-                    .doOnNext(line -> {
-                        String delta = extractDelta(line);
-                        if (delta != null && !delta.isEmpty()) {
-                            fullResponse.append(delta);
-                            onMessage.accept(delta);
-                        }
-                    })
-                    .doOnComplete(() -> {
-                        // 保存AI回复
-                        String responseText = fullResponse.toString();
-                        if (!responseText.isEmpty()) {
-                            ChatMessage assistantMsg = new ChatMessage();
-                            assistantMsg.setSessionId(sessionId);
-                            assistantMsg.setRole("assistant");
-                            assistantMsg.setContent(responseText);
-                            chatMessageMapper.insert(assistantMsg);
-                        }
-                        session.setUpdateTime(LocalDateTime.now());
-                        chatSessionMapper.updateById(session);
-                        onComplete.run();
-                    })
-                    .doOnError(e -> {
-                        log.error("AI聊天API异常", e);
-                        onError.accept("AI服务暂时不可用，请稍后重试");
-                    })
-                    .subscribe();
+            // Step 4: 提取最终文本
+            String responseText = agentResponse.getText();
+            if (responseText == null || responseText.isBlank()) {
+                responseText = "抱歉，我暂时无法处理您的请求，请稍后再试。";
+            }
+
+            // 追加免责声明
+            String responseWithDisclaimer = disclaimerFilter.appendDisclaimer(responseText);
+
+            // Step 5: 模拟流式输出（将完整响应分块发送，兼容 SSE 协议）
+            simulateStreaming(responseWithDisclaimer, onMessage, onComplete);
+
+            // 保存助手消息
+            if (!responseWithDisclaimer.isEmpty()) {
+                ChatMessage assistantMsg = new ChatMessage();
+                assistantMsg.setSessionId(sessionId);
+                assistantMsg.setRole("assistant");
+                assistantMsg.setContent(responseWithDisclaimer);
+                chatMessageMapper.insert(assistantMsg);
+            }
+            session.setUpdateTime(LocalDateTime.now());
+            chatSessionMapper.updateById(session);
+
+            // 自动采集记忆
+            if (isConversationWorthy(sanitizedContent)) {
+                try {
+                    memoryService.autoCollect(userId, sanitizedContent, "USER_INPUT");
+                } catch (Exception e) {
+                    log.warn("自动采集用户记忆失败 userId={}", userId, e);
+                }
+            }
+            if (isConversationWorthy(responseText)) {
+                try {
+                    memoryService.autoCollect(userId, responseText, "AI_GENERATED");
+                } catch (Exception e) {
+                    log.warn("自动采集AI记忆失败 userId={}", userId, e);
+                }
+            }
+
+            // 审计日志
+            auditLog.setAiRawResponse(responseText.length() > 4000
+                    ? responseText.substring(0, 4000) : responseText);
+            auditLog.setLatencyMs((int) (System.currentTimeMillis() - startTime));
+            auditLog.setSuccess(true);
+            auditLogMapper.insert(auditLog);
 
         } catch (Exception e) {
-            log.error("聊天处理异常", e);
-            onError.accept("系统异常，请稍后重试");
+            log.error("Multi-Agent聊天处理异常 userId={}", userId, e);
+            auditLog.setSuccess(false);
+            auditLog.setErrorMessage("Multi-Agent聊天异常: " + e.getMessage());
+            try {
+                auditLogMapper.insert(auditLog);
+            } catch (Exception ignored) {}
+            onError.accept("AI服务暂时不可用，请稍后重试");
         }
     }
 
@@ -214,53 +257,78 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(404, "会话不存在");
         }
         chatSessionMapper.deleteById(sessionId);
-        // 删除关联消息
         LambdaQueryWrapper<ChatMessage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ChatMessage::getSessionId, sessionId);
         chatMessageMapper.delete(wrapper);
     }
 
-    private List<Map<String, String>> buildContextMessages(Long sessionId, Long userId) {
-        List<Map<String, String>> messages = new ArrayList<>();
+    /**
+     * 在用户输入中注入记忆和知识库上下文，增强 Agent 理解。
+     */
+    private String enrichWithContext(Long userId, Long sessionId,
+                                      String userQuery, RoutingDecision decision) {
+        StringBuilder enriched = new StringBuilder();
 
-        // 添加系统提示
-        HealthRecordVO health = healthService.getLatestHealthRecord(userId);
-        StringBuilder systemPrompt = new StringBuilder();
-        systemPrompt.append("你是一位专业的AI健康顾问，擅长运动科学、营养学和健康管理。");
-        if (health != null) {
-            systemPrompt.append(String.format("用户当前数据：身高%.1fcm，体重%.1fkg，BMI%.1f，",
-                    health.getHeight(), health.getWeight(), health.getBmi()));
-            systemPrompt.append(String.format("基础代谢率%dkcal，每日推荐热量%dkcal。",
-                    health.getBmr(), health.getDailyCalorie()));
-            if (health.getGoal() != null) {
-                systemPrompt.append("健康目标：" + health.getGoal() + "。");
+        // 1. 注入长期记忆
+        try {
+            String memoryContext = memoryService.buildMemoryContext(userId, userQuery, 5);
+            if (!memoryContext.isEmpty()) {
+                enriched.append(memoryContext).append("\n\n");
             }
-            if (health.getDiseaseHistory() != null) {
-                systemPrompt.append("病史：" + health.getDiseaseHistory() + "。");
-            }
-            if (health.getAllergyHistory() != null) {
-                systemPrompt.append("过敏史：" + health.getAllergyHistory() + "。");
-            }
-        }
-        systemPrompt.append("请用中文回答，回复要专业、具体、有可操作性。");
-
-        messages.add(Map.of("role", "system", "content", systemPrompt.toString()));
-
-        // 加载历史消息（最多最近20条）
-        LambdaQueryWrapper<ChatMessage> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ChatMessage::getSessionId, sessionId)
-                .orderByDesc(ChatMessage::getCreateTime)
-                .last("LIMIT " + MAX_CONTEXT_MESSAGES);
-
-        List<ChatMessage> history = chatMessageMapper.selectList(wrapper);
-        // 反转回时间升序
-        Collections.reverse(history);
-
-        for (ChatMessage msg : history) {
-            messages.add(Map.of("role", msg.getRole(), "content", msg.getContent()));
+        } catch (Exception e) {
+            log.warn("记忆检索失败 userId={}", userId, e);
         }
 
-        return messages;
+        // 2. 注入知识库引用
+        try {
+            boolean isMedicalCore = knowledgeService.isMedicalCoreQuestion(userQuery);
+            List<KnowledgeDoc> docs = knowledgeService.searchRelevant(userQuery, isMedicalCore, 3);
+            if (!docs.isEmpty()) {
+                String knowledgeContext = knowledgeService.buildKnowledgeContext(docs);
+                if (!knowledgeContext.isEmpty()) {
+                    enriched.append(knowledgeContext).append("\n\n");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("知识检索失败 userId={}", userId, e);
+        }
+
+        // 3. 情绪标签
+        if (!"neutral".equals(decision.getEmotionLabel())) {
+            enriched.append("[用户当前情绪状态: ").append(decision.getEmotionLabel()).append("]\n");
+        }
+
+        enriched.append(userQuery);
+        return enriched.toString();
+    }
+
+    /**
+     * 模拟流式输出：将完整响应按字符分块发送，兼容 SSE 协议。
+     * 使用单线程异步执行，不阻塞主流程。
+     */
+    private void simulateStreaming(String text, Consumer<String> onMessage, Runnable onComplete) {
+        if (text == null || text.isBlank()) {
+            onComplete.run();
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                for (int i = 0; i < text.length(); i += STREAM_CHUNK_SIZE) {
+                    int end = Math.min(i + STREAM_CHUNK_SIZE, text.length());
+                    String chunk = text.substring(i, end);
+                    onMessage.accept(chunk);
+                    // 模拟打字延迟
+                    Thread.sleep(20 + (long) (Math.random() * 30));
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                log.warn("流式模拟异常", e);
+            } finally {
+                onComplete.run();
+            }
+        }, "chat-stream-simulator").start();
     }
 
     private boolean isSessionFirstMessage(Long sessionId) {
@@ -269,20 +337,17 @@ public class ChatServiceImpl implements ChatService {
         return chatMessageMapper.selectCount(wrapper) <= 1;
     }
 
-    private String extractDelta(String line) {
-        try {
-            String jsonStr = line.startsWith("data:") ? line.substring(5).trim() : line;
-            if (jsonStr.isEmpty() || DONE_MARKER.equals(jsonStr)) return null;
-            JsonNode root = objectMapper.readTree(jsonStr);
-            JsonNode choices = root.path("choices");
-            if (choices.isArray() && !choices.isEmpty()) {
-                JsonNode delta = choices.get(0).path("delta");
-                JsonNode content = delta.path("content");
-                return content.isNull() ? null : content.asText();
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
+    private boolean isConversationWorthy(String content) {
+        if (content == null || content.isBlank() || content.length() < 15) {
+            return false;
         }
+        String[] trivialPatterns = {"你好", "谢谢", "好的", "收到", "明白了", "OK", "ok", "嗯", "哦", "哈哈"};
+        String trimmed = content.trim();
+        for (String pattern : trivialPatterns) {
+            if (trimmed.equals(pattern)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.RequiresSubscription;
 import com.example.service.DataExportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,12 +21,14 @@ public class DataExportController {
 
     private final DataExportService dataExportService;
 
+    @RequiresSubscription(value = "pro", feature = "数据导出")
     @Operation(summary = "导出CSV（饮食、运动、体重、打卡）")
     @GetMapping("/csv")
     public void exportCSV(@RequestAttribute("userId") Long userId, HttpServletResponse response) throws IOException {
         dataExportService.exportAllDataCSV(userId, response);
     }
 
+    @RequiresSubscription(value = "pro", feature = "数据导出")
     @Operation(summary = "导出Excel（饮食、运动、体重、打卡）")
     @GetMapping("/excel")
     public void exportExcel(@RequestAttribute("userId") Long userId, HttpServletResponse response) throws IOException {

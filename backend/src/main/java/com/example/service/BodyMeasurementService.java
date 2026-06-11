@@ -26,4 +26,9 @@ public interface BodyMeasurementService {
      * 获取围度趋势数据
      */
     List<BodyMeasurementVO> getTrend(Long userId, int months);
+
+    /**
+     * 删除围度记录
+     */
+    void delete(Long userId, Long id);
 }

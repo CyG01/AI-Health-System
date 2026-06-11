@@ -21,5 +21,5 @@ export function getGoalDetail(goalId) {
 }
 
 export function updateGoalStatus(goalId, status) {
-  return request({ url: `/goal/${goalId}/status`, method: 'put', params: { status } })
+  return request({ url: `/goal/${goalId}/status`, method: 'put', data: { status } })
 }

@@ -48,7 +48,22 @@ export function getExerciseRecordsByDate(date) {
 
 export function getExerciseGuidance(exerciseItemId) {
   return request({
-    url: `/exercise-guidance/detail/${exerciseItemId}`,
+    url: `/exercise/${exerciseItemId}/guidance`,
     method: 'get'
+  })
+}
+
+export function updateExerciseRecord(id, data) {
+  return request({
+    url: `/exercise/record/${id}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteExerciseRecord(id) {
+  return request({
+    url: `/exercise/record/${id}`,
+    method: 'delete'
   })
 }

@@ -36,6 +36,9 @@ public class DailyCheckin implements Serializable {
 
     private String note;
 
+    /** 是否为补卡 0=正常打卡 1=补卡 */
+    private Integer isSupplement;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
@@ -71,6 +74,9 @@ public class DailyCheckin implements Serializable {
 
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+
+    public Integer getIsSupplement() { return isSupplement; }
+    public void setIsSupplement(Integer isSupplement) { this.isSupplement = isSupplement; }
 
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }

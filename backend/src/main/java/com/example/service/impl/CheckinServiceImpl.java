@@ -84,6 +84,7 @@ public class CheckinServiceImpl implements CheckinService {
 
         DailyCheckin checkin = dailyCheckinConvert.toEntity(dto);
         checkin.setUserId(userId);
+        checkin.setIsSupplement(1);
 
         dailyCheckinMapper.insert(checkin);
         log.info("补卡提交 userId={} checkDate={} checkinId={}", userId, checkDate, checkin.getId());
@@ -112,6 +113,19 @@ public class CheckinServiceImpl implements CheckinService {
                 .map(dailyCheckinConvert::toCheckinVO)
                 .toList());
         return voPage;
+    }
+
+    @Override
+    public CheckinVO getTodayCheckin(Long userId) {
+        LocalDate today = LocalDate.now();
+        DailyCheckin checkin = dailyCheckinMapper.selectOne(
+                new LambdaQueryWrapper<DailyCheckin>()
+                        .eq(DailyCheckin::getUserId, userId)
+                        .eq(DailyCheckin::getCheckDate, today));
+        if (checkin == null) {
+            return null;
+        }
+        return dailyCheckinConvert.toCheckinVO(checkin);
     }
 
     @Override

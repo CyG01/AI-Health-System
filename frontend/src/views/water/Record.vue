@@ -122,7 +122,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { submitWater, getTodayWater, getWaterList } from '@/api/water'
-import * as echarts from 'echarts'
+import echarts from '@/utils/echarts'
 
 const pageLoading = ref(false)
 const submitting = ref(false)

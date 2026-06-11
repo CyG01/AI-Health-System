@@ -18,7 +18,7 @@ public interface ExerciseService {
 
     ExerciseRecordVO submitRecord(Long userId, ExerciseRecordSubmitDTO dto);
 
-    List<ExerciseRecordVO> getRecordsByCheckinId(Long checkinId);
+    List<ExerciseRecordVO> getRecordsByCheckinId(Long userId, Long checkinId);
 
     List<ExerciseRecordVO> getRecordsByUserId(Long userId, Integer limit);
 
@@ -26,6 +26,10 @@ public interface ExerciseService {
     Page<ExerciseRecordVO> getRecordsPage(Long userId, int page, int size);
 
     Page<ExerciseRecordVO> getRecordsByDate(Long userId, LocalDate date, int page, int size);
+
+    ExerciseRecordVO updateRecord(Long userId, Long recordId, ExerciseRecordSubmitDTO dto);
+
+    void deleteRecord(Long userId, Long recordId);
 
     // 管理员运动字典管理
     List<ExerciseItemVO> listAllItems();

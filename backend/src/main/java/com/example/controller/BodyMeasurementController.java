@@ -1,5 +1,7 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.BodyMeasurementSubmitDTO;
 import com.example.service.BodyMeasurementService;
@@ -20,7 +22,9 @@ public class BodyMeasurementController {
     @Autowired
     private BodyMeasurementService bodyMeasurementService;
 
+    @RateLimit(time = 60, count = 5)
     @Operation(summary = "提交围度记录")
+    @NoRepeatSubmit
     @PostMapping("/submit")
     public Result<BodyMeasurementVO> submit(@Validated @RequestBody BodyMeasurementSubmitDTO dto,
                                             @RequestAttribute("userId") Long userId) {
@@ -45,5 +49,15 @@ public class BodyMeasurementController {
     public Result<List<BodyMeasurementVO>> trend(@RequestParam(defaultValue = "6") int months,
                                                   @RequestAttribute("userId") Long userId) {
         return Result.success(bodyMeasurementService.getTrend(userId, months));
+    }
+
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
+    @Operation(summary = "删除围度记录")
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Long id,
+                               @RequestAttribute("userId") Long userId) {
+        bodyMeasurementService.delete(userId, id);
+        return Result.success();
     }
 }

@@ -16,8 +16,8 @@
             <el-tag v-if="streaming" size="small" type="warning" effect="dark">回复中</el-tag>
           </div>
           <div class="header-right">
-            <el-button text :icon="'Plus'" @click="handleNewSession" title="新对话" />
-            <el-button text :icon="'Close'" @click="closeChat" title="关闭" />
+            <el-button text :icon="Plus" @click="handleNewSession" title="新对话" />
+            <el-button text :icon="Close" @click="closeChat" title="关闭" />
           </div>
         </div>
 
@@ -91,11 +91,16 @@
           />
           <el-button
             type="primary"
-            :icon="'Promotion'"
+            :icon="Promotion"
             :loading="streaming"
             :disabled="!inputText.trim() || streaming"
             @click="handleSend"
           >发送</el-button>
+        </div>
+
+        <!-- 医疗免责声明（始终显示） -->
+        <div class="chatbot-disclaimer">
+          本建议由AI生成，仅供参考，不构成医疗诊断或处方。如有健康问题，请及时咨询专业医生。
         </div>
       </div>
     </transition>
@@ -105,8 +110,9 @@
 <script setup>
 import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Delete } from '@element-plus/icons-vue'
+import { ChatDotRound, Delete, Plus, Close, Promotion } from '@element-plus/icons-vue'
 import { createSession, getSessionList, getMessages, deleteSession, sendMessage } from '@/api/chat'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const visible = ref(false)
 const showSessionList = ref(false)
@@ -254,9 +260,9 @@ function handleSend() {
 
 function formatContent(text) {
   if (!text) return ''
-  return text
+  return sanitizeHtml(text
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-    .replace(/\n/g, '<br>')
+    .replace(/\n/g, '<br>'))
 }
 
 function scrollToBottom() {
@@ -499,4 +505,15 @@ function scrollToBottom() {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 医疗免责声明 */
+.chatbot-disclaimer {
+  padding: 8px 14px;
+  background: rgba(210, 153, 34, 0.08);
+  border-top: 1px solid rgba(210, 153, 34, 0.25);
+  font-size: 11px;
+  color: #8b949e;
+  text-align: center;
+  line-height: 1.5;
+}
 </style>

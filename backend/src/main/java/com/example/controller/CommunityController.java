@@ -1,5 +1,7 @@
 package com.example.controller;
 
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.CommentCreateDTO;
 import com.example.dto.PostCreateDTO;
@@ -23,6 +25,8 @@ public class CommunityController {
     @Autowired
     private CommunityService communityService;
 
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
     @Operation(summary = "发布帖子")
     @PostMapping("/post")
     public Result<CommunityPostVO> createPost(@Validated @RequestBody PostCreateDTO dto,
@@ -30,6 +34,7 @@ public class CommunityController {
         return Result.success(communityService.createPost(userId, dto));
     }
 
+    @NoRepeatSubmit
     @Operation(summary = "删除帖子")
     @DeleteMapping("/post/{postId}")
     public Result<Void> deletePost(@PathVariable Long postId,
@@ -38,6 +43,7 @@ public class CommunityController {
         return Result.success();
     }
 
+    @RateLimit(time = 60, count = 30)
     @Operation(summary = "帖子列表")
     @GetMapping("/posts")
     public Result<List<CommunityPostVO>> postList(@RequestParam(defaultValue = "1") int page,
@@ -46,6 +52,7 @@ public class CommunityController {
         return Result.success(communityService.getPostList(userId, page, size));
     }
 
+    @RateLimit(time = 60, count = 30)
     @Operation(summary = "帖子详情")
     @GetMapping("/post/{postId}")
     public Result<CommunityPostVO> postDetail(@PathVariable Long postId,
@@ -53,6 +60,8 @@ public class CommunityController {
         return Result.success(communityService.getPostDetail(userId, postId));
     }
 
+    @RateLimit(time = 60, count = 20)
+    @NoRepeatSubmit
     @Operation(summary = "点赞/取消点赞")
     @PostMapping("/like/{postId}")
     public Result<Map<String, Object>> toggleLike(@PathVariable Long postId,
@@ -60,6 +69,8 @@ public class CommunityController {
         return Result.success(communityService.toggleLike(userId, postId));
     }
 
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
     @Operation(summary = "发表评论")
     @PostMapping("/comment")
     public Result<CommunityCommentVO> createComment(@Validated @RequestBody CommentCreateDTO dto,
@@ -67,6 +78,7 @@ public class CommunityController {
         return Result.success(communityService.createComment(userId, dto));
     }
 
+    @NoRepeatSubmit
     @Operation(summary = "删除评论")
     @DeleteMapping("/comment/{commentId}")
     public Result<Void> deleteComment(@PathVariable Long commentId,
@@ -75,12 +87,14 @@ public class CommunityController {
         return Result.success();
     }
 
+    @RateLimit(time = 60, count = 30)
     @Operation(summary = "帖子评论列表")
     @GetMapping("/comments/{postId}")
     public Result<List<CommunityCommentVO>> comments(@PathVariable Long postId) {
         return Result.success(communityService.getComments(postId));
     }
 
+    @RateLimit(time = 60, count = 10)
     @Operation(summary = "排行榜")
     @GetMapping("/ranking")
     public Result<List<Map<String, Object>>> ranking(@RequestParam(defaultValue = "calories") String type,

@@ -36,14 +36,48 @@
             <el-button text size="small" @click="recognitionResult = null; uploadedImage = ''">清除</el-button>
           </div>
           <div class="result-foods">
-            <div v-for="(food, idx) in recognitionResult.foods" :key="idx" class="food-item">
-              <span class="food-name">{{ food.name }}</span>
-              <el-tag size="small" type="success">~{{ food.calories }}kcal</el-tag>
-              <span class="food-confidence">置信度 {{ (food.confidence * 100).toFixed(0) }}%</span>
-              <el-button size="small" type="primary" @click="quickRecord(food)">快速记录</el-button>
+            <div class="food-item">
+              <span class="food-name">{{ recognitionResult.foodName }}</span>
+              <el-tag size="small" type="success">~{{ recognitionResult.caloriePer100g }}kcal/100g</el-tag>
+              <span class="food-confidence">置信度 {{ recognitionResult.confidence }}%</span>
+              <el-button size="small" type="primary" @click="quickRecord(recognitionResult)">快速记录</el-button>
             </div>
           </div>
           <p v-if="recognitionResult.note" class="result-note">{{ recognitionResult.note }}</p>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 文字快捷录入 + 常用食物 -->
+    <el-card class="quick-input-card" shadow="hover">
+      <template #header><span>快捷录入</span></template>
+      <div class="quick-input-area">
+        <div class="text-input-row">
+          <el-input
+            v-model="quickText"
+            placeholder="输入食物名称快速搜索，如：米饭、鸡蛋、牛奶..."
+            clearable
+            @keyup.enter="handleQuickTextSearch"
+            style="flex:1"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+          <el-button type="primary" @click="handleQuickTextSearch" :loading="quickTextLoading" style="margin-left:8px">
+            搜索
+          </el-button>
+        </div>
+        <div v-if="frequentItems.length > 0" class="frequent-items">
+          <span class="frequent-label">常用：</span>
+          <el-button
+            v-for="item in frequentItems"
+            :key="item.id"
+            size="small"
+            type="default"
+            @click="selectFrequentItem(item)"
+            class="frequent-btn"
+          >
+            {{ item.name }}
+          </el-button>
         </div>
       </div>
     </el-card>
@@ -152,10 +186,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getFoodItems, submitFoodRecord, getFoodRecordsPage } from '@/api/food'
+import { getFoodItems, getFrequentItems, parseFoodText, submitFoodRecord, getFoodRecordsPage } from '@/api/food'
 import { recognizeFood } from '@/api/food'
 
 const foodItems = ref([])
+const frequentItems = ref([])
 const itemsLoading = ref(false)
 const records = ref([])
 const recordsLoading = ref(false)
@@ -165,6 +200,8 @@ const recognitionResult = ref(null)
 const uploadedImage = ref('')
 const page = ref(1)
 const total = ref(0)
+const quickText = ref('')
+const quickTextLoading = ref(false)
 
 const form = ref({
   foodItemId: null,
@@ -195,45 +232,70 @@ async function handleImageUpload(file) {
 
   recognizing.value = true
   recognitionResult.value = null
-  uploadedImage.value = ''
 
-  // 转bitmap并上传
-  const reader = new FileReader()
-  reader.onload = async (e) => {
-    try {
-      const base64 = e.target.result
-      uploadedImage.value = base64
-      const res = await recognizeFood({ image: base64 })
-      if (res.data?.data) {
-        recognitionResult.value = res.data.data
-      } else {
-        recognitionResult.value = res.data
-      }
-    } catch {
-      // handled by interceptor
-    } finally {
-      recognizing.value = false
-    }
+  // 使用 FormData 上传原始文件
+  const formData = new FormData()
+  formData.append('image', file.raw)
+
+  try {
+    const res = await recognizeFood(formData)
+    // Result<FoodRecognizeVO> 解析: res.data 是后端返回的 Result 对象
+    recognitionResult.value = res.data || res
+  } catch {
+    // handled by interceptor
+  } finally {
+    recognizing.value = false
   }
-  reader.readAsDataURL(file.raw)
+}
+
+/** 文字快捷搜索食物 */
+async function handleQuickTextSearch() {
+  const text = quickText.value?.trim()
+  if (!text) return
+  quickTextLoading.value = true
+  try {
+    const res = await parseFoodText({ text })
+    if (res.data) {
+      const food = res.data
+      form.value.foodItemId = food.id
+      form.value.amount = 1
+      form.value.unit = '份'
+      quickText.value = ''
+      ElMessage.success(`已匹配：${food.name}`)
+    }
+  } catch {
+    ElMessage.info('未匹配到对应食物，请在下方下拉列表中选择')
+  } finally {
+    quickTextLoading.value = false
+  }
+}
+
+/** 选择常用食物 */
+function selectFrequentItem(item) {
+  form.value.foodItemId = item.id
+  form.value.amount = 1
+  form.value.unit = '份'
+  ElMessage.success(`已选择：${item.name}`)
 }
 
 function quickRecord(food) {
+  // food 是 FoodRecognizeVO: { foodName, caloriePer100g, confidence, recommendedGrams, category, ... }
+  const foodName = food.foodName || ''
   // 尝试匹配已有食物项
   const matched = foodItems.value.find(
-    f => f.name.toLowerCase().includes(food.name.toLowerCase()) ||
-         food.name.toLowerCase().includes(f.name.toLowerCase())
+    f => f.name.toLowerCase().includes(foodName.toLowerCase()) ||
+         foodName.toLowerCase().includes(f.name.toLowerCase())
   )
   if (matched) {
     form.value.foodItemId = matched.id
-    form.value.amount = food.servings || 1
+    form.value.amount = food.recommendedGrams || 1
     form.value.unit = matched.unit || '份'
     ElMessage.success(`已匹配到 ${matched.name}`)
   } else {
     form.value.foodItemId = null
-    form.value.amount = food.servings || 1
+    form.value.amount = food.recommendedGrams || 1
     form.value.unit = '份'
-    ElMessage.info(`未在食物库找到 ${food.name}，请手动选择`)
+    ElMessage.info(`未在食物库找到 ${foodName}，请手动选择`)
   }
   // 滚动到表单
   window.scrollTo({ top: 200, behavior: 'smooth' })
@@ -284,7 +346,20 @@ async function handleSubmit() {
 onMounted(() => {
   loadItems()
   loadRecords()
+  loadFrequentItems()
 })
+
+/** 加载常用食物 */
+async function loadFrequentItems() {
+  try {
+    const res = await getFrequentItems({ limit: 8 })
+    if (res.data) {
+      frequentItems.value = res.data
+    }
+  } catch {
+    // 静默处理
+  }
+}
 </script>
 
 <style scoped>
@@ -395,5 +470,49 @@ onMounted(() => {
   font-size: 13px;
   margin: 10px 0 0;
   line-height: 1.6;
+}
+
+/* 快捷录入 */
+.quick-input-card {
+  margin-bottom: 20px;
+  :deep(.el-card__header) {
+    border-color: rgba(82, 196, 26, 0.2);
+    color: #e6edf3;
+  }
+}
+
+.quick-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.text-input-row {
+  display: flex;
+  align-items: center;
+}
+
+.frequent-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.frequent-label {
+  color: #8b949e;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.frequent-btn {
+  border-color: #30363d;
+  background: #0d1117;
+  color: #c9d1d9;
+}
+
+.frequent-btn:hover {
+  border-color: #58a6ff;
+  color: #58a6ff;
 }
 </style>

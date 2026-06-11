@@ -26,6 +26,12 @@ public class SleepRecordVO {
     @Schema(description = "睡眠时长(分钟)")
     private Integer durationMin;
 
+    @Schema(description = "睡眠时长(小时)")
+    private java.math.BigDecimal sleepHours;
+
+    @Schema(description = "深睡眠时长(分钟)")
+    private Integer deepSleepMinutes;
+
     @Schema(description = "睡眠质量 1-5")
     private Integer quality;
 

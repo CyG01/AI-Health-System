@@ -2,6 +2,7 @@ package com.example.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.DietRecordSubmitDTO;
 import com.example.service.FoodService;
@@ -15,6 +16,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +45,7 @@ public class FoodController {
         return Result.success(foodService.listActiveItems());
     }
 
+    @RateLimit(time = 60, count = 10)
     @NoRepeatSubmit
     @Operation(summary = "提交饮食记录")
     @PostMapping("/record")
@@ -53,8 +57,10 @@ public class FoodController {
 
     @Operation(summary = "查询某次打卡的饮食记录")
     @GetMapping("/record/checkin/{checkinId}")
-    public Result<List<DietRecordVO>> getRecordsByCheckinId(@PathVariable Long checkinId) {
-        return Result.success(foodService.getRecordsByCheckinId(checkinId));
+    public Result<List<DietRecordVO>> getRecordsByCheckinId(
+            @RequestAttribute("userId") Long userId,
+            @PathVariable Long checkinId) {
+        return Result.success(foodService.getRecordsByCheckinId(userId, checkinId));
     }
 
     @Operation(summary = "查询用户饮食记录")
@@ -82,5 +88,47 @@ public class FoodController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         return Result.success(foodService.getRecordsByDate(userId, date, page, size));
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
+    @Operation(summary = "更新饮食记录")
+    @PutMapping("/record/{id}")
+    public Result<DietRecordVO> updateRecord(
+            @PathVariable Long id,
+            @Validated @RequestBody DietRecordSubmitDTO dto,
+            @RequestAttribute("userId") Long userId) {
+        return Result.success(foodService.updateRecord(userId, id, dto));
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
+    @Operation(summary = "删除饮食记录")
+    @DeleteMapping("/record/{id}")
+    public Result<Void> deleteRecord(
+            @PathVariable Long id,
+            @RequestAttribute("userId") Long userId) {
+        foodService.deleteRecord(userId, id);
+        return Result.success();
+    }
+
+    @Operation(summary = "查询用户常用食物")
+    @GetMapping("/items/frequent")
+    public Result<List<FoodItemVO>> getFrequentItems(
+            @RequestAttribute("userId") Long userId,
+            @RequestParam(defaultValue = "8") int limit) {
+        return Result.success(foodService.getFrequentItems(userId, limit));
+    }
+
+    @Operation(summary = "文字快捷录入食物")
+    @GetMapping("/items/parse")
+    public Result<FoodItemVO> parseFoodText(
+            @RequestAttribute("userId") Long userId,
+            @RequestParam String text) {
+        FoodItemVO result = foodService.parseFoodText(userId, text);
+        if (result == null) {
+            return Result.error(404, "未匹配到对应食物，请尝试更具体的名称");
+        }
+        return Result.success(result);
     }
 }

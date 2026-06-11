@@ -89,9 +89,10 @@ public class FoodServiceImpl implements FoodService {
     }
 
     @Override
-    public List<DietRecordVO> getRecordsByCheckinId(Long checkinId) {
+    public List<DietRecordVO> getRecordsByCheckinId(Long userId, Long checkinId) {
         LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
                 .eq(DietRecord::getCheckinId, checkinId)
+                .eq(DietRecord::getUserId, userId)
                 .orderByDesc(DietRecord::getCreateTime);
         List<DietRecord> records = dietRecordMapper.selectList(wrapper);
         return mapToRecordVOs(records);
@@ -147,6 +148,47 @@ public class FoodServiceImpl implements FoodService {
             return vo;
         }).toList());
         return voPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public DietRecordVO updateRecord(Long userId, Long recordId, DietRecordSubmitDTO dto) {
+        DietRecord record = dietRecordMapper.selectById(recordId);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "饮食记录不存在");
+        }
+        record.setCheckinId(dto.getCheckinId());
+        record.setMealType(dto.getMealType());
+        record.setItemId(dto.getItemId());
+        record.setWeightGrams(dto.getWeightGrams());
+        record.setCaloriesConsumed(dto.getCaloriesConsumed());
+        record.setProtein(dto.getProtein());
+        record.setFat(dto.getFat());
+        record.setCarbs(dto.getCarbs());
+        record.setFoodName(dto.getFoodName());
+        record.setCategory(dto.getCategory());
+        record.setNote(dto.getNote());
+        record.setRemark(dto.getRemark());
+        dietRecordMapper.updateById(record);
+
+        FoodItem item = foodItemMapper.selectById(dto.getItemId());
+        DietRecordVO vo = foodConvert.toVO(record);
+        if (item != null) {
+            vo.setItemName(item.getName());
+        }
+        log.info("更新饮食记录 userId={} recordId={}", userId, recordId);
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteRecord(Long userId, Long recordId) {
+        DietRecord record = dietRecordMapper.selectById(recordId);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "饮食记录不存在");
+        }
+        dietRecordMapper.deleteById(recordId);
+        log.info("删除饮食记录 userId={} recordId={}", userId, recordId);
     }
 
     // --- Admin 食物项目管理 ---
@@ -212,6 +254,60 @@ public class FoodServiceImpl implements FoodService {
     }
 
     // --- 私有方法 ---
+
+    @Override
+    public List<FoodItemVO> getFrequentItems(Long userId, int limit) {
+        int queryLimit = Math.max(limit, 1);
+        // 查询用户最近60天饮食记录中最常出现的食物
+        LocalDateTime since = LocalDateTime.now().minusDays(60);
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .ge(DietRecord::getCreateTime, since)
+                .isNotNull(DietRecord::getItemId);
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        // 按食物ID分组计数，取频率最高的
+        Map<Long, Long> freqMap = records.stream()
+                .collect(Collectors.groupingBy(DietRecord::getItemId, Collectors.counting()));
+
+        List<Long> topIds = freqMap.entrySet().stream()
+                .sorted(Map.Entry.<Long, Long>comparingByValue().reversed())
+                .limit(queryLimit)
+                .map(Map.Entry::getKey)
+                .toList();
+
+        if (topIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<FoodItem> items = foodItemMapper.selectBatchIds(topIds);
+        // 按频率排序
+        Map<Long, FoodItem> itemMap = items.stream()
+                .collect(Collectors.toMap(FoodItem::getId, f -> f));
+        return topIds.stream()
+                .filter(itemMap::containsKey)
+                .map(id -> foodConvert.toVO(itemMap.get(id)))
+                .toList();
+    }
+
+    @Override
+    public FoodItemVO parseFoodText(Long userId, String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        // 简单解析: "食物名 重量 单位 餐次" 如 "米饭 200 克 午餐"
+        String[] parts = text.trim().split("\\s+");
+        if (parts.length < 1) return null;
+
+        String keyword = parts[0];
+        // 在食物库中模糊匹配
+        LambdaQueryWrapper<FoodItem> wrapper = new LambdaQueryWrapper<FoodItem>()
+                .eq(FoodItem::getStatus, 1)
+                .like(FoodItem::getName, keyword)
+                .last("LIMIT 1");
+        FoodItem item = foodItemMapper.selectOne(wrapper);
+        return item != null ? foodConvert.toVO(item) : null;
+    }
 
     private Map<Long, String> batchLoadItemNames(List<DietRecord> records) {
         if (records.isEmpty()) {

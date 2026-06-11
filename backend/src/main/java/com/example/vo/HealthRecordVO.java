@@ -18,6 +18,9 @@ public class HealthRecordVO implements Serializable {
     private String goal;
     private String diseaseHistory;
     private String allergyHistory;
+    private String allergyType;
+    private String familyHistory;
+    private String medication;
     private String exerciseHabit;
     private String dietHabit;
     private Integer isLatest;
@@ -52,6 +55,15 @@ public class HealthRecordVO implements Serializable {
 
     public String getAllergyHistory() { return allergyHistory; }
     public void setAllergyHistory(String allergyHistory) { this.allergyHistory = allergyHistory; }
+
+    public String getAllergyType() { return allergyType; }
+    public void setAllergyType(String allergyType) { this.allergyType = allergyType; }
+
+    public String getFamilyHistory() { return familyHistory; }
+    public void setFamilyHistory(String familyHistory) { this.familyHistory = familyHistory; }
+
+    public String getMedication() { return medication; }
+    public void setMedication(String medication) { this.medication = medication; }
 
     public String getExerciseHabit() { return exerciseHabit; }
     public void setExerciseHabit(String exerciseHabit) { this.exerciseHabit = exerciseHabit; }

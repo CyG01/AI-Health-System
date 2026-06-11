@@ -13,6 +13,10 @@
   --glass-blur: blur(12px);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html.dark {
   color-scheme: dark;
 }
@@ -25,6 +29,14 @@ html.dark {
   padding: 0;
 }
 
+/* 使用 will-change 仅标记需要硬件加速的元素 */
+.animate-on-scroll,
+.glass-card,
+.el-card,
+.el-button {
+  will-change: transform;
+}
+
 html,
 body,
 #app {
@@ -34,6 +46,9 @@ body,
   font-size: 14px;
   color: var(--text-primary);
   background-color: var(--bg-primary);
+  /* 启用硬件加速滚动 */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -80,7 +95,15 @@ a {
 
 .el-button {
   border-radius: var(--radius-base) !important;
-  transition: all 0.2s ease !important;
+  transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease !important;
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+}
+
+.el-button:active {
+  transform: translateY(0);
 }
 
 .el-card {
@@ -88,6 +111,11 @@ a {
   border: none !important;
   border-radius: var(--radius-base) !important;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.el-card:hover {
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.35) !important;
 }
 
 .el-menu {
@@ -101,7 +129,40 @@ a {
   --el-table-border-color: transparent;
 }
 
+/* 表格行悬浮过渡 */
+.el-table__body tr {
+  transition: background-color 0.15s ease;
+}
+
 .el-pagination {
   --el-pagination-bg-color: var(--bg-card);
   --el-pagination-button-bg-color: var(--bg-card);
+}
+
+/* 通用淡入动画 */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+/* 通用骨架屏闪烁 */
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #161b22 25%, #1c2333 50%, #161b22 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* 图片懒加载占位 */
+img[loading="lazy"] {
+  background: var(--bg-card);
+  min-height: 40px;
 }

@@ -10,15 +10,15 @@ public class HealthHistoryVO implements Serializable {
 
     private Long id;
 
-    private BigDecimal height;
+    private Integer height;
 
-    private BigDecimal weight;
+    private Integer weight;
 
     private BigDecimal bmi;
 
-    private BigDecimal bmr;
+    private Integer bmr;
 
-    private BigDecimal dailyCalorie;
+    private Integer dailyCalorie;
 
     private String goal;
 
@@ -32,19 +32,19 @@ public class HealthHistoryVO implements Serializable {
         this.id = id;
     }
 
-    public BigDecimal getHeight() {
+    public Integer getHeight() {
         return height;
     }
 
-    public void setHeight(BigDecimal height) {
+    public void setHeight(Integer height) {
         this.height = height;
     }
 
-    public BigDecimal getWeight() {
+    public Integer getWeight() {
         return weight;
     }
 
-    public void setWeight(BigDecimal weight) {
+    public void setWeight(Integer weight) {
         this.weight = weight;
     }
 
@@ -56,19 +56,19 @@ public class HealthHistoryVO implements Serializable {
         this.bmi = bmi;
     }
 
-    public BigDecimal getBmr() {
+    public Integer getBmr() {
         return bmr;
     }
 
-    public void setBmr(BigDecimal bmr) {
+    public void setBmr(Integer bmr) {
         this.bmr = bmr;
     }
 
-    public BigDecimal getDailyCalorie() {
+    public Integer getDailyCalorie() {
         return dailyCalorie;
     }
 
-    public void setDailyCalorie(BigDecimal dailyCalorie) {
+    public void setDailyCalorie(Integer dailyCalorie) {
         this.dailyCalorie = dailyCalorie;
     }
 

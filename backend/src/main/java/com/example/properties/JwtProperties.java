@@ -1,9 +1,15 @@
 package com.example.properties;
 
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "jwt")
 public class JwtProperties {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtProperties.class);
+    private static final int MIN_SECRET_BYTES = 32;
 
     private String secret;
     private Long accessTokenExpire;
@@ -49,5 +55,19 @@ public class JwtProperties {
 
     public void setTokenPrefix(String tokenPrefix) {
         this.tokenPrefix = tokenPrefix;
+    }
+
+    @PostConstruct
+    public void validate() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT_SECRET 未设置！请在环境变量或 .env 文件中设置 JWT_SECRET（至少32字节强密钥）");
+        }
+        if (secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "JWT_SECRET 太短（需要至少 " + MIN_SECRET_BYTES + " 字节），当前仅 "
+                            + secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + " 字节");
+        }
+        log.info("JWT Secret 校验通过 ({} 字节)", secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
     }
 }

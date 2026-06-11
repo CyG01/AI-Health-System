@@ -1,6 +1,7 @@
 package com.example.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.common.BusinessException;
 import com.example.dto.BodyMeasurementSubmitDTO;
 import com.example.entity.BodyMeasurement;
 import com.example.mapper.BodyMeasurementMapper;
@@ -92,6 +93,16 @@ public class BodyMeasurementServiceImpl implements BodyMeasurementService {
                 .between(BodyMeasurement::getRecordDate, start, end)
                 .orderByAsc(BodyMeasurement::getRecordDate);
         return bodyMeasurementMapper.selectList(wrapper).stream().map(this::toVO).collect(Collectors.toList());
+    }
+
+    @Override
+    public void delete(Long userId, Long id) {
+        BodyMeasurement record = bodyMeasurementMapper.selectById(id);
+        if (record == null || !record.getUserId().equals(userId)) {
+            throw new BusinessException(404, "身体围度记录不存在");
+        }
+        bodyMeasurementMapper.deleteById(id);
+        log.info("删除身体围度记录 userId={} recordId={}", userId, id);
     }
 
     private BodyMeasurementVO toVO(BodyMeasurement record) {

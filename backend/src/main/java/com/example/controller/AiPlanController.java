@@ -5,7 +5,9 @@ import com.example.annotation.NoRepeatSubmit;
 import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.PlanGenerateDTO;
+import com.example.sdui.AiAgentResponse;
 import com.example.service.AiPlanService;
+import com.example.service.impl.PlanGenerateV2Service;
 import com.example.vo.AiPlanDetailVO;
 import com.example.vo.AiPlanVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +37,9 @@ public class AiPlanController {
     @Autowired
     private AiPlanService aiPlanService;
 
+    @Autowired
+    private PlanGenerateV2Service planGenerateV2Service;
+
     @RateLimit(time = 60, count = 1)
     @NoRepeatSubmit
     @Operation(summary = "生成AI计划")
@@ -42,6 +47,15 @@ public class AiPlanController {
     public Result<AiPlanDetailVO> generate(@Validated @RequestBody PlanGenerateDTO dto,
                                            @RequestAttribute("userId") Long userId) {
         return Result.success(aiPlanService.generatePlan(dto, userId));
+    }
+
+    @RateLimit(time = 60, count = 1)
+    @NoRepeatSubmit
+    @Operation(summary = "生成AI计划 V2（LangChain4j + Function Calling + SDUI）")
+    @PostMapping("/generate-v2")
+    public Result<AiAgentResponse> generateV2(@Validated @RequestBody PlanGenerateDTO dto,
+                                              @RequestAttribute("userId") Long userId) {
+        return Result.success(planGenerateV2Service.generatePlan(dto, userId));
     }
 
     @RateLimit(time = 60, count = 1)
@@ -71,6 +85,7 @@ public class AiPlanController {
         return Result.success(aiPlanService.getPlanDetail(id, userId));
     }
 
+    @RateLimit(time = 60, count = 5)
     @NoRepeatSubmit
     @Operation(summary = "切换当前生效计划")
     @PutMapping("/{id}/active")
@@ -80,6 +95,7 @@ public class AiPlanController {
         return Result.success();
     }
 
+    @RateLimit(time = 60, count = 5)
     @NoRepeatSubmit
     @Operation(summary = "删除计划")
     @DeleteMapping("/{id}")
@@ -89,6 +105,7 @@ public class AiPlanController {
         return Result.success();
     }
 
+    @RateLimit(time = 60, count = 10)
     @NoRepeatSubmit
     @Operation(summary = "标记日任务完成")
     @PutMapping("/detail/{detailId}/complete")

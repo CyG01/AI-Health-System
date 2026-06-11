@@ -15,3 +15,7 @@ export function getBodyMeasurementHistory(limit = 10) {
 export function getBodyMeasurementTrend(months = 6) {
   return request({ url: '/body-measurement/trend', method: 'get', params: { months } })
 }
+
+export function deleteBodyMeasurement(id) {
+  return request({ url: `/body-measurement/${id}`, method: 'delete' })
+}

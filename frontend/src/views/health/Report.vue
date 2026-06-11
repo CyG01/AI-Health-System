@@ -1,5 +1,6 @@
 <template>
   <div class="health-report-page" v-loading="pageLoading">
+    <MedicalDisclaimerBanner />
     <div class="page-header">
       <h2>AI健康报告</h2>
       <div class="header-actions">
@@ -102,6 +103,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { generateReport, getReportList } from '@/api/healthReport'
+import MedicalDisclaimerBanner from '@/components/MedicalDisclaimerBanner.vue'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const pageLoading = ref(false)
 const generating = ref(false)
@@ -124,7 +127,7 @@ const rawContent = computed(() => {
     JSON.parse(detailReport.value.aiContent)
     return ''
   } catch {
-    return detailReport.value.aiContent.replace(/\n/g, '<br>')
+    return sanitizeHtml(detailReport.value.aiContent.replace(/\n/g, '<br>'))
   }
 })
 

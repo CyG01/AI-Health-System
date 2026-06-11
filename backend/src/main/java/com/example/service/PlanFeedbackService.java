@@ -12,6 +12,8 @@ public interface PlanFeedbackService {
 
     List<PlanFeedbackVO> getFeedbacksByPlanId(Long planId);
 
+    List<PlanFeedbackVO> getFeedbacksByUserIdAndPlanId(Long userId, Long planId);
+
     Page<PlanFeedbackVO> getFeedbacksByPlanIdPage(Long planId, int page, int size);
 
     List<PlanFeedbackVO> getFeedbacksByUserId(Long userId);

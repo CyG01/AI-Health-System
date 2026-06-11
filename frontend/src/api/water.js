@@ -11,3 +11,11 @@ export function getTodayWater() {
 export function getWaterList(days = 7) {
   return request({ url: '/water/list', method: 'get', params: { days } })
 }
+
+export function getWaterTotal(params) {
+  return request({ url: '/water/total', method: 'get', params })
+}
+
+export function deleteWater(id) {
+  return request({ url: `/water/${id}`, method: 'delete' })
+}

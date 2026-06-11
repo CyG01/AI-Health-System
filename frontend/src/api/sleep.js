@@ -15,3 +15,7 @@ export function getSleepList(days = 30) {
 export function analyzeSleep() {
   return request({ url: '/sleep/analyze', method: 'get' })
 }
+
+export function deleteSleep(id) {
+  return request({ url: `/sleep/${id}`, method: 'delete' })
+}

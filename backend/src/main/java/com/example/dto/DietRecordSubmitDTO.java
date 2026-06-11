@@ -30,6 +30,12 @@ public class DietRecordSubmitDTO implements Serializable {
     @Max(value = 10000, message = "摄入热量不能超过10000大卡")
     private Integer caloriesConsumed;
 
+    private java.math.BigDecimal protein;
+    private java.math.BigDecimal fat;
+    private java.math.BigDecimal carbs;
+    private String foodName;
+    private String category;
+    private String note;
     private String remark;
 
     public Long getCheckinId() { return checkinId; }
@@ -47,6 +53,18 @@ public class DietRecordSubmitDTO implements Serializable {
     public Integer getCaloriesConsumed() { return caloriesConsumed; }
     public void setCaloriesConsumed(Integer caloriesConsumed) { this.caloriesConsumed = caloriesConsumed; }
 
+    public java.math.BigDecimal getProtein() { return protein; }
+    public void setProtein(java.math.BigDecimal protein) { this.protein = protein; }
+    public java.math.BigDecimal getFat() { return fat; }
+    public void setFat(java.math.BigDecimal fat) { this.fat = fat; }
+    public java.math.BigDecimal getCarbs() { return carbs; }
+    public void setCarbs(java.math.BigDecimal carbs) { this.carbs = carbs; }
+    public String getFoodName() { return foodName; }
+    public void setFoodName(String foodName) { this.foodName = foodName; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
 }

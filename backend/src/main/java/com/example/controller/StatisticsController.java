@@ -6,6 +6,7 @@ import com.example.vo.BmiTrendVO;
 import com.example.vo.CalorieDeficitVO;
 import com.example.vo.CalorieTrendVO;
 import com.example.vo.CheckinTrendVO;
+import com.example.vo.DietTrendComparisonVO;
 import com.example.vo.ExerciseDistributionVO;
 import com.example.vo.ExerciseTrendVO;
 import com.example.vo.NutrientRatioVO;
@@ -90,5 +91,11 @@ public class StatisticsController {
     public Result<ExerciseDistributionVO> exerciseDistribution(@RequestAttribute("userId") Long userId,
                                                                 @RequestParam(defaultValue = "30") @Min(1) @Max(365) Integer days) {
         return Result.success(statisticsService.getExerciseDistribution(userId, days));
+    }
+
+    @Operation(summary = "饮食热量多维度趋势对比（本周 vs 上周）")
+    @GetMapping("/diet-trend-comparison")
+    public Result<DietTrendComparisonVO> dietTrendComparison(@RequestAttribute("userId") Long userId) {
+        return Result.success(statisticsService.getDietTrendComparison(userId));
     }
 }

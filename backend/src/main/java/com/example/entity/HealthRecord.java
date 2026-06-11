@@ -40,6 +40,15 @@ public class HealthRecord implements Serializable {
 
     private String allergyHistory;
 
+    /** 过敏类型（逗号分隔）：FOOD/DRUG/ENVIRONMENT */
+    private String allergyType;
+
+    /** 家族病史 */
+    private String familyHistory;
+
+    /** 当前用药情况 */
+    private String medication;
+
     private String exerciseHabit;
 
     private String dietHabit;
@@ -87,6 +96,15 @@ public class HealthRecord implements Serializable {
 
     public String getAllergyHistory() { return allergyHistory; }
     public void setAllergyHistory(String allergyHistory) { this.allergyHistory = allergyHistory; }
+
+    public String getAllergyType() { return allergyType; }
+    public void setAllergyType(String allergyType) { this.allergyType = allergyType; }
+
+    public String getFamilyHistory() { return familyHistory; }
+    public void setFamilyHistory(String familyHistory) { this.familyHistory = familyHistory; }
+
+    public String getMedication() { return medication; }
+    public void setMedication(String medication) { this.medication = medication; }
 
     public String getExerciseHabit() { return exerciseHabit; }
     public void setExerciseHabit(String exerciseHabit) { this.exerciseHabit = exerciseHabit; }

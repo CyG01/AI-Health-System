@@ -13,7 +13,10 @@
 
  Date: 09/06/2026 14:23:58
 */
-
+-- 创建数据库（如果不存在）
+CREATE DATABASE IF NOT EXISTS ai_health_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 使用该数据库
+USE ai_health_system;
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -215,6 +218,10 @@ CREATE TABLE `health_record`  (
   `goal` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
   `disease_history` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   `allergy_history` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  `allergy_type` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '过敏类型(逗号分隔): FOOD/DRUG/ENVIRONMENT',
+  `family_history` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '家族病史',
+  `medication` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '当前用药情况',
+  `target_weight` int NULL DEFAULT NULL COMMENT '目标体重(kg)',
   `exercise_habit` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   `diet_habit` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
@@ -429,5 +436,25 @@ ALTER TABLE `sys_notification` ADD COLUMN `target_id` bigint NULL DEFAULT NULL C
 -- ----------------------------
 ALTER TABLE `sys_user` ADD COLUMN `reminder_time` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '提醒时间(HH:mm)' AFTER `status`;
 ALTER TABLE `sys_user` ADD COLUMN `notification_enabled` tinyint NOT NULL DEFAULT 1 COMMENT '是否开启通知' AFTER `reminder_time`;
+
+-- ----------------------------
+-- Table structure for blood_sugar (血糖监测)
+-- ----------------------------
+DROP TABLE IF EXISTS `blood_sugar`;
+CREATE TABLE `blood_sugar`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `record_date` date NOT NULL COMMENT '测量日期',
+  `record_time` time NULL DEFAULT NULL COMMENT '测量时间',
+  `measure_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '测量类型: fasting/before_meal/after_meal/bedtime/random',
+  `glucose_value` decimal(5,1) NOT NULL COMMENT '血糖值(mmol/L)',
+  `note` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `abnormal_flag` tinyint NOT NULL DEFAULT 0 COMMENT '异常标记: 0-正常 1-偏高 2-偏低',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` tinyint NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_user_date`(`user_id` ASC, `record_date` DESC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '血糖监测记录表' ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;

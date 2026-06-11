@@ -6,11 +6,13 @@ import com.example.entity.AiPlanDetail;
 import com.example.entity.DailyCheckin;
 import com.example.entity.DietRecord;
 import com.example.entity.ExerciseRecord;
+import com.example.entity.HealthRecord;
 import com.example.mapper.AiPlanDetailMapper;
 import com.example.mapper.AiPlanMapper;
 import com.example.mapper.DailyCheckinMapper;
 import com.example.mapper.DietRecordMapper;
 import com.example.mapper.ExerciseRecordMapper;
+import com.example.mapper.HealthRecordMapper;
 import com.example.service.CheckinService;
 import com.example.service.DashboardService;
 import com.example.vo.CheckinStatsVO;
@@ -43,6 +45,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final AiPlanDetailMapper aiPlanDetailMapper;
     private final ExerciseRecordMapper exerciseRecordMapper;
     private final DietRecordMapper dietRecordMapper;
+    private final HealthRecordMapper healthRecordMapper;
     private final CheckinService checkinService;
 
     @Override
@@ -113,6 +116,18 @@ public class DashboardServiceImpl implements DashboardService {
                 .mapToInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)
                 .sum());
 
+        // 5. 最新体重和BMI
+        LambdaQueryWrapper<HealthRecord> healthWrapper = new LambdaQueryWrapper<HealthRecord>()
+                .eq(HealthRecord::getUserId, userId)
+                .isNotNull(HealthRecord::getWeight)
+                .orderByDesc(HealthRecord::getCreateTime)
+                .last("LIMIT 1");
+        HealthRecord latestHealth = healthRecordMapper.selectOne(healthWrapper);
+        if (latestHealth != null) {
+            vo.setWeight(latestHealth.getWeight());
+            vo.setBmi(latestHealth.getBmi());
+        }
+
         return vo;
     }
 
@@ -161,14 +176,15 @@ public class DashboardServiceImpl implements DashboardService {
         // 每日明细
         List<DashboardWeekVO.DaySummary> dailySummary = new ArrayList<>();
         for (LocalDate d = weekStart; !d.isAfter(today); d = d.plusDays(1)) {
+            final LocalDate dayDate = d;
             DashboardWeekVO.DaySummary day = new DashboardWeekVO.DaySummary();
-            day.setDate(d.format(fmt));
+            day.setDate(dayDate.format(fmt));
 
-            boolean checkedIn = weekCheckins.stream().anyMatch(c -> c.getCheckDate().equals(d));
+            boolean checkedIn = weekCheckins.stream().anyMatch(c -> c.getCheckDate().equals(dayDate));
             day.setCheckedIn(checkedIn);
 
-            LocalDateTime dayStart = d.atStartOfDay();
-            LocalDateTime dayEnd = d.atTime(LocalTime.MAX);
+            final LocalDateTime dayStart = dayDate.atStartOfDay();
+            final LocalDateTime dayEnd = dayDate.atTime(LocalTime.MAX);
             day.setExerciseCalories(weekExercises.stream()
                     .filter(r -> !r.getCreateTime().isBefore(dayStart) && !r.getCreateTime().isAfter(dayEnd))
                     .mapToInt(r -> r.getCaloriesBurned() != null ? r.getCaloriesBurned() : 0)
@@ -243,21 +259,23 @@ public class DashboardServiceImpl implements DashboardService {
 
         int weekIndex = 1;
         for (LocalDate ws = weekStart; !ws.isAfter(monthEnd) && !ws.isAfter(today); ws = ws.plusWeeks(1)) {
+            final LocalDate wsFinal = ws;
             LocalDate we = ws.plusDays(6);
             if (we.isAfter(today)) we = today;
             if (we.isAfter(monthEnd)) we = monthEnd;
+            final LocalDate weFinal = we;
 
             DashboardMonthVO.WeekSummary wsVO = new DashboardMonthVO.WeekSummary();
-            wsVO.setWeekLabel("第" + weekIndex + "周 (" + ws.format(DateTimeFormatter.ofPattern("MM/dd")) + "-" + we.format(DateTimeFormatter.ofPattern("MM/dd")) + ")");
+            wsVO.setWeekLabel("第" + weekIndex + "周 (" + wsFinal.format(DateTimeFormatter.ofPattern("MM/dd")) + "-" + weFinal.format(DateTimeFormatter.ofPattern("MM/dd")) + ")");
             wsVO.setCheckinDays((int) monthCheckins.stream()
-                    .filter(c -> !c.getCheckDate().isBefore(ws) && !c.getCheckDate().isAfter(we))
+                    .filter(c -> !c.getCheckDate().isBefore(wsFinal) && !c.getCheckDate().isAfter(weFinal))
                     .count());
             wsVO.setExerciseCalories(monthExercises.stream()
-                    .filter(r -> !r.getCreateTime().isBefore(ws.atStartOfDay()) && !r.getCreateTime().isAfter(we.atTime(LocalTime.MAX)))
+                    .filter(r -> !r.getCreateTime().isBefore(wsFinal.atStartOfDay()) && !r.getCreateTime().isAfter(weFinal.atTime(LocalTime.MAX)))
                     .mapToInt(r -> r.getCaloriesBurned() != null ? r.getCaloriesBurned() : 0)
                     .sum());
             wsVO.setDietCalories(monthDiets.stream()
-                    .filter(r -> !r.getCreateTime().isBefore(ws.atStartOfDay()) && !r.getCreateTime().isAfter(we.atTime(LocalTime.MAX)))
+                    .filter(r -> !r.getCreateTime().isBefore(wsFinal.atStartOfDay()) && !r.getCreateTime().isAfter(weFinal.atTime(LocalTime.MAX)))
                     .mapToInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)
                     .sum());
 

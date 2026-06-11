@@ -10,6 +10,7 @@ import com.example.mapper.DietRecordMapper;
 import com.example.mapper.ExerciseRecordMapper;
 import com.example.mapper.HealthRecordMapper;
 import com.example.service.DataExportService;
+import com.example.util.DataMaskingService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,9 +37,28 @@ public class DataExportServiceImpl implements DataExportService {
     private final DailyCheckinMapper dailyCheckinMapper;
     private final ExerciseRecordMapper exerciseRecordMapper;
     private final DietRecordMapper dietRecordMapper;
+    private final DataMaskingService dataMaskingService;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE_ONLY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    /**
+     * CSV 公式注入防护：对以 = + - @ 开头的字段值前置单引号，
+     * 防止 Excel / LibreOffice 将其解析为公式执行。
+     */
+    private static String safeCsvField(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (!trimmed.isEmpty()) {
+            char first = trimmed.charAt(0);
+            if (first == '=' || first == '+' || first == '-' || first == '@') {
+                return "'" + value;
+            }
+        }
+        return value;
+    }
 
     @Override
     public void exportAllDataCSV(Long userId, HttpServletResponse response) throws IOException {
@@ -62,8 +82,11 @@ public class DataExportServiceImpl implements DataExportService {
                         r.getBmi() != null ? r.getBmi().toString() : "",
                         r.getBmr() != null ? r.getBmr() : "",
                         r.getDailyCalorie() != null ? r.getDailyCalorie() : "",
-                        nvl(r.getGoal()), nvl(r.getDiseaseHistory()), nvl(r.getAllergyHistory()),
-                        nvl(r.getExerciseHabit()), nvl(r.getDietHabit()));
+                        safeCsvField(nvl(r.getGoal())),
+                        safeCsvField(nvl(dataMaskingService.maskDiseaseHistory(r.getDiseaseHistory()))),
+                        safeCsvField(nvl(dataMaskingService.maskAllergyHistory(r.getAllergyHistory()))),
+                        safeCsvField(nvl(r.getExerciseHabit())),
+                        safeCsvField(nvl(r.getDietHabit())));
             }
 
             // Sheet 2: 打卡记录
@@ -77,7 +100,8 @@ public class DataExportServiceImpl implements DataExportService {
                         c.getCheckDate() != null ? c.getCheckDate().format(DATE_ONLY) : "",
                         exStatus, dietStatus,
                         c.getCurrentWeight() != null ? c.getCurrentWeight() : "",
-                        nvl(c.getMood()), nvl(c.getNote()));
+                        safeCsvField(nvl(c.getMood())),
+                        safeCsvField(nvl(c.getNote())));
             }
 
             // Sheet 3: 运动记录
@@ -87,10 +111,10 @@ public class DataExportServiceImpl implements DataExportService {
             for (ExerciseRecord e : exercises) {
                 pw.printf("%s,%s,%d,%d,\"%s\"\n",
                         e.getCreateTime() != null ? DATE_FMT.format(e.getCreateTime()) : "",
-                        nvl(e.getExerciseType()),
+                        safeCsvField(nvl(e.getExerciseType())),
                         e.getDurationMinutes() != null ? e.getDurationMinutes() : 0,
                         e.getCaloriesBurned() != null ? e.getCaloriesBurned() : 0,
-                        nvl(e.getNote()));
+                        safeCsvField(nvl(e.getNote())));
             }
 
             // Sheet 4: 饮食记录
@@ -100,12 +124,13 @@ public class DataExportServiceImpl implements DataExportService {
             for (DietRecord d : diets) {
                 pw.printf("%s,\"%s\",%s,%d,%s,%s,%s,\"%s\"\n",
                         d.getCreateTime() != null ? DATE_FMT.format(d.getCreateTime()) : "",
-                        nvl(d.getFoodName()), nvl(d.getCategory()),
+                        safeCsvField(nvl(d.getFoodName())),
+                        safeCsvField(nvl(d.getCategory())),
                         d.getCaloriesConsumed() != null ? d.getCaloriesConsumed() : 0,
                         d.getProtein() != null ? d.getProtein().toString() : "",
                         d.getFat() != null ? d.getFat().toString() : "",
                         d.getCarbs() != null ? d.getCarbs().toString() : "",
-                        nvl(d.getNote()));
+                        safeCsvField(nvl(d.getNote())));
             }
         }
     }
@@ -133,8 +158,8 @@ public class DataExportServiceImpl implements DataExportService {
                 row.createCell(4).setCellValue(r.getBmr() != null ? r.getBmr() : 0);
                 row.createCell(5).setCellValue(r.getDailyCalorie() != null ? r.getDailyCalorie() : 0);
                 row.createCell(6).setCellValue(nvl(r.getGoal()));
-                row.createCell(7).setCellValue(nvl(r.getDiseaseHistory()));
-                row.createCell(8).setCellValue(nvl(r.getAllergyHistory()));
+                row.createCell(7).setCellValue(nvl(dataMaskingService.maskDiseaseHistory(r.getDiseaseHistory())));
+                row.createCell(8).setCellValue(nvl(dataMaskingService.maskAllergyHistory(r.getAllergyHistory())));
                 row.createCell(9).setCellValue(nvl(r.getExerciseHabit()));
                 row.createCell(10).setCellValue(nvl(r.getDietHabit()));
             }
