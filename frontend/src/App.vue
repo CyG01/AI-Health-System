@@ -1,58 +1,66 @@
-<template>
-  <el-config-provider :locale="zhCn">
-    <div class="app-container">
-      <!-- 全局页面加载进度条 -->
-      <div v-if="pageLoading" class="global-progress">
-        <div class="progress-bar" />
-      </div>
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
-    </div>
-  </el-config-provider>
-</template>
-
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
-import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { useAppStore } from '@/stores/app'
+import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, darkTheme } from 'naive-ui'
+import type { WatermarkProps } from 'naive-ui'
+import { useAppStore } from './store/modules/app'
+import { useThemeStore } from './store/modules/theme'
+import { naiveDateLocales, naiveLocales } from './locales/naive'
+import ErrorBoundary from './components/ErrorBoundary.vue'
+import GlobalCopilotDrawer from './components/GlobalCopilotDrawer.vue'
+
+defineOptions({
+  name: 'App'
+})
 
 const appStore = useAppStore()
-const pageLoading = computed(() => appStore.pageLoading)
+const themeStore = useThemeStore()
+
+const naiveDarkTheme = computed(() => (themeStore.darkMode ? darkTheme : undefined))
+
+const naiveLocale = computed(() => {
+  return naiveLocales[appStore.locale]
+})
+
+const naiveDateLocale = computed(() => {
+  return naiveDateLocales[appStore.locale]
+})
+
+const watermarkProps = computed<WatermarkProps>(() => {
+  return {
+    content: themeStore.watermarkContent,
+    cross: true,
+    fullscreen: true,
+    fontSize: 16,
+    lineHeight: 16,
+    width: 384,
+    height: 384,
+    xOffset: 12,
+    yOffset: 60,
+    rotate: -15,
+    zIndex: 9999
+  }
+})
 </script>
 
-<style scoped>
-.app-container {
-  min-height: 100vh;
-}
-.global-progress {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  height: 3px;
-  background: transparent;
-}
-.progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #58a6ff, #a371f7);
-  animation: progress-slide 1.5s ease-in-out infinite;
-  width: 40%;
-  border-radius: 0 2px 2px 0;
-}
-@keyframes progress-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(350%); }
-}
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
+<template>
+  <NConfigProvider
+    :theme="naiveDarkTheme"
+    :theme-overrides="themeStore.naiveTheme"
+    :locale="naiveLocale"
+    :date-locale="naiveDateLocale"
+    class="h-full"
+  >
+    <NMessageProvider>
+      <NDialogProvider>
+        <NNotificationProvider>
+          <ErrorBoundary>
+            <RouterView />
+          </ErrorBoundary>
+          <GlobalCopilotDrawer />
+        </NNotificationProvider>
+      </NDialogProvider>
+    </NMessageProvider>
+  </NConfigProvider>
+</template>
+
+<style scoped></style>

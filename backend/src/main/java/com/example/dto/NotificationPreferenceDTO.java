@@ -1,5 +1,7 @@
 package com.example.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import java.io.Serializable;
 
@@ -7,20 +9,24 @@ public class NotificationPreferenceDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @Pattern(regexp = "^(true|false)$", message = "notificationEnabled 必须为 true 或 false")
-    private String notificationEnabled;
+    @Min(value = 0, message = "notificationEnabled 必须为 0 或 1")
+    @Max(value = 1, message = "notificationEnabled 必须为 0 或 1")
+    private Integer notificationEnabled;
 
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "reminderTime 格式必须为 HH:mm")
     private String reminderTime;
 
-    @Pattern(regexp = "^(true|false)$", message = "notifyExercise 必须为 true 或 false")
-    private String notifyExercise;
+    @Min(value = 0, message = "notifyExercise 必须为 0 或 1")
+    @Max(value = 1, message = "notifyExercise 必须为 0 或 1")
+    private Integer notifyExercise;
 
-    @Pattern(regexp = "^(true|false)$", message = "notifyDiet 必须为 true 或 false")
-    private String notifyDiet;
+    @Min(value = 0, message = "notifyDiet 必须为 0 或 1")
+    @Max(value = 1, message = "notifyDiet 必须为 0 或 1")
+    private Integer notifyDiet;
 
-    @Pattern(regexp = "^(true|false)$", message = "notifyCheckin 必须为 true 或 false")
-    private String notifyCheckin;
+    @Min(value = 0, message = "notifyCheckin 必须为 0 或 1")
+    @Max(value = 1, message = "notifyCheckin 必须为 0 或 1")
+    private Integer notifyCheckin;
 
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "quietStart 格式必须为 HH:mm")
     private String quietStart;
@@ -28,20 +34,20 @@ public class NotificationPreferenceDTO implements Serializable {
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "quietEnd 格式必须为 HH:mm")
     private String quietEnd;
 
-    public String getNotificationEnabled() { return notificationEnabled; }
-    public void setNotificationEnabled(String notificationEnabled) { this.notificationEnabled = notificationEnabled; }
+    public Integer getNotificationEnabled() { return notificationEnabled; }
+    public void setNotificationEnabled(Integer notificationEnabled) { this.notificationEnabled = notificationEnabled; }
 
     public String getReminderTime() { return reminderTime; }
     public void setReminderTime(String reminderTime) { this.reminderTime = reminderTime; }
 
-    public String getNotifyExercise() { return notifyExercise; }
-    public void setNotifyExercise(String notifyExercise) { this.notifyExercise = notifyExercise; }
+    public Integer getNotifyExercise() { return notifyExercise; }
+    public void setNotifyExercise(Integer notifyExercise) { this.notifyExercise = notifyExercise; }
 
-    public String getNotifyDiet() { return notifyDiet; }
-    public void setNotifyDiet(String notifyDiet) { this.notifyDiet = notifyDiet; }
+    public Integer getNotifyDiet() { return notifyDiet; }
+    public void setNotifyDiet(Integer notifyDiet) { this.notifyDiet = notifyDiet; }
 
-    public String getNotifyCheckin() { return notifyCheckin; }
-    public void setNotifyCheckin(String notifyCheckin) { this.notifyCheckin = notifyCheckin; }
+    public Integer getNotifyCheckin() { return notifyCheckin; }
+    public void setNotifyCheckin(Integer notifyCheckin) { this.notifyCheckin = notifyCheckin; }
 
     public String getQuietStart() { return quietStart; }
     public void setQuietStart(String quietStart) { this.quietStart = quietStart; }

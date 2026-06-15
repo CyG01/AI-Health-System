@@ -1,293 +1,512 @@
 <template>
   <div class="auth-page">
-    <div class="auth-card glass-card">
-      <h2 class="page-title">用户登录</h2>
-      <p class="page-desc">登录 AI 健康管理系统</p>
-      <el-tabs v-model="activeTab" class="auth-tabs">
-        <el-tab-pane label="账号登录" name="account">
-          <el-form ref="accountFormRef" :model="accountForm" :rules="accountRules" label-position="top" class="auth-form">
-            <el-form-item label="用户名" prop="username">
-              <el-input v-model="accountForm.username" placeholder="请输入用户名" />
-            </el-form-item>
-            <el-form-item label="密码" prop="password">
-              <el-input v-model="accountForm.password" type="password" placeholder="请输入密码" show-password />
-            </el-form-item>
-            <el-form-item label="验证码" prop="captchaCode">
-              <div class="captcha-row">
-                <el-input v-model="accountForm.captchaCode" placeholder="请输入验证码" maxlength="6" />
-                <div class="captcha-img-box" @click="refreshCaptcha" title="点击刷新验证码">
-                  <img v-if="captchaBase64" :src="captchaBase64" alt="验证码" class="captcha-img" />
-                  <div v-else class="captcha-placeholder">
-                    <el-icon :size="20"><Refresh /></el-icon>
+    <!-- Wave Background -->
+    <div class="wave-bg" />
+
+    <NCard :bordered="false" class="auth-card">
+      <div class="auth-content">
+        <!-- Header -->
+        <header class="auth-header">
+          <div class="logo-area">
+            <svg xmlns="http://www.w3.org/2000/svg" class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </div>
+          <h3 class="system-title">{{ $t('system.title') }}</h3>
+          <div class="header-controls">
+            <NButton quaternary circle size="small" @click="toggleLocale">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+              </template>
+            </NButton>
+          </div>
+        </header>
+
+        <!-- Title -->
+        <div class="auth-title-area">
+          <h3 class="auth-title">{{ $t('page.auth.loginTitle') }}</h3>
+          <p class="auth-desc">{{ $t('page.auth.loginDesc') }}</p>
+        </div>
+
+        <!-- Login Tabs -->
+        <NTabs v-model:value="activeTab" type="line" class="auth-tabs" animated>
+          <!-- Account Login Tab -->
+          <NTabPane name="account" :tab="$t('page.auth.accountLogin')">
+            <NForm
+              ref="accountFormRef"
+              :model="accountModel"
+              :rules="accountRules"
+              size="large"
+              :show-label="false"
+              @keyup.enter="handleAccountLogin"
+            >
+              <NFormItem path="username">
+                <NInput
+                  v-model:value="accountModel.username"
+                  :placeholder="$t('page.auth.usernamePlaceholder')"
+                  clearable
+                />
+              </NFormItem>
+              <NFormItem path="password">
+                <NInput
+                  v-model:value="accountModel.password"
+                  type="password"
+                  show-password-on="click"
+                  :placeholder="$t('page.auth.passwordPlaceholder')"
+                />
+              </NFormItem>
+              <NFormItem path="captchaCode">
+                <div class="captcha-row">
+                  <NInput
+                    v-model:value="accountModel.captchaCode"
+                    :placeholder="$t('page.login.pwdLogin.captchaPlaceholder')"
+                    maxlength="6"
+                    class="captcha-input"
+                  />
+                  <div
+                    class="captcha-img-box"
+                    :title="$t('page.login.pwdLogin.refreshCaptcha')"
+                    @click="refreshCaptcha"
+                  >
+                    <img v-if="captchaBase64" :src="captchaBase64" alt="captcha" class="captcha-img" />
+                    <div v-else class="captcha-placeholder">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="loading" :disabled="loading" class="submit-btn" @click="handleAccountLogin">
-                登录
-              </el-button>
-            </el-form-item>
-            <el-form-item>
-              <el-checkbox v-model="rememberMe">记住我（30天内自动登录）</el-checkbox>
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="验证码登录" name="phone">
-          <el-form ref="phoneFormRef" :model="phoneForm" :rules="phoneFormRules" label-position="top" class="auth-form">
-            <el-form-item label="手机号" prop="phone">
-              <el-input v-model="phoneForm.phone" placeholder="请输入手机号" maxlength="11" />
-            </el-form-item>
-            <el-form-item label="验证码" prop="verifyCode">
-              <div class="code-row">
-                <el-input v-model="phoneForm.verifyCode" placeholder="请输入验证码" maxlength="6" />
-                <el-button :disabled="codeSending" @click="handleSendCode">{{ codeButtonText }}</el-button>
-              </div>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="loading" :disabled="loading" class="submit-btn" @click="handlePhoneLogin">
-                登录
-              </el-button>
-            </el-form-item>
-            <el-form-item>
-              <el-checkbox v-model="rememberMe">记住我（30天内自动登录）</el-checkbox>
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-      </el-tabs>
-      <div class="auth-links">
-        <router-link to="/register">注册账号</router-link>
-        <router-link to="/forgot-password">忘记密码</router-link>
+              </NFormItem>
+              <NSpace vertical :size="20">
+                <div class="login-options">
+                  <NCheckbox :checked="rememberMe" @update:checked="handleRememberMe">
+                    {{ $t('page.auth.rememberMeDesc') }}
+                  </NCheckbox>
+                  <NButton text type="primary" @click="goToForgotPassword">
+                    {{ $t('page.auth.forgotPassword') }}
+                  </NButton>
+                </div>
+                <NButton
+                  type="primary"
+                  size="large"
+                  round
+                  block
+                  :loading="authStore.loginLoading"
+                  @click="handleAccountLogin"
+                >
+                  {{ $t('page.login.common.confirm') }}
+                </NButton>
+              </NSpace>
+            </NForm>
+          </NTabPane>
+
+          <!-- Phone Login Tab -->
+          <NTabPane name="phone" :tab="$t('page.auth.phoneLogin')">
+            <NForm
+              ref="phoneFormRef"
+              :model="phoneModel"
+              :rules="phoneRules"
+              size="large"
+              :show-label="false"
+              @keyup.enter="handlePhoneLogin"
+            >
+              <NFormItem path="phone">
+                <NInput
+                  v-model:value="phoneModel.phone"
+                  :placeholder="$t('page.auth.phonePlaceholder')"
+                  maxlength="11"
+                  clearable
+                />
+              </NFormItem>
+              <NFormItem path="code">
+                <div class="code-row">
+                  <NInput
+                    v-model:value="phoneModel.code"
+                    :placeholder="$t('page.auth.codePlaceholder')"
+                    maxlength="6"
+                    class="code-input"
+                  />
+                  <NButton
+                    size="large"
+                    :disabled="isCounting"
+                    :loading="codeLoading"
+                    @click="handleSendCode"
+                  >
+                    {{ codeLabel }}
+                  </NButton>
+                </div>
+              </NFormItem>
+              <NSpace vertical :size="20">
+                <div class="login-options">
+                  <NCheckbox :checked="rememberMe" @update:checked="handleRememberMe">
+                    {{ $t('page.auth.rememberMeDesc') }}
+                  </NCheckbox>
+                </div>
+                <NButton
+                  type="primary"
+                  size="large"
+                  round
+                  block
+                  :loading="authStore.loginLoading"
+                  @click="handlePhoneLogin"
+                >
+                  {{ $t('page.login.common.confirm') }}
+                </NButton>
+              </NSpace>
+            </NForm>
+          </NTabPane>
+        </NTabs>
+
+        <!-- Footer Links -->
+        <div class="auth-footer">
+          <span class="auth-footer-text">{{ $t('page.auth.noAccount') }}</span>
+          <NButton text type="primary" @click="goToRegister">
+            {{ $t('page.auth.registerNow') }}
+          </NButton>
+        </div>
       </div>
-    </div>
+    </NCard>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
-import { getCaptcha, login, loginByPhone, sendCode } from '@/api/auth'
-import { useUserStore } from '@/stores/user'
-import { usernameRules, passwordRules, phoneRules as phoneFieldRules, verifyCodeRules } from '@/utils/validate'
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { NButton, NCard, NCheckbox, NForm, NFormItem, NInput, NSpace, NTabPane, NTabs, useMessage } from 'naive-ui';
+import type { FormInst, FormRules } from 'naive-ui';
+import { useAuthStore } from '@/store/modules/auth';
+import { useAppStore } from '@/store/modules/app';
+import { fetchCaptcha, fetchSendCode } from '@/service/api';
+import { REG_CODE_SIX, REG_PHONE, REG_PWD, REG_USER_NAME } from '@/constants/reg';
+import { $t } from '@/locales';
 
-const router = useRouter()
-const route = useRoute()
-const userStore = useUserStore()
+defineOptions({ name: 'AuthLogin' });
 
-const activeTab = ref('account')
-const accountFormRef = ref(null)
-const phoneFormRef = ref(null)
-const loading = ref(false)
-const codeSending = ref(false)
-const countdown = ref(0)
-let countdownTimer = null
-const rememberMe = ref(localStorage.getItem('rememberMe') === 'true')
+const router = useRouter();
+const message = useMessage();
+const authStore = useAuthStore();
+const appStore = useAppStore();
 
-// 持久化"记住我"状态
-watch(rememberMe, (val) => {
-  localStorage.setItem('rememberMe', val ? 'true' : 'false')
-})
+// ---------- Locale toggle ----------
+function toggleLocale() {
+  const target = appStore.locale === 'zh-CN' ? 'en-US' : 'zh-CN';
+  appStore.changeLocale(target);
+}
 
-const captchaBase64 = ref('')
-const captchaUuid = ref('')
+// ---------- Tab state ----------
+const activeTab = ref<string>('account');
 
-const accountForm = reactive({
+// ---------- Remember me ----------
+const rememberMe = ref<boolean>(localStorage.getItem('rememberMe') === 'true');
+
+function handleRememberMe(checked: boolean) {
+  rememberMe.value = checked;
+  localStorage.setItem('rememberMe', checked ? 'true' : 'false');
+}
+
+// ====================== Account Login ======================
+const accountFormRef = ref<FormInst | null>(null);
+
+interface AccountFormModel {
+  username: string;
+  password: string;
+  captchaCode: string;
+}
+
+const accountModel = reactive<AccountFormModel>({
   username: '',
   password: '',
   captchaCode: ''
-})
+});
 
-const phoneForm = reactive({
-  phone: '',
-  verifyCode: ''
-})
-
-const accountRules = {
-  username: usernameRules,
-  password: passwordRules,
+const accountRules = computed<FormRules>(() => ({
+  username: [
+    { required: true, message: $t('form.userName.required'), trigger: 'blur' },
+    { pattern: REG_USER_NAME, message: $t('form.userName.invalid'), trigger: 'change' }
+  ],
+  password: [
+    { required: true, message: $t('form.pwd.required'), trigger: 'blur' },
+    { pattern: REG_PWD, message: $t('form.pwd.invalid'), trigger: 'change' }
+  ],
   captchaCode: [
-    { required: true, message: '请输入验证码', trigger: 'blur' }
+    { required: true, message: $t('page.login.pwdLogin.captchaPlaceholder'), trigger: 'blur' }
   ]
-}
+}));
 
-const phoneFormRules = {
-  phone: phoneFieldRules,
-  verifyCode: verifyCodeRules
-}
+// ---------- Captcha ----------
+const captchaBase64 = ref<string>('');
+const captchaId = ref<string>('');
 
-const codeButtonText = computed(() => {
-  return countdown.value > 0 ? `${countdown.value}s后重试` : '获取验证码'
-})
-
-async function fetchCaptcha() {
+async function refreshCaptcha() {
   try {
-    const res = await getCaptcha()
-    if (res.data) {
-      captchaBase64.value = res.data.base64
-      captchaUuid.value = res.data.uuid
+    captchaBase64.value = '';
+    captchaId.value = '';
+    const { data, error } = await fetchCaptcha();
+    if (!error && data) {
+      captchaBase64.value = data.captchaImage || '';
+      captchaId.value = data.captchaId || '';
     }
   } catch {
-    captchaBase64.value = ''
-    captchaUuid.value = ''
+    captchaBase64.value = '';
+    captchaId.value = '';
   }
-}
-
-function refreshCaptcha() {
-  captchaBase64.value = ''
-  captchaUuid.value = ''
-  fetchCaptcha()
-}
-
-function startCountdown() {
-  countdown.value = 60
-  codeSending.value = true
-  countdownTimer = setInterval(() => {
-    countdown.value -= 1
-    if (countdown.value <= 0) {
-      clearInterval(countdownTimer)
-      countdownTimer = null
-      codeSending.value = false
-    }
-  }, 1000)
-}
-
-async function handleSendCode() {
-  if (!phoneFormRef.value) return
-  try {
-    await phoneFormRef.value.validateField('phone')
-  } catch {
-    return
-  }
-  try {
-    await sendCode({ phone: phoneForm.phone })
-    ElMessage.success('验证码已发送')
-    startCountdown()
-  } catch {
-    codeSending.value = false
-  }
-}
-
-async function handleLoginSuccess(res) {
-  userStore.setAuth(res.data)
-  userStore.fetchUnreadCount()
-  ElMessage.success('登录成功')
-  const redirect = route.query.redirect || '/dashboard'
-  await router.push(redirect)
 }
 
 async function handleAccountLogin() {
-  if (!accountFormRef.value) return
-  await accountFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    loading.value = true
-    try {
-      const res = await login({
-        username: accountForm.username,
-        password: accountForm.password,
-        captchaCode: accountForm.captchaCode,
-        captchaUuid: captchaUuid.value,
-        rememberMe: rememberMe.value
-      })
-      await handleLoginSuccess(res)
-    } catch {
-      refreshCaptcha()
-      accountForm.captchaCode = ''
-    } finally {
-      loading.value = false
+  if (!accountFormRef.value) return;
+  try {
+    await accountFormRef.value.validate();
+  } catch {
+    return;
+  }
+  try {
+    await authStore.login(
+      accountModel.username,
+      accountModel.password,
+      accountModel.captchaCode,
+      captchaId.value,
+      true
+    );
+  } catch {
+    refreshCaptcha();
+    accountModel.captchaCode = '';
+  }
+}
+
+// ====================== Phone Login ======================
+const phoneFormRef = ref<FormInst | null>(null);
+
+interface PhoneFormModel {
+  phone: string;
+  code: string;
+}
+
+const phoneModel = reactive<PhoneFormModel>({
+  phone: '',
+  code: ''
+});
+
+const phoneRules = computed<FormRules>(() => ({
+  phone: [
+    { required: true, message: $t('form.phone.required'), trigger: 'blur' },
+    { pattern: REG_PHONE, message: $t('form.phone.invalid'), trigger: 'change' }
+  ],
+  code: [
+    { required: true, message: $t('form.code.required'), trigger: 'blur' },
+    { pattern: REG_CODE_SIX, message: $t('form.code.invalid'), trigger: 'change' }
+  ]
+}));
+
+// ---------- Send Code Countdown ----------
+const codeLoading = ref<boolean>(false);
+const isCounting = ref<boolean>(false);
+const countdown = ref<number>(0);
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+const codeLabel = computed<string>(() => {
+  if (codeLoading.value) return $t('common.loading');
+  if (isCounting.value) return $t('page.auth.reGetCode', { time: countdown.value });
+  return $t('page.auth.getCode');
+});
+
+function startCountdown() {
+  countdown.value = 60;
+  isCounting.value = true;
+  countdownTimer = setInterval(() => {
+    countdown.value -= 1;
+    if (countdown.value <= 0) {
+      stopCountdown();
     }
-  })
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  isCounting.value = false;
+}
+
+async function handleSendCode() {
+  if (!phoneModel.phone || !REG_PHONE.test(phoneModel.phone)) {
+    message.error($t('form.phone.invalid'));
+    return;
+  }
+  if (codeLoading.value || isCounting.value) return;
+
+  codeLoading.value = true;
+  try {
+    await fetchSendCode({ phone: phoneModel.phone, type: 'login' });
+    message.success($t('page.auth.sendCodeSuccess'));
+    startCountdown();
+  } catch {
+    // Error handled by interceptor
+  } finally {
+    codeLoading.value = false;
+  }
 }
 
 async function handlePhoneLogin() {
-  if (!phoneFormRef.value) return
-  await phoneFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    loading.value = true
-    try {
-      const res = await loginByPhone({
-        phone: phoneForm.phone,
-        verifyCode: phoneForm.verifyCode,
-        rememberMe: rememberMe.value
-      })
-      await handleLoginSuccess(res)
-    } finally {
-      loading.value = false
-    }
-  })
+  if (!phoneFormRef.value) return;
+  try {
+    await phoneFormRef.value.validate();
+  } catch {
+    return;
+  }
+  try {
+    await authStore.loginByPhone(phoneModel.phone, phoneModel.code, true);
+  } catch {
+    // Error handled by interceptor
+  }
 }
 
+// ====================== Navigation ======================
+function goToRegister() {
+  router.push('/register');
+}
+
+function goToForgotPassword() {
+  router.push('/forgot-password');
+}
+
+// ====================== Lifecycle ======================
 onMounted(() => {
-  fetchCaptcha()
-})
+  refreshCaptcha();
+});
 
 onUnmounted(() => {
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-  }
-})
+  stopCountdown();
+});
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .auth-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-primary);
+  overflow: hidden;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.wave-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255, 119, 198, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(120, 219, 198, 0.15) 0%, transparent 50%);
+}
+
+.wave-bg::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='rgba(255,255,255,0.05)' d='M0,160L48,170.7C96,181,192,203,288,192C384,181,480,139,576,133.3C672,128,768,160,864,181.3C960,203,1056,213,1152,208C1248,203,1344,181,1392,170.7L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'/%3E%3C/svg%3E") no-repeat bottom;
+  background-size: cover;
 }
 
 .auth-card {
+  position: relative;
+  z-index: 4;
+  width: auto;
+  border-radius: 12px;
+}
+
+.auth-content {
   width: 420px;
-  padding: 40px;
+}
+
+@media (max-width: 640px) {
+  .auth-content {
+    width: 320px;
+  }
+}
+
+.auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo-area {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.system-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--n-text-color);
+  flex: 1;
+  text-align: center;
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .system-title {
+    font-size: 24px;
+  }
+}
+
+.header-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-title-area {
+  padding-top: 24px;
+}
+
+.auth-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--n-color-target, #18a058);
+  margin: 0;
+}
+
+.auth-desc {
+  font-size: 13px;
+  color: var(--n-text-color-3, #999);
+  margin: 6px 0 0;
 }
 
 .auth-tabs {
   margin-top: 16px;
-
-  :deep(.el-tabs__item) {
-    font-size: 14px;
-    color: var(--text-secondary);
-  }
-
-  :deep(.el-tabs__item.is-active) {
-    color: var(--color-primary);
-  }
-
-  :deep(.el-tabs__active-bar) {
-    background-color: var(--color-primary);
-  }
-
-  :deep(.el-tabs__nav-wrap::after) {
-    display: none;
-  }
-}
-
-.auth-form {
-  margin-top: 8px;
-}
-
-.code-row {
-  display: flex;
-  gap: 12px;
-  width: 100%;
-
-  .el-input {
-    flex: 1;
-  }
 }
 
 .captcha-row {
   display: flex;
+  align-items: center;
   gap: 12px;
   width: 100%;
-  align-items: center;
+}
 
-  .el-input {
-    flex: 1;
-  }
+.captcha-input {
+  flex: 1;
 }
 
 .captcha-img-box {
@@ -295,19 +514,19 @@ onUnmounted(() => {
   height: 40px;
   flex-shrink: 0;
   cursor: pointer;
-  border-radius: var(--radius-base);
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--n-border-color, #e0e0e6);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(13, 17, 23, 0.6);
+  background: rgba(0, 0, 0, 0.04);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
 
-  &:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 8px rgba(88, 166, 255, 0.25);
-  }
+.captcha-img-box:hover {
+  border-color: var(--n-color-focus, #36ad6a);
+  box-shadow: 0 0 8px rgba(54, 173, 106, 0.25);
 }
 
 .captcha-img {
@@ -318,20 +537,41 @@ onUnmounted(() => {
 }
 
 .captcha-placeholder {
-  color: var(--text-secondary);
+  color: #999;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.submit-btn {
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
 }
 
-.auth-links {
+.code-input {
+  flex: 1;
+}
+
+.login-options {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-top: 16px;
-  font-size: 12px;
+}
+
+.auth-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--n-border-color, #e0e0e6);
+}
+
+.auth-footer-text {
+  font-size: 13px;
+  color: var(--n-text-color-3, #999);
 }
 </style>

@@ -12,8 +12,7 @@ import io.qdrant.client.grpc.Points.Condition;
 import io.qdrant.client.grpc.Points.FieldCondition;
 import io.qdrant.client.grpc.Points.Match;
 import io.qdrant.client.grpc.Points.Vector;
-import io.qdrant.client.grpc.Points.NamedVectors;
-import io.qdrant.client.grpc.Points.SparseIndices;
+import io.qdrant.client.ValueFactory;
 import io.qdrant.client.grpc.Points.WithPayloadSelector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,27 +80,24 @@ public class VectorStoreService {
 
             PointStruct.Builder point = PointStruct.newBuilder()
                     .setId(Points.PointId.newBuilder().setNum(doc.getId()).build())
-                    .setVectors(Vector.newBuilder()
-                            .addAllData(floatList(embedding))
+                    .setVectors(Points.Vectors.newBuilder()
+                            .setVector(Vector.newBuilder()
+                                    .addAllData(floatList(embedding))
+                                    .build())
                             .build());
 
             // 添加 payload（元数据）
-            point.putPayload("title", Points.Value.newBuilder().setStringValue(
-                    doc.getTitle() != null ? doc.getTitle() : "").build());
-            point.putPayload("content", Points.Value.newBuilder().setStringValue(
-                    doc.getContent() != null ? doc.getContent() : "").build());
-            point.putPayload("category", Points.Value.newBuilder().setStringValue(
-                    doc.getCategory() != null ? doc.getCategory() : "").build());
-            point.putPayload("authority_level", Points.Value.newBuilder().setStringValue(
-                    doc.getAuthorityLevel() != null ? doc.getAuthorityLevel() : "").build());
-            point.putPayload("source_name", Points.Value.newBuilder().setStringValue(
-                    doc.getSourceName() != null ? doc.getSourceName() : "").build());
+            point.putPayload("title", ValueFactory.value(doc.getTitle() != null ? doc.getTitle() : ""));
+            point.putPayload("content", ValueFactory.value(doc.getContent() != null ? doc.getContent() : ""));
+            point.putPayload("category", ValueFactory.value(doc.getCategory() != null ? doc.getCategory() : ""));
+            point.putPayload("authority_level", ValueFactory.value(doc.getAuthorityLevel() != null ? doc.getAuthorityLevel() : ""));
+            point.putPayload("source_name", ValueFactory.value(doc.getSourceName() != null ? doc.getSourceName() : ""));
 
             points.add(point.build());
         }
 
         try {
-            qdrantClient.upsertAsync(collectionName, points, null, null).get();
+            qdrantClient.upsertAsync(collectionName, points).get();
             log.info("批量写入 Qdrant 成功 count={}", points.size());
         } catch (Exception e) {
             log.error("批量写入 Qdrant 失败 count={}", points.size(), e);
@@ -125,7 +121,7 @@ public class VectorStoreService {
     public void delete(Long docId) {
         try {
             qdrantClient.deleteAsync(collectionName,
-                    Points.PointId.newBuilder().setNum(docId).build(), null).get();
+                    List.of(Points.PointId.newBuilder().setNum(docId).build())).get();
             log.debug("删除 Qdrant 文档 id={}", docId);
         } catch (Exception e) {
             log.error("删除 Qdrant 文档失败 id={}", docId, e);
@@ -239,55 +235,9 @@ public class VectorStoreService {
      */
     private List<String> bm25Search(String queryText, List<String> authorityFilter,
                                      int topK, Map<String, KnowledgeDoc> candidateDocs) {
-        try {
-            // 构建稀疏向量：将查询文本分词后生成稀疏表示
-            Map<Integer, Float> sparseIndices = tokenizeToSparse(queryText);
-            if (sparseIndices.isEmpty()) {
-                return List.of();
-            }
-
-            SparseIndices.Builder sparseBuilder = SparseIndices.newBuilder();
-            List<Integer> indices = new ArrayList<>();
-            List<Float> values = new ArrayList<>();
-            for (Map.Entry<Integer, Float> entry : sparseIndices.entrySet()) {
-                indices.add(entry.getKey());
-                values.add(entry.getValue());
-            }
-            sparseBuilder.addAllData(indices);
-            sparseBuilder.addAllValuesFloat32(values);
-
-            SearchPoints.Builder searchBuilder = SearchPoints.newBuilder()
-                    .setCollectionName(collectionName)
-                    .setSparseIndices(sparseBuilder.build())
-                    .setLimit(topK)
-                    .setWithPayload(WithPayloadSelector.newBuilder().setEnable(true).build());
-
-            if (authorityFilter != null && !authorityFilter.isEmpty()) {
-                searchBuilder.setFilter(buildAuthorityFilter(authorityFilter));
-            }
-
-            List<ScoredPoint> results = qdrantClient.searchAsync(searchBuilder.build()).get();
-
-            List<String> ranking = new ArrayList<>();
-            for (ScoredPoint point : results) {
-                String docId = String.valueOf(point.getId().getNum());
-                ranking.add(docId);
-                if (!candidateDocs.containsKey(docId)) {
-                    KnowledgeDoc doc = new KnowledgeDoc();
-                    doc.setId(point.getId().getNum());
-                    doc.setTitle(getPayloadString(point, "title"));
-                    doc.setContent(getPayloadString(point, "content"));
-                    doc.setCategory(getPayloadString(point, "category"));
-                    doc.setAuthorityLevel(getPayloadString(point, "authority_level"));
-                    doc.setSourceName(getPayloadString(point, "source_name"));
-                    candidateDocs.put(docId, doc);
-                }
-            }
-            return ranking;
-        } catch (Exception e) {
-            log.error("BM25 稀疏向量检索失败", e);
-            return List.of();
-        }
+        // BM25 稀疏向量检索在 Qdrant 1.13.0 中暂不支持，降级返回空
+        log.debug("BM25 稀疏向量检索暂不可用（Qdrant 1.13.0 API 限制）");
+        return List.of();
     }
 
     /**
@@ -335,7 +285,7 @@ public class VectorStoreService {
     }
 
     private String getPayloadString(ScoredPoint point, String key) {
-        return point.getPayloadOrDefault(key, Points.Value.newBuilder().setStringValue("").build())
+        return point.getPayloadOrDefault(key, ValueFactory.value(""))
                 .getStringValue();
     }
 

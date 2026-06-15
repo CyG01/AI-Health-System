@@ -1,232 +1,286 @@
 <template>
-  <div class="sleep-page" v-loading="pageLoading">
-    <div class="page-header">
-      <h2>睡眠管理</h2>
+  <div class="sleep-page flex flex-col gap-5">
+    <div>
+      <h2 class="text-xl font-semibold">{{ $t('sleep.management') || '睡眠管理' }}</h2>
     </div>
 
     <!-- 提交记录 -->
-    <div class="submit-card glass-card">
-      <h3 class="card-title">{{ todayRecord ? '更新今日睡眠' : '记录今日睡眠' }}</h3>
-      <el-form :model="form" label-width="100px" @submit.prevent="handleSubmit">
-        <el-row :gutter="20">
-          <el-col :span="5">
-            <el-form-item label="日期">
-              <el-date-picker
-                v-model="form.recordDate"
-                type="date"
-                placeholder="选择日期"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="5">
-            <el-form-item label="入睡时间">
-              <el-time-picker
-                v-model="form.sleepTime"
-                format="HH:mm"
-                placeholder="入睡"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="5">
-            <el-form-item label="起床时间">
-              <el-time-picker
-                v-model="form.wakeTime"
-                format="HH:mm"
-                placeholder="起床"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="5">
-            <el-form-item label="睡眠质量">
-              <el-rate v-model="form.quality" :max="5" :texts="qualityTexts" show-text />
-            </el-form-item>
-          </el-col>
-          <el-col :span="4">
-            <el-form-item label="">
-              <el-button type="primary" native-type="submit" :loading="submitting">提交</el-button>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="备注">
-          <el-input v-model="form.dreamNotes" placeholder="梦境记录或其他备注..." maxlength="200" show-word-limit />
-        </el-form-item>
-      </el-form>
-    </div>
+    <NCard :bordered="false">
+      <template #header>
+        <span>{{ todayRecord ? ($t('sleep.updateToday') || '更新今日睡眠') : ($t('sleep.recordToday') || '记录今日睡眠') }}</span>
+      </template>
+      <NForm ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="80" @submit.prevent="handleSubmit">
+        <div class="flex flex-wrap items-end gap-4">
+          <NFormItem label="日期" path="recordDate" class="min-w-[160px]">
+            <NDatePicker
+              v-model:formatted-value="form.recordDate"
+              type="date"
+              value-format="yyyy-MM-dd"
+              clearable
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem label="入睡时间" path="sleepTime" class="min-w-[140px]">
+            <NTimePicker
+              v-model:formatted-value="form.sleepTime"
+              format="HH:mm"
+              clearable
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem label="起床时间" path="wakeTime" class="min-w-[140px]">
+            <NTimePicker
+              v-model:formatted-value="form.wakeTime"
+              format="HH:mm"
+              clearable
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem label="睡眠质量" class="min-w-[180px]">
+            <div class="flex items-center gap-1">
+              <span
+                v-for="star in 5"
+                :key="star"
+                class="star-btn"
+                :class="{ active: star <= form.quality }"
+                @click="form.quality = star"
+              >&#9733;</span>
+              <span class="ml-2 text-xs text-secondary">{{ qualityTexts[form.quality - 1] }}</span>
+            </div>
+          </NFormItem>
+          <NFormItem>
+            <NButton type="primary" attr-type="submit" :loading="submitting">提交</NButton>
+          </NFormItem>
+        </div>
+        <NFormItem label="备注">
+          <NInput v-model:value="form.dreamNotes" placeholder="梦境记录或其他备注..." :maxlength="200" show-count />
+        </NFormItem>
+      </NForm>
+    </NCard>
 
     <!-- 统计概览 -->
-    <el-row :gutter="20" class="stats-row" v-if="records.length > 0">
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <el-statistic title="近7天平均时长" :value="avgDuration.toFixed(1)" suffix="小时" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <el-statistic title="近7天平均质量" :value="avgQuality.toFixed(1)" suffix="/5" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <el-statistic title="总记录天数" :value="records.length" suffix="天" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <el-statistic title="最好质量" :value="bestQuality" suffix="分" />
-        </el-card>
-      </el-col>
-    </el-row>
+    <div v-if="records.length > 0" class="flex gap-5">
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ avgDuration.toFixed(1) }}</div>
+        <div class="text-[13px] text-secondary">近7天平均时长(小时)</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ avgQuality.toFixed(1) }}</div>
+        <div class="text-[13px] text-secondary">近7天平均质量 /5</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ records.length }}</div>
+        <div class="text-[13px] text-secondary">总记录天数</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ bestQuality }}</div>
+        <div class="text-[13px] text-secondary">最好质量(分)</div>
+      </NCard>
+    </div>
 
     <!-- AI分析 -->
-    <div class="analyze-card glass-card">
-      <div class="card-header">
-        <h3 class="card-title">AI睡眠分析</h3>
-        <el-button type="primary" size="small" :loading="analyzing" @click="handleAnalyze">
-          {{ aiAnalysis ? '重新分析' : '开始分析' }}
-        </el-button>
-      </div>
-      <div v-if="aiAnalysis" class="ai-analysis-content">
-        <el-icon :size="20" color="#58a6ff" style="margin-right: 8px"><MagicStick /></el-icon>
+    <NCard :bordered="false">
+      <template #header>
+        <div class="flex items-center justify-between">
+          <span>{{ $t('sleep.aiAnalysis') || 'AI睡眠分析' }}</span>
+          <NButton size="small" type="primary" :loading="analyzing" @click="handleAnalyze">
+            {{ aiAnalysis ? '重新分析' : '开始分析' }}
+          </NButton>
+        </div>
+      </template>
+      <div v-if="aiAnalysis" class="flex items-start gap-2 rounded-lg border border-[rgba(88,166,255,0.15)] bg-[rgba(88,166,255,0.06)] p-4 text-sm leading-relaxed">
+        <NIcon :size="20" color="#58a6ff"><FlashOutline /></NIcon>
         <p v-html="formatAnalysis(aiAnalysis)"></p>
       </div>
-      <el-empty v-else description="记录至少3天睡眠数据后可获得AI分析" :image-size="60" />
-    </div>
+      <NEmpty v-else description="记录至少3天睡眠数据后可获得AI分析" size="small" />
+    </NCard>
 
     <!-- 历史记录 -->
-    <div class="history-card glass-card">
-      <h3 class="card-title">睡眠记录</h3>
-      <el-table :data="records" stripe v-loading="pageLoading">
-        <el-table-column prop="recordDate" label="日期" width="120" />
-        <el-table-column label="入睡" width="100">
-          <template #default="{ row }">{{ formatTime(row.sleepTime) }}</template>
-        </el-table-column>
-        <el-table-column label="起床" width="100">
-          <template #default="{ row }">{{ formatTime(row.wakeTime) }}</template>
-        </el-table-column>
-        <el-table-column label="时长" width="100">
-          <template #default="{ row }">{{ (row.durationMin / 60).toFixed(1) }}h</template>
-        </el-table-column>
-        <el-table-column label="质量" width="160">
-          <template #default="{ row }">
-            <el-rate :model-value="row.quality" disabled :max="5" size="small" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="dreamNotes" label="备注" min-width="150" show-overflow-tooltip />
-      </el-table>
-    </div>
+    <NCard :bordered="false">
+      <template #header><span>{{ $t('sleep.records') || '睡眠记录' }}</span></template>
+      <NEmpty v-if="records.length === 0 && !pageLoading" :description="$t('sleep.empty') || '还没有睡眠记录，使用上方的表单记录你的第一次睡眠'" />
+      <NDataTable
+        v-else
+        :data="records"
+        :columns="tableColumns"
+        :loading="pageLoading"
+        :bordered="false"
+        striped
+      />
+    </NCard>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { submitSleep, getTodaySleep, getSleepList, analyzeSleep } from '@/api/sleep'
-import { sanitizeHtml } from '@/utils/sanitize'
+<script setup lang="ts">
+import { ref, computed, onMounted, h } from 'vue';
+import { useMessage, useDialog, NCard, NForm, NFormItem, NDatePicker, NTimePicker, NInput, NButton, NDataTable, NEmpty, NIcon } from 'naive-ui';
+import type { DataTableColumns, FormInst } from 'naive-ui';
+import { FlashOutline } from '@vicons/ionicons5';
+import { fetchSubmitSleep, fetchGetTodaySleep, fetchGetSleepList, fetchAnalyzeSleep, fetchDeleteSleep } from '@/service/api';
+import { sanitizeHtml } from '@/utils/sanitize';
 
-const pageLoading = ref(false)
-const submitting = ref(false)
-const analyzing = ref(false)
-const records = ref([])
-const todayRecord = ref(null)
-const aiAnalysis = ref('')
+defineOptions({ name: 'SleepRecord' });
+const message = useMessage();
+const dialog = useDialog();
 
-const form = reactive({
+interface SleepRecord {
+  id: number;
+  recordDate: string;
+  sleepTime: string;
+  wakeTime: string;
+  durationMin: number;
+  quality: number;
+  dreamNotes?: string;
+}
+
+const pageLoading = ref(false);
+const submitting = ref(false);
+const analyzing = ref(false);
+const records = ref<SleepRecord[]>([]);
+const todayRecord = ref<SleepRecord | null>(null);
+const aiAnalysis = ref('');
+const formRef = ref<FormInst | null>(null);
+
+const formRules = {
+  recordDate: { type: 'string' as const, required: true, message: '请选择日期', trigger: 'change' },
+  sleepTime: { type: 'string' as const, required: true, message: '请选择入睡时间', trigger: 'change' },
+  wakeTime: { type: 'string' as const, required: true, message: '请选择起床时间', trigger: 'change' }
+};
+
+const form = ref({
   recordDate: new Date().toISOString().slice(0, 10),
-  sleepTime: null,
-  wakeTime: null,
+  sleepTime: null as string | null,
+  wakeTime: null as string | null,
   quality: 3,
   dreamNotes: ''
-})
+});
 
-const qualityTexts = ['很差', '较差', '一般', '较好', '很好']
+const qualityTexts = ['很差', '较差', '一般', '较好', '很好'];
 
 const avgDuration = computed(() => {
-  const recent = records.value.slice(0, 7)
-  if (recent.length === 0) return 0
-  return recent.reduce((s, r) => s + r.durationMin, 0) / recent.length / 60
-})
+  const recent = records.value.slice(0, 7);
+  if (recent.length === 0) return 0;
+  return recent.reduce((s, r) => s + r.durationMin, 0) / recent.length / 60;
+});
 
 const avgQuality = computed(() => {
-  const recent = records.value.slice(0, 7)
-  if (recent.length === 0) return 0
-  return recent.reduce((s, r) => s + r.quality, 0) / recent.length
-})
+  const recent = records.value.slice(0, 7);
+  if (recent.length === 0) return 0;
+  return recent.reduce((s, r) => s + r.quality, 0) / recent.length;
+});
 
 const bestQuality = computed(() => {
-  if (records.value.length === 0) return 0
-  return Math.max(...records.value.map(r => r.quality))
-})
+  if (records.value.length === 0) return 0;
+  return Math.max(...records.value.map(r => r.quality));
+});
+
+function renderStars(quality: number) {
+  return h('div', { class: 'flex items-center gap-0.5' },
+    Array.from({ length: 5 }, (_, i) =>
+      h('span', {
+        class: i < quality ? 'text-[#f5a623]' : 'text-[#484848]',
+        style: 'font-size: 14px;'
+      }, '\u2605')
+    )
+  );
+}
+
+const tableColumns: DataTableColumns<SleepRecord> = [
+  { title: '日期', key: 'recordDate', width: 120 },
+  { title: '入睡', key: 'sleepTime', width: 100, render: (row) => formatTime(row.sleepTime) },
+  { title: '起床', key: 'wakeTime', width: 100, render: (row) => formatTime(row.wakeTime) },
+  { title: '时长', key: 'durationMin', width: 100, render: (row) => `${(row.durationMin / 60).toFixed(1)}h` },
+  { title: '质量', key: 'quality', width: 140, render: (row) => renderStars(row.quality) },
+  { title: '备注', key: 'dreamNotes', minWidth: 150, ellipsis: { tooltip: true } },
+  {
+    title: '操作', key: 'actions', width: 80, fixed: 'right',
+    render: (row) => h(NButton, { type: 'error', size: 'small', text: true, onClick: () => handleDeleteSleep(row.id) }, { default: () => '删除' })
+  }
+];
 
 async function loadRecords() {
-  pageLoading.value = true
+  pageLoading.value = true;
   try {
-    const res = await getSleepList(30)
-    records.value = res.data || []
+    const { data } = await fetchGetSleepList(30);
+    records.value = data || [];
   } finally {
-    pageLoading.value = false
+    pageLoading.value = false;
   }
 }
 
 async function loadToday() {
   try {
-    const res = await getTodaySleep()
-    todayRecord.value = res.data
+    const { data } = await fetchGetTodaySleep();
+    todayRecord.value = data ?? null;
     if (todayRecord.value) {
-      form.recordDate = todayRecord.value.recordDate
-      form.sleepTime = todayRecord.value.sleepTime
-      form.wakeTime = todayRecord.value.wakeTime
-      form.quality = todayRecord.value.quality
-      form.dreamNotes = todayRecord.value.dreamNotes || ''
+      form.value.recordDate = todayRecord.value.recordDate;
+      form.value.sleepTime = todayRecord.value.sleepTime;
+      form.value.wakeTime = todayRecord.value.wakeTime;
+      form.value.quality = todayRecord.value.quality;
+      form.value.dreamNotes = todayRecord.value.dreamNotes || '';
     }
   } catch {
-    // 无今日记录
+    // no record for today
   }
 }
 
 async function handleSubmit() {
-  if (!form.sleepTime || !form.wakeTime) {
-    ElMessage.warning('请选择入睡和起床时间')
-    return
+  if (formRef.value) {
+    try {
+      await formRef.value.validate();
+    } catch {
+      return;
+    }
   }
-  submitting.value = true
+  submitting.value = true;
   try {
-    await submitSleep({ ...form, quality: form.quality || 3 })
-    ElMessage.success('已记录')
-    await loadToday()
-    await loadRecords()
+    await fetchSubmitSleep({ ...form.value, quality: form.value.quality || 3 });
+    message.success('已记录');
+    await loadToday();
+    await loadRecords();
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 async function handleAnalyze() {
-  analyzing.value = true
+  analyzing.value = true;
   try {
-    const res = await analyzeSleep()
-    aiAnalysis.value = res.data?.analysis || ''
+    const { data } = await fetchAnalyzeSleep();
+    aiAnalysis.value = data?.analysis || '';
   } finally {
-    analyzing.value = false
+    analyzing.value = false;
   }
 }
 
-function formatTime(timeStr) {
-  if (!timeStr) return '-'
-  return timeStr.substring(0, 5)
+function handleDeleteSleep(id: number) {
+  dialog.warning({
+    title: '删除确认',
+    content: '确定删除此条睡眠记录吗？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await fetchDeleteSleep(id);
+      message.success('已删除');
+      loadRecords();
+    }
+  });
 }
 
-function formatAnalysis(text) {
-  if (!text) return ''
-  return sanitizeHtml(text.replace(/\n/g, '<br>'))
+function formatTime(timeStr: string | null): string {
+  if (!timeStr) return '-';
+  return timeStr.substring(0, 5);
+}
+
+function formatAnalysis(text: string): string {
+  if (!text) return '';
+  return sanitizeHtml(text.replace(/\n/g, '<br>'));
 }
 
 onMounted(() => {
-  loadToday()
-  loadRecords()
-})
+  loadToday();
+  loadRecords();
+});
 </script>
 
 <style scoped>
@@ -234,48 +288,19 @@ onMounted(() => {
   padding: 8px;
 }
 
-.page-header { margin-bottom: 16px; }
-
-.submit-card, .analyze-card, .history-card {
-  padding: 20px 24px;
-  border-radius: 12px;
-  margin-bottom: 20px;
+.star-btn {
+  cursor: pointer;
+  font-size: 20px;
+  color: #484848;
+  transition: color 0.15s;
+  user-select: none;
 }
 
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #e6edf3;
-  margin-bottom: 16px;
+.star-btn.active {
+  color: #f5a623;
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.star-btn:hover {
+  color: #f5a623;
 }
-
-.stats-row { margin-bottom: 20px; }
-
-.stat-card { background: #161b22; border-color: #30363d; }
-.stat-card :deep(.el-statistic__head) { color: #8b949e; font-size: 13px; }
-.stat-card :deep(.el-statistic__number) { color: #e6edf3; font-size: 22px; }
-
-.analyze-card { margin-bottom: 20px; }
-
-.ai-analysis-content {
-  display: flex;
-  align-items: flex-start;
-  padding: 16px;
-  background: rgba(88, 166, 255, 0.06);
-  border-radius: 8px;
-  border: 1px solid rgba(88, 166, 255, 0.15);
-  color: #e6edf3;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.history-card { margin-bottom: 0; }
-
-:deep(.el-rate__icon) { margin-right: 2px; }
 </style>

@@ -1,60 +1,236 @@
-<template>
-  <div class="admin-audit-page">
-    <div class="page-header"><h2>操作审计日志</h2></div>
-    <el-table :data="items" stripe v-loading="loading">
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="userId" label="用户ID" width="80" />
-      <el-table-column prop="username" label="用户名" width="120" />
-      <el-table-column prop="action" label="操作" width="150" />
-      <el-table-column prop="target" label="操作对象" min-width="150" show-overflow-tooltip />
-      <el-table-column label="详情" min-width="200" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.detail || '-' }}</template>
-      </el-table-column>
-      <el-table-column prop="ip" label="IP" width="140" />
-      <el-table-column label="时间" width="160">
-        <template #default="{ row }">{{ row.createTime }}</template>
-      </el-table-column>
-    </el-table>
-    <div class="pagination-wrap" v-if="total > 10">
-      <el-pagination
-        v-model:current-page="page"
-        :total="total"
-        :page-size="10"
-        layout="total, prev, pager, next"
-        @current-change="loadItems"
-      />
-    </div>
-  </div>
-</template>
+<script setup lang="ts">
+import { ref, reactive, h, onMounted } from 'vue';
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NInput,
+  NSelect,
+  NPagination,
+  NSpace,
+  NModal,
+  NDescriptions,
+  NDescriptionsItem,
+  NTag
+} from 'naive-ui';
+import type { DataTableColumns, PaginationProps, SelectOption } from 'naive-ui';
+import { fetchGetAuditLogs } from '@/service/api';
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { getAuditLogs } from '@/api/admin'
+defineOptions({ name: 'AdminAuditLog' });
 
-const items = ref([])
-const loading = ref(false)
-const page = ref(1)
-const total = ref(0)
+type AuditLogItem = Api.Admin.AuditLog;
 
-async function loadItems() {
-  loading.value = true
+interface AuditQuery {
+  operatorName: string;
+  action: string | null;
+}
+
+const actionOptions: SelectOption[] = [
+  { label: '全部操作', value: '' },
+  { label: '登录', value: 'LOGIN' },
+  { label: '登出', value: 'LOGOUT' },
+  { label: '创建', value: 'CREATE' },
+  { label: '更新', value: 'UPDATE' },
+  { label: '删除', value: 'DELETE' },
+  { label: '导出', value: 'EXPORT' },
+  { label: '封禁', value: 'BAN' },
+  { label: '审批', value: 'APPROVE' }
+];
+
+const query = reactive<AuditQuery>({
+  operatorName: '',
+  action: null
+});
+
+// Table columns
+const columns: DataTableColumns<AuditLogItem> = [
+  { title: 'ID', key: 'id', width: 70 },
+  {
+    title: '操作人',
+    key: 'operatorName',
+    width: 120,
+    ellipsis: { tooltip: true }
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: 120,
+    render(row) {
+      return h(NTag, { size: 'small', bordered: false }, { default: () => row.action });
+    }
+  },
+  {
+    title: '对象类型',
+    key: 'targetType',
+    width: 120,
+    ellipsis: { tooltip: true }
+  },
+  {
+    title: '对象ID',
+    key: 'targetId',
+    width: 90
+  },
+  {
+    title: '详情',
+    key: 'detail',
+    minWidth: 200,
+    ellipsis: { tooltip: true },
+    render(row) {
+      return row.detail || '-';
+    }
+  },
+  { title: 'IP', key: 'ip', width: 140 },
+  {
+    title: '时间',
+    key: 'createTime',
+    width: 170,
+    render(row) {
+      return row.createTime;
+    }
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 80,
+    fixed: 'right',
+    render(row) {
+      return h(
+        NButton,
+        { size: 'small', text: true, type: 'primary', onClick: () => handleViewDetail(row) },
+        { default: () => '详情' }
+      );
+    }
+  }
+];
+
+// Data
+const loading = ref(false);
+const items = ref<AuditLogItem[]>([]);
+const pagination = reactive<PaginationProps>({
+  page: 1,
+  pageSize: 15,
+  pageCount: 1,
+  showSizePicker: true,
+  pageSizes: [15, 30, 50, 100],
+  onUpdatePageSize: (size: number) => {
+    pagination.pageSize = size;
+    pagination.page = 1;
+    fetchData();
+  }
+});
+
+// Detail modal
+const showDetailModal = ref(false);
+const detailRow = ref<AuditLogItem | null>(null);
+
+async function fetchData() {
+  loading.value = true;
   try {
-    const res = await getAuditLogs({ page: page.value, size: 10 })
+    const params: Api.Admin.AuditLogParams = {
+      page: pagination.page,
+      size: pagination.pageSize
+    };
+    if (query.operatorName) params.operatorName = query.operatorName;
+    if (query.action) params.action = query.action;
+
+    const res = await fetchGetAuditLogs(params);
     if (res.data) {
-      items.value = res.data.records || []
-      total.value = res.data.total || 0
+      items.value = res.data.records || [];
+      const total: number = res.data.total || 0;
+      pagination.pageCount = Math.max(1, Math.ceil(total / pagination.pageSize!));
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadItems)
+function handleViewDetail(row: AuditLogItem) {
+  detailRow.value = row;
+  showDetailModal.value = true;
+}
+
+function handleSearch() {
+  pagination.page = 1;
+  fetchData();
+}
+
+function handleReset() {
+  query.operatorName = '';
+  query.action = null;
+  handleSearch();
+}
+
+function handlePageChange(page: number) {
+  pagination.page = page;
+  fetchData();
+}
+
+onMounted(fetchData);
 </script>
 
-<style scoped>
-.admin-audit-page { padding: 20px 0; }
-.page-header { margin-bottom: 20px; }
-.page-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-.pagination-wrap { margin-top: 20px; display: flex; justify-content: flex-end; }
-</style>
+<template>
+  <div class="flex-col-stretch gap-16px overflow-auto p-16px">
+    <NCard title="操作审计日志">
+      <template #header-extra>
+        <NSpace align="center">
+          <NInput
+            v-model:value="query.operatorName"
+            placeholder="搜索操作人"
+            clearable
+            style="width: 180px"
+            @keyup.enter="handleSearch"
+          />
+          <NSelect
+            v-model:value="query.action"
+            :options="actionOptions"
+            placeholder="全部操作"
+            clearable
+            style="width: 130px"
+            @update:value="handleSearch"
+          />
+          <NButton type="primary" @click="handleSearch">搜索</NButton>
+          <NButton @click="handleReset">重置</NButton>
+        </NSpace>
+      </template>
+      <NDataTable
+        :columns="columns"
+        :data="items"
+        :loading="loading"
+        :row-key="(row: Api.Admin.AuditLog) => row.id"
+        :scroll-x="1200"
+      />
+      <div class="flex justify-end mt-16px">
+        <NPagination
+          v-model:page="pagination.page"
+          :page-count="pagination.pageCount"
+          :page-sizes="pagination.pageSizes"
+          show-size-picker
+          @update:page="handlePageChange"
+        />
+      </div>
+    </NCard>
+
+    <!-- Detail Modal -->
+    <NModal
+      v-model:show="showDetailModal"
+      preset="card"
+      title="审计日志详情"
+      style="width: 560px"
+    >
+      <NDescriptions v-if="detailRow" label-placement="left" bordered :column="1">
+        <NDescriptionsItem label="日志ID">{{ detailRow.id }}</NDescriptionsItem>
+        <NDescriptionsItem label="操作人">{{ detailRow.operatorName }} (ID: {{ detailRow.operatorId }})</NDescriptionsItem>
+        <NDescriptionsItem label="操作类型">
+          <NTag size="small">{{ detailRow.action }}</NTag>
+        </NDescriptionsItem>
+        <NDescriptionsItem label="对象类型">{{ detailRow.targetType }}</NDescriptionsItem>
+        <NDescriptionsItem label="对象ID">{{ detailRow.targetId }}</NDescriptionsItem>
+        <NDescriptionsItem label="详情">
+          <pre style="white-space: pre-wrap; margin: 0">{{ detailRow.detail || '无' }}</pre>
+        </NDescriptionsItem>
+        <NDescriptionsItem label="IP 地址">{{ detailRow.ip }}</NDescriptionsItem>
+        <NDescriptionsItem label="操作时间">{{ detailRow.createTime }}</NDescriptionsItem>
+      </NDescriptions>
+    </NModal>
+  </div>
+</template>

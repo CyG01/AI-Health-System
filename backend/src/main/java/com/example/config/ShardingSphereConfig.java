@@ -141,8 +141,8 @@ public class ShardingSphereConfig {
         ReadwriteSplittingDataSourceRuleConfiguration rwDsRule =
                 new ReadwriteSplittingDataSourceRuleConfiguration(
                         "ms",                          // 读写分离数据源名称
-                        "Static",                     // 静态发现类型
-                        buildRwProps("master", readDataSourceNames), // 写库 + 读库列表
+                        "master",                     // 写库数据源名称
+                        readDataSourceNames,          // 读库列表 (List<String>)
                         "round_robin"                 // 读库负载均衡算法
                 );
 
@@ -153,14 +153,6 @@ public class ShardingSphereConfig {
         return new ReadwriteSplittingRuleConfiguration(
                 Collections.singleton(rwDsRule),
                 Collections.singletonMap("round_robin", lbAlgorithm));
-    }
-
-    private Properties buildRwProps(String writeDataSource, List<String> readDataSources) {
-        Properties props = new Properties();
-        props.setProperty("write-data-source-name", writeDataSource);
-        props.setProperty("read-data-source-names",
-                String.join(",", readDataSources));
-        return props;
     }
 
     /**
@@ -189,9 +181,6 @@ public class ShardingSphereConfig {
         modProps.setProperty("sharding-count", "8");
         AlgorithmConfiguration modAlgorithm = new AlgorithmConfiguration("MOD", modProps);
         config.getShardingAlgorithms().put("chat_message_mod", modAlgorithm);
-
-        // 默认数据源（未配置分片的表统一走 ms 读写分离组）
-        config.setDefaultDataSourceName("ms");
 
         log.info("chat_message 分片规则: user_id % 8, 物理表 chat_message_0 ~ chat_message_7");
         return config;

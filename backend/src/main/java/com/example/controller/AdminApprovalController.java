@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.AdminOnly;
 import com.example.common.Result;
 import com.example.entity.AdminApproval;
 import com.example.service.AdminApprovalService;
@@ -14,6 +15,7 @@ import java.util.Map;
  * 管理员审批流程接口。
  * 管理员可查看、审批或拒绝敏感操作申请。
  */
+@AdminOnly
 @RestController
 @RequestMapping("/api/admin/approvals")
 @RequiredArgsConstructor
@@ -36,9 +38,10 @@ public class AdminApprovalController {
      */
     @PostMapping("/{id}/approve")
     public Result<AdminApproval> approve(@PathVariable Long id,
-                                          @RequestParam String approverName,
-                                          @RequestParam(defaultValue = "") String reason,
+                                          @RequestBody Map<String, String> body,
                                           @RequestHeader("X-Admin-Id") Long adminId) {
+        String approverName = body.get("approverName");
+        String reason = body.getOrDefault("reason", "");
         AdminApproval approval = approvalService.approve(id, adminId, approverName, reason);
         if (approval != null) {
             auditLogService.log(adminId, approverName, "APPROVE_OPERATION",
@@ -53,9 +56,10 @@ public class AdminApprovalController {
      */
     @PostMapping("/{id}/reject")
     public Result<AdminApproval> reject(@PathVariable Long id,
-                                         @RequestParam String approverName,
-                                         @RequestParam(defaultValue = "") String reason,
+                                         @RequestBody Map<String, String> body,
                                          @RequestHeader("X-Admin-Id") Long adminId) {
+        String approverName = body.get("approverName");
+        String reason = body.getOrDefault("reason", "");
         AdminApproval approval = approvalService.reject(id, adminId, approverName, reason);
         if (approval != null) {
             auditLogService.log(adminId, approverName, "REJECT_OPERATION",

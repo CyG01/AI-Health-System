@@ -1,179 +1,301 @@
-<template>
-  <div class="admin-food-page">
-    <div class="page-header">
-      <h2>食物字典管理</h2>
-      <el-button type="primary" @click="handleAdd">新增食物</el-button>
-    </div>
+<script setup lang="ts">
+import { ref, reactive, h, onMounted, computed } from 'vue';
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NSelect,
+  NTag,
+  NSpace,
+  NPopconfirm,
+  useMessage
+} from 'naive-ui';
+import type { DataTableColumns, FormInst, FormRules, SelectOption } from 'naive-ui';
+import {
+  fetchGetAdminFoodItems,
+  fetchCreateFoodItem,
+  fetchUpdateFoodItem,
+  fetchDeleteFoodItem,
+  executeWithApproval
+} from '@/service/api';
+import { useAuthStore } from '@/store/modules/auth';
 
-    <el-table :data="items" stripe v-loading="loading">
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="name" label="食物名称" min-width="120" />
-      <el-table-column prop="category" label="分类" width="100" />
-      <el-table-column label="每单位热量" width="130">
-        <template #default="{ row }">{{ row.caloriesPerUnit }} kcal / {{ row.unit }}</template>
-      </el-table-column>
-      <el-table-column label="营养素 (g)" min-width="180">
-        <template #default="{ row }">
-          蛋白质{{ row.protein ?? '-' }} / 脂肪{{ row.fat ?? '-' }} / 碳水{{ row.carbs ?? '-' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="80">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-            {{ row.status === 1 ? '启用' : '禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-          <el-popconfirm title="确定删除该食物？" @confirm="handleDelete(row.id)">
-            <template #reference>
-              <el-button size="small" type="danger">删除</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
+defineOptions({ name: 'AdminFoodManage' });
 
-    <!-- 新增/编辑弹窗 -->
-    <el-dialog
-      :title="isEditing ? '编辑食物' : '新增食物'"
-      v-model="dialogVisible"
-      width="500px"
-      @close="resetForm"
-    >
-      <el-form :model="form" label-width="100px">
-        <el-form-item label="食物名称" required>
-          <el-input v-model="form.name" placeholder="如：米饭" />
-        </el-form-item>
-        <el-form-item label="分类" required>
-          <el-select v-model="form.category" style="width: 100%">
-            <el-option label="主食" value="主食" />
-            <el-option label="肉类" value="肉类" />
-            <el-option label="蔬菜" value="蔬菜" />
-            <el-option label="水果" value="水果" />
-            <el-option label="乳制品" value="乳制品" />
-            <el-option label="零食" value="零食" />
-            <el-option label="饮品" value="饮品" />
-            <el-option label="其他" value="其他" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="每单位热量" required>
-          <el-input-number v-model="form.caloriesPerUnit" :min="0" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="单位" required>
-          <el-input v-model="form.unit" placeholder="如：100g、碗、个" />
-        </el-form-item>
-        <el-row :gutter="12">
-          <el-col :span="8">
-            <el-form-item label="蛋白质(g)">
-              <el-input-number v-model="form.protein" :min="0" :precision="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="脂肪(g)">
-              <el-input-number v-model="form.fat" :min="0" :precision="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="碳水(g)">
-              <el-input-number v-model="form.carbs" :min="0" :precision="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
-      </template>
-    </el-dialog>
-  </div>
-</template>
+const message = useMessage();
+const authStore = useAuthStore();
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getAdminFoodItems, createFoodItem, updateFoodItem, deleteFoodItem } from '@/api/admin'
+interface FoodRow {
+  id: number;
+  name: string;
+  category: string;
+  caloriePer100g: number | null;
+  proteinPer100g: number | null;
+  fatPer100g: number | null;
+  carbsPer100g: number | null;
+  status: number;
+}
 
-const items = ref([])
-const loading = ref(false)
-const saving = ref(false)
-const dialogVisible = ref(false)
-const isEditing = ref(false)
+const categoryOptions: SelectOption[] = [
+  { label: '主食', value: '主食' },
+  { label: '肉类', value: '肉类' },
+  { label: '蔬菜', value: '蔬菜' },
+  { label: '水果', value: '水果' },
+  { label: '乳制品', value: '乳制品' },
+  { label: '零食', value: '零食' },
+  { label: '饮品', value: '饮品' },
+  { label: '其他', value: '其他' }
+];
 
-const form = ref({
+// Search / filter
+const searchKeyword = ref('');
+const filterCategory = ref<string | null>(null);
+
+// Filtered data (client-side since the list is fully loaded)
+const filteredItems = computed(() => {
+  return items.value.filter(item => {
+    const matchKeyword = !searchKeyword.value || item.name.includes(searchKeyword.value);
+    const matchCategory = !filterCategory.value || item.category === filterCategory.value;
+    return matchKeyword && matchCategory;
+  });
+});
+
+// Table columns
+const columns: DataTableColumns<FoodRow> = [
+  { title: 'ID', key: 'id', width: 70 },
+  { title: '食物名称', key: 'name', minWidth: 120 },
+  { title: '分类', key: 'category', width: 100 },
+  {
+    title: '每100g热量',
+    key: 'caloriePer100g',
+    width: 130,
+    render(row) {
+      return `${row.caloriePer100g ?? '-'} kcal`;
+    }
+  },
+  {
+    title: '营养素 (g)',
+    key: 'nutrients',
+    minWidth: 180,
+    render(row) {
+      return `蛋白质${row.proteinPer100g ?? '-'} / 脂肪${row.fatPer100g ?? '-'} / 碳水${row.carbsPer100g ?? '-'}`;
+    }
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 80,
+    render(row) {
+      return h(
+        NTag,
+        { type: row.status === 1 ? 'success' : 'info', size: 'small', bordered: false },
+        { default: () => (row.status === 1 ? '启用' : '禁用') }
+      );
+    }
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 160,
+    fixed: 'right',
+    render(row) {
+      return h(NSpace, null, {
+        default: () => [
+          h(NButton, { size: 'small', onClick: () => handleEdit(row) }, { default: () => '编辑' }),
+          h(
+            NPopconfirm,
+            { onPositiveClick: () => handleDelete(row) },
+            {
+              trigger: () =>
+                h(NButton, { size: 'small', type: 'error' }, { default: () => '删除' }),
+              default: () => `确定要删除食物「${row.name}」吗？此操作需要审批。`
+            }
+          )
+        ]
+      });
+    }
+  }
+];
+
+// Data
+const loading = ref(false);
+const items = ref<FoodRow[]>([]);
+
+// Modal
+const showModal = ref(false);
+const isEditing = ref(false);
+const saving = ref(false);
+const formRef = ref<FormInst | null>(null);
+
+interface FoodForm {
+  id: number | null;
+  name: string;
+  category: string;
+  caloriePer100g: number | null;
+  proteinPer100g: number | null;
+  fatPer100g: number | null;
+  carbsPer100g: number | null;
+}
+
+const form = ref<FoodForm>({
   id: null,
   name: '',
   category: '',
-  caloriesPerUnit: null,
-  unit: '',
-  protein: null,
-  fat: null,
-  carbs: null
-})
+  caloriePer100g: null,
+  proteinPer100g: null,
+  fatPer100g: null,
+  carbsPer100g: null
+});
+
+const formRules: FormRules = {
+  name: { required: true, message: '请填写食物名称', trigger: 'blur' },
+  category: { required: true, message: '请选择分类', trigger: 'change', type: 'string' },
+  caloriePer100g: { required: true, message: '请填写每100g热量', trigger: 'blur', type: 'number' }
+};
 
 async function loadItems() {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getAdminFoodItems()
-    items.value = res.data || []
+    const res = await fetchGetAdminFoodItems();
+    items.value = res.data || [];
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function handleAdd() {
-  isEditing.value = false
-  dialogVisible.value = true
+  isEditing.value = false;
+  resetForm();
+  showModal.value = true;
 }
 
-function handleEdit(row) {
-  isEditing.value = true
-  Object.assign(form.value, row)
-  dialogVisible.value = true
+function handleEdit(row: FoodRow) {
+  isEditing.value = true;
+  form.value = { ...row };
+  showModal.value = true;
 }
 
 function resetForm() {
-  form.value = { id: null, name: '', category: '', caloriesPerUnit: null, unit: '', protein: null, fat: null, carbs: null }
+  form.value = {
+    id: null,
+    name: '',
+    category: '',
+    caloriePer100g: null,
+    proteinPer100g: null,
+    fatPer100g: null,
+    carbsPer100g: null
+  };
 }
 
 async function handleSave() {
-  if (!form.value.name || !form.value.category || !form.value.caloriesPerUnit || !form.value.unit) {
-    ElMessage.warning('请填写必填项')
-    return
+  if (!formRef.value) return;
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
     if (isEditing.value) {
-      await updateFoodItem(form.value)
-      ElMessage.success('更新成功')
+      await fetchUpdateFoodItem(form.value as Api.Admin.AdminFoodItemRequest);
+      message.success('更新成功');
     } else {
-      await createFoodItem(form.value)
-      ElMessage.success('创建成功')
+      await fetchCreateFoodItem(form.value as Api.Admin.AdminFoodItemRequest);
+      message.success('创建成功');
     }
-    dialogVisible.value = false
-    loadItems()
+    showModal.value = false;
+    loadItems();
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-async function handleDelete(id) {
-  try {
-    await deleteFoodItem(id)
-    ElMessage.success('删除成功')
-    loadItems()
-  } catch {
-    // handled by interceptor
-  }
+function handleDelete(row: FoodRow) {
+  executeWithApproval(
+    'delete_food',
+    `删除食物: ${row.name} (ID: ${row.id})`,
+    (approvalId: string) => fetchDeleteFoodItem(row.id, approvalId),
+    authStore.userInfo?.id
+  )
+    .then(() => {
+      message.success('删除操作已执行');
+      loadItems();
+    })
+    .catch(() => {
+      // cancelled or error handled by interceptor
+    });
 }
 
-onMounted(loadItems)
+onMounted(loadItems);
 </script>
 
-<style scoped>
-.admin-food-page { padding: 20px 0; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-</style>
+<template>
+  <div class="flex-col-stretch gap-16px overflow-auto p-16px">
+    <NCard :title="`食物字典管理 (${items.length}条)`">
+      <template #header-extra>
+        <NSpace align="center">
+          <NInput
+            v-model:value="searchKeyword"
+            placeholder="搜索食物名称"
+            clearable
+            style="width: 200px"
+          />
+          <NSelect
+            v-model:value="filterCategory"
+            :options="categoryOptions"
+            placeholder="全部分类"
+            clearable
+            style="width: 130px"
+          />
+          <NButton type="primary" @click="handleAdd">新增食物</NButton>
+        </NSpace>
+      </template>
+      <NDataTable
+        :columns="columns"
+        :data="filteredItems"
+        :loading="loading"
+        :row-key="(row: FoodRow) => row.id"
+        :scroll-x="900"
+      />
+    </NCard>
+
+    <!-- Add/Edit Modal -->
+    <NModal
+      v-model:show="showModal"
+      preset="dialog"
+      :title="isEditing ? '编辑食物' : '新增食物'"
+      style="width: 520px"
+      :show-icon="false"
+    >
+      <NForm ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="110">
+        <NFormItem label="食物名称" path="name">
+          <NInput v-model:value="form.name" placeholder="如：米饭" />
+        </NFormItem>
+        <NFormItem label="分类" path="category">
+          <NSelect v-model:value="form.category" :options="categoryOptions" placeholder="请选择分类" />
+        </NFormItem>
+        <NFormItem label="每100g热量(kcal)" path="caloriePer100g">
+          <NInputNumber v-model:value="form.caloriePer100g" :min="0" style="width: 100%" />
+        </NFormItem>
+        <NFormItem label="蛋白质(g)">
+          <NInputNumber v-model:value="form.proteinPer100g" :min="0" :precision="1" style="width: 100%" />
+        </NFormItem>
+        <NFormItem label="脂肪(g)">
+          <NInputNumber v-model:value="form.fatPer100g" :min="0" :precision="1" style="width: 100%" />
+        </NFormItem>
+        <NFormItem label="碳水(g)">
+          <NInputNumber v-model:value="form.carbsPer100g" :min="0" :precision="1" style="width: 100%" />
+        </NFormItem>
+      </NForm>
+      <template #action>
+        <NButton @click="showModal = false">取消</NButton>
+        <NButton type="primary" :loading="saving" @click="handleSave">保存</NButton>
+      </template>
+    </NModal>
+  </div>
+</template>

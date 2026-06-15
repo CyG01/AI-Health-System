@@ -177,12 +177,7 @@
             <artifactId>okhttp</artifactId>
             <version>4.12.0</version>
         </dependency>
-        <!-- Cohere Rerank（可选，快速上线） -->
-        <dependency>
-            <groupId>com.cohere</groupId>
-            <artifactId>cohere-java</artifactId>
-            <version>0.16.0</version>
-        </dependency>
+        <!-- Cohere Rerank: 代码通过 WebClient 直接调用 REST API，不需要 Java SDK -->
         <!-- ShardingSphere-JDBC 读写分离与分片（Phase 4） -->
         <dependency>
             <groupId>org.apache.shardingsphere</groupId>

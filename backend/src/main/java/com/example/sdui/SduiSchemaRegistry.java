@@ -93,17 +93,18 @@ public final class SduiSchemaRegistry {
     // ======================== Schema 构建 ========================
 
     private static ObjectNode buildSchema(String type) {
-        return MAPPER.createObjectNode()
-                .put("$schema", "https://json-schema.org/draft/2020-12/schema")
-                .put("widgetId", "ai-health." + type)
-                .put("title", getWidgetTitle(type))
-                .put("description", getWidgetDescription(type))
-                .put("version", "2.0")
-                .put("type", "object")
-                .set("required", MAPPER.valueToTree(getRequiredFields(type)))
-                .set("properties", buildProperties(type))
-                .set("actions", buildActions(type))
-                .set("degradations", buildDegradations(type));
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("$schema", "https://json-schema.org/draft/2020-12/schema");
+        node.put("widgetId", "ai-health." + type);
+        node.put("title", getWidgetTitle(type));
+        node.put("description", getWidgetDescription(type));
+        node.put("version", "2.0");
+        node.put("type", "object");
+        node.set("required", MAPPER.valueToTree(getRequiredFields(type)));
+        node.set("properties", buildProperties(type));
+        node.set("actions", buildActions(type));
+        node.set("degradations", buildDegradations(type));
+        return node;
     }
 
     private static String getWidgetTitle(String type) {
@@ -234,13 +235,14 @@ public final class SduiSchemaRegistry {
                 props.set("completed", boolSchema("是否已完成", false));
                 props.set("checkinAction", stringSchema("打卡操作标识", "exercise:checkin"));
                 props.set("scenarioTag", stringSchema("场景标签: 家庭/办公室/户外", ""));
-                props.set("phases", arraySchema("运动阶段列表", MAPPER.createObjectNode()
-                        .set("name", stringSchema("阶段名称", null))
-                        .set("type", stringSchema("阶段类型: warmup/core/cooldown", null))
-                        .set("durationMinutes", intSchema("时长（分钟）", null))
-                        .set("instruction", stringSchema("指导说明", ""))
-                        .set("heartRateZone", stringSchema("心率区间", ""))
-                        .set("completed", boolSchema("是否已完成", false))));
+                ObjectNode phaseItem = MAPPER.createObjectNode();
+                phaseItem.set("name", stringSchema("阶段名称", null));
+                phaseItem.set("type", stringSchema("阶段类型: warmup/core/cooldown", null));
+                phaseItem.set("durationMinutes", intSchema("时长（分钟）", null));
+                phaseItem.set("instruction", stringSchema("指导说明", ""));
+                phaseItem.set("heartRateZone", stringSchema("心率区间", ""));
+                phaseItem.set("completed", boolSchema("是否已完成", false));
+                props.set("phases", arraySchema("运动阶段列表", phaseItem));
                 props.set("completedPhases", intSchema("已完成阶段数", 0));
             }
             case "exercise_phase" -> {
@@ -248,13 +250,14 @@ public final class SduiSchemaRegistry {
                 props.set("totalDuration", intSchema("总时长（分钟）", null));
                 props.set("intensity", stringSchema("强度", "中"));
                 props.set("scenarioTag", stringSchema("场景标签", ""));
-                props.set("phases", arraySchema("阶段列表", MAPPER.createObjectNode()
-                        .set("name", stringSchema("阶段名称", null))
-                        .set("type", stringSchema("阶段类型", null))
-                        .set("durationMinutes", intSchema("时长", null))
-                        .set("instruction", stringSchema("指导说明", ""))
-                        .set("heartRateZone", stringSchema("心率区间", ""))
-                        .set("completed", boolSchema("是否已完成", false))));
+                ObjectNode phaseItem2 = MAPPER.createObjectNode();
+                phaseItem2.set("name", stringSchema("阶段名称", null));
+                phaseItem2.set("type", stringSchema("阶段类型", null));
+                phaseItem2.set("durationMinutes", intSchema("时长", null));
+                phaseItem2.set("instruction", stringSchema("指导说明", ""));
+                phaseItem2.set("heartRateZone", stringSchema("心率区间", ""));
+                phaseItem2.set("completed", boolSchema("是否已完成", false));
+                props.set("phases", arraySchema("阶段列表", phaseItem2));
                 props.set("completedPhases", intSchema("已完成阶段数", 0));
                 props.set("videoUrl", stringSchema("视频URL", ""));
             }
@@ -269,18 +272,21 @@ public final class SduiSchemaRegistry {
             case "meal_plan" -> {
                 props.set("mealType", stringSchema("餐食类型: breakfast/lunch/dinner/snack", "breakfast"));
                 props.set("totalCalories", intSchema("总热量", 0));
-                props.set("items", arraySchema("餐食条目列表", MAPPER.createObjectNode()
-                        .set("name", stringSchema("食物名称", null))
-                        .set("calories", intSchema("热量（千卡）", 0))
-                        .set("protein", intSchema("蛋白质（克）", 0))
-                        .set("imageUrl", stringSchema("食物图片URL", ""))));
-                props.set("nutrition", MAPPER.createObjectNode()
-                        .put("type", "object")
-                        .set("properties", MAPPER.createObjectNode()
-                                .set("protein", intSchema("总蛋白质", 0))
-                                .set("carbs", intSchema("总碳水", 0))
-                                .set("fat", intSchema("总脂肪", 0))
-                                .set("fiber", intSchema("膳食纤维", 0))));
+                ObjectNode mealItem = MAPPER.createObjectNode();
+                mealItem.set("name", stringSchema("食物名称", null));
+                mealItem.set("calories", intSchema("热量（千卡）", 0));
+                mealItem.set("protein", intSchema("蛋白质（克）", 0));
+                mealItem.set("imageUrl", stringSchema("食物图片URL", ""));
+                props.set("items", arraySchema("餐食条目列表", mealItem));
+                ObjectNode nutritionProps = MAPPER.createObjectNode();
+                nutritionProps.set("protein", intSchema("总蛋白质", 0));
+                nutritionProps.set("carbs", intSchema("总碳水", 0));
+                nutritionProps.set("fat", intSchema("总脂肪", 0));
+                nutritionProps.set("fiber", intSchema("膳食纤维", 0));
+                ObjectNode nutrition = MAPPER.createObjectNode();
+                nutrition.put("type", "object");
+                nutrition.set("properties", nutritionProps);
+                props.set("nutrition", nutrition);
                 props.set("cookingTip", stringSchema("烹饪建议", ""));
             }
             case "sleep_chart" -> {
@@ -289,10 +295,11 @@ public final class SduiSchemaRegistry {
                 props.set("deepSleepHours", numSchema("深睡时长", 0d));
                 props.set("lightSleepHours", numSchema("浅睡时长", 0d));
                 props.set("remHours", numSchema("REM时长", 0d));
-                props.set("phases", arraySchema("睡眠阶段分布", MAPPER.createObjectNode()
-                        .set("name", stringSchema("阶段名称", null))
-                        .set("hours", numSchema("时长", 0d))
-                        .set("color", stringSchema("显示颜色", "#58a6ff"))));
+                ObjectNode sleepPhaseItem = MAPPER.createObjectNode();
+                sleepPhaseItem.set("name", stringSchema("阶段名称", null));
+                sleepPhaseItem.set("hours", numSchema("时长", 0d));
+                sleepPhaseItem.set("color", stringSchema("显示颜色", "#58a6ff"));
+                props.set("phases", arraySchema("睡眠阶段分布", sleepPhaseItem));
                 props.set("suggestion", stringSchema("改善建议", ""));
             }
         }
@@ -348,10 +355,11 @@ public final class SduiSchemaRegistry {
     }
 
     private static ObjectNode arraySchema(String description, ObjectNode itemSchema) {
-        return MAPPER.createObjectNode()
-                .put("type", "array")
-                .put("description", description)
-                .set("items", itemSchema);
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("type", "array");
+        node.put("description", description);
+        node.set("items", itemSchema);
+        return node;
     }
 
     private static ArrayNode actions(String... actionNames) {

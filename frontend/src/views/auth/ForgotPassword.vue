@@ -1,168 +1,405 @@
 <template>
   <div class="auth-page">
-    <div class="auth-card glass-card">
-      <h2 class="page-title">忘记密码</h2>
-      <p class="page-desc">通过手机号验证码重置密码</p>
-      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="auth-form">
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" />
-        </el-form-item>
-        <el-form-item label="验证码" prop="verifyCode">
-          <div class="code-row">
-            <el-input v-model="form.verifyCode" placeholder="请输入验证码" maxlength="6" />
-            <el-button :disabled="codeSending" @click="handleSendCode">{{ codeButtonText }}</el-button>
+    <!-- Wave Background -->
+    <div class="wave-bg" />
+
+    <NCard :bordered="false" class="auth-card">
+      <div class="auth-content">
+        <!-- Header -->
+        <header class="auth-header">
+          <div class="logo-area">
+            <svg xmlns="http://www.w3.org/2000/svg" class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
           </div>
-        </el-form-item>
-        <el-form-item label="新密码" prop="newPassword">
-          <el-input v-model="form.newPassword" type="password" placeholder="请输入新密码" show-password maxlength="20" />
-        </el-form-item>
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input v-model="form.confirmPassword" type="password" placeholder="请再次输入新密码" show-password maxlength="20" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="loading" :disabled="loading" class="submit-btn" @click="handleReset">
-            重置密码
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <div class="auth-links">
-        <router-link to="/login">返回登录</router-link>
+          <h3 class="system-title">{{ $t('system.title') }}</h3>
+          <div class="header-controls">
+            <NButton quaternary circle size="small" @click="toggleLocale">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+              </template>
+            </NButton>
+          </div>
+        </header>
+
+        <!-- Title -->
+        <div class="auth-title-area">
+          <h3 class="auth-title">{{ $t('page.auth.forgotPasswordTitle') }}</h3>
+          <p class="auth-desc">{{ $t('page.auth.forgotPasswordDesc') }}</p>
+        </div>
+
+        <!-- Reset Password Form -->
+        <NForm
+          ref="formRef"
+          :model="model"
+          :rules="rules"
+          size="large"
+          :show-label="false"
+          class="auth-form"
+          @keyup.enter="handleReset"
+        >
+          <NFormItem path="phone">
+            <NInput
+              v-model:value="model.phone"
+              :placeholder="$t('page.auth.phonePlaceholder')"
+              maxlength="11"
+              clearable
+            />
+          </NFormItem>
+          <NFormItem path="code">
+            <div class="code-row">
+              <NInput
+                v-model:value="model.code"
+                :placeholder="$t('page.auth.codePlaceholder')"
+                maxlength="6"
+                class="code-input"
+              />
+              <NButton
+                size="large"
+                :disabled="isCounting"
+                :loading="codeLoading"
+                @click="handleSendCode"
+              >
+                {{ codeLabel }}
+              </NButton>
+            </div>
+          </NFormItem>
+          <NFormItem path="newPassword">
+            <NInput
+              v-model:value="model.newPassword"
+              type="password"
+              show-password-on="click"
+              :placeholder="$t('page.auth.newPassword')"
+              maxlength="20"
+            />
+          </NFormItem>
+          <NFormItem path="confirmPassword">
+            <NInput
+              v-model:value="model.confirmPassword"
+              type="password"
+              show-password-on="click"
+              :placeholder="$t('page.auth.confirmPasswordPlaceholder')"
+              maxlength="20"
+            />
+          </NFormItem>
+          <NSpace vertical :size="20">
+            <NButton
+              type="primary"
+              size="large"
+              round
+              block
+              :loading="loading"
+              @click="handleReset"
+            >
+              {{ $t('page.auth.resetPassword') }}
+            </NButton>
+          </NSpace>
+        </NForm>
+
+        <!-- Footer Links -->
+        <div class="auth-footer">
+          <NButton text type="primary" @click="goToLogin">
+            {{ $t('page.auth.backToLogin') }}
+          </NButton>
+        </div>
       </div>
-    </div>
+    </NCard>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { resetPassword, sendCode } from '@/api/auth'
-import {
-  phoneRules,
-  verifyCodeRules,
-  createConfirmPasswordRule
-} from '@/utils/validate'
+<script setup lang="ts">
+import { computed, onUnmounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { NButton, NCard, NForm, NFormItem, NInput, NSpace, useMessage } from 'naive-ui';
+import type { FormInst, FormRules } from 'naive-ui';
+import { useAppStore } from '@/store/modules/app';
+import { fetchResetPassword, fetchSendCode } from '@/service/api';
+import { REG_CODE_SIX, REG_PHONE, REG_PWD } from '@/constants/reg';
+import { $t } from '@/locales';
 
-const router = useRouter()
-const formRef = ref(null)
-const loading = ref(false)
-const codeSending = ref(false)
-const countdown = ref(0)
-let countdownTimer = null
+defineOptions({ name: 'AuthForgotPassword' });
 
-const form = reactive({
-  phone: '',
-  verifyCode: '',
-  newPassword: '',
-  confirmPassword: ''
-})
+const router = useRouter();
+const message = useMessage();
+const appStore = useAppStore();
 
-const rules = {
-  phone: phoneRules,
-  verifyCode: verifyCodeRules,
-  newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度必须在6-20个字符之间', trigger: 'blur' },
-    { pattern: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{6,20}$/, message: '密码必须包含字母和数字', trigger: 'blur' }
-  ],
-  confirmPassword: [createConfirmPasswordRule(() => form.newPassword)]
+// ---------- Locale toggle ----------
+function toggleLocale() {
+  const target = appStore.locale === 'zh-CN' ? 'en-US' : 'zh-CN';
+  appStore.changeLocale(target);
 }
 
-const codeButtonText = computed(() => {
-  return countdown.value > 0 ? `${countdown.value}s后重试` : '获取验证码'
-})
+// ====================== Form ======================
+const formRef = ref<FormInst | null>(null);
+const loading = ref<boolean>(false);
+
+interface ResetFormModel {
+  phone: string;
+  code: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+const model = reactive<ResetFormModel>({
+  phone: '',
+  code: '',
+  newPassword: '',
+  confirmPassword: ''
+});
+
+const rules = computed<FormRules>(() => ({
+  phone: [
+    { required: true, message: $t('form.phone.required'), trigger: 'blur' },
+    { pattern: REG_PHONE, message: $t('form.phone.invalid'), trigger: 'change' }
+  ],
+  code: [
+    { required: true, message: $t('form.code.required'), trigger: 'blur' },
+    { pattern: REG_CODE_SIX, message: $t('form.code.invalid'), trigger: 'change' }
+  ],
+  newPassword: [
+    { required: true, message: $t('form.pwd.required'), trigger: 'blur' },
+    { pattern: REG_PWD, message: $t('form.pwd.invalid'), trigger: 'change' }
+  ],
+  confirmPassword: [
+    { required: true, message: $t('form.confirmPwd.required'), trigger: 'blur' },
+    {
+      asyncValidator: (_rule: any, value: string) => {
+        if (value.trim() !== '' && value !== model.newPassword) {
+          return Promise.reject($t('form.confirmPwd.invalid'));
+        }
+        return Promise.resolve();
+      },
+      trigger: 'input'
+    }
+  ]
+}));
+
+// ---------- Send Code Countdown ----------
+const codeLoading = ref<boolean>(false);
+const isCounting = ref<boolean>(false);
+const countdown = ref<number>(0);
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+const codeLabel = computed<string>(() => {
+  if (codeLoading.value) return $t('common.loading');
+  if (isCounting.value) return $t('page.auth.reGetCode', { time: countdown.value });
+  return $t('page.auth.getCode');
+});
 
 function startCountdown() {
-  countdown.value = 60
-  codeSending.value = true
+  countdown.value = 60;
+  isCounting.value = true;
   countdownTimer = setInterval(() => {
-    countdown.value -= 1
+    countdown.value -= 1;
     if (countdown.value <= 0) {
-      clearInterval(countdownTimer)
-      countdownTimer = null
-      codeSending.value = false
+      stopCountdown();
     }
-  }, 1000)
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  isCounting.value = false;
 }
 
 async function handleSendCode() {
-  if (!formRef.value) return
-  try {
-    await formRef.value.validateField('phone')
-  } catch {
-    return
+  if (!model.phone || !REG_PHONE.test(model.phone)) {
+    message.error($t('form.phone.invalid'));
+    return;
   }
+  if (codeLoading.value || isCounting.value) return;
+
+  codeLoading.value = true;
   try {
-    await sendCode({ phone: form.phone })
-    ElMessage.success('验证码已发送')
-    startCountdown()
+    await fetchSendCode({ phone: model.phone, type: 'reset' });
+    message.success($t('page.auth.sendCodeSuccess'));
+    startCountdown();
   } catch {
-    codeSending.value = false
+    // Error handled by interceptor
+  } finally {
+    codeLoading.value = false;
   }
 }
 
+// ====================== Reset Password ======================
 async function handleReset() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    loading.value = true
-    try {
-      await resetPassword({
-        phone: form.phone,
-        verifyCode: form.verifyCode,
-        newPassword: form.newPassword,
-        confirmPassword: form.confirmPassword
-      })
-      ElMessage.success('密码重置成功')
-      await router.push('/login')
-    } finally {
-      loading.value = false
-    }
-  })
+  if (!formRef.value) return;
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
+  loading.value = true;
+  try {
+    await fetchResetPassword({
+      phone: model.phone,
+      code: model.code,
+      newPassword: model.newPassword
+    });
+    message.success($t('page.auth.resetSuccess'));
+    await router.push('/login');
+  } catch {
+    // Error handled by interceptor
+  } finally {
+    loading.value = false;
+  }
 }
 
+// ====================== Navigation ======================
+function goToLogin() {
+  router.push('/login');
+}
+
+// ====================== Lifecycle ======================
 onUnmounted(() => {
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-  }
-})
+  stopCountdown();
+});
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .auth-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-primary);
+  overflow: hidden;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.wave-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255, 119, 198, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(120, 219, 198, 0.15) 0%, transparent 50%);
+}
+
+.wave-bg::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='rgba(255,255,255,0.05)' d='M0,160L48,170.7C96,181,192,203,288,192C384,181,480,139,576,133.3C672,128,768,160,864,181.3C960,203,1056,213,1152,208C1248,203,1344,181,1392,170.7L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'/%3E%3C/svg%3E") no-repeat bottom;
+  background-size: cover;
 }
 
 .auth-card {
+  position: relative;
+  z-index: 4;
+  width: auto;
+  border-radius: 12px;
+}
+
+.auth-content {
   width: 420px;
-  padding: 40px;
+}
+
+@media (max-width: 640px) {
+  .auth-content {
+    width: 320px;
+  }
+}
+
+.auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo-area {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.system-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--n-text-color);
+  flex: 1;
+  text-align: center;
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .system-title {
+    font-size: 24px;
+  }
+}
+
+.header-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-title-area {
+  padding-top: 24px;
+}
+
+.auth-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--n-color-target, #18a058);
+  margin: 0;
+}
+
+.auth-desc {
+  font-size: 13px;
+  color: var(--n-text-color-3, #999);
+  margin: 6px 0 0;
 }
 
 .auth-form {
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .code-row {
   display: flex;
+  align-items: center;
   gap: 12px;
   width: 100%;
-
-  .el-input {
-    flex: 1;
-  }
 }
 
-.submit-btn {
-  width: 100%;
+.code-input {
+  flex: 1;
 }
 
-.auth-links {
-  margin-top: 16px;
-  font-size: 12px;
+.auth-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--n-border-color, #e0e0e6);
+}
+
+.auth-footer-text {
+  font-size: 13px;
+  color: var(--n-text-color-3, #999);
 }
 </style>

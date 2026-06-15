@@ -118,7 +118,7 @@ public class AiCallQueueService {
 
         if (!mqEnabled || !mqAvailable) {
             log.warn("RocketMQ 不可用，任务降级到内存队列 taskId={}", taskId);
-            taskStatusService.initTaskStatus(taskId, taskType, userId);
+            taskStatusService.initTaskStatus(taskId, taskType);
             // 降级：直接同步执行
             executor.submit(() -> {
                 taskStatusService.updateTaskStatus(taskId, "FAILED", null,
@@ -134,7 +134,7 @@ public class AiCallQueueService {
         message.setPayload(payload);
         message.setParams(params);
 
-        taskStatusService.initTaskStatus(taskId, taskType, userId);
+        taskStatusService.initTaskStatus(taskId, taskType);
 
         boolean sent = producer.send(topic, message);
         if (!sent) {

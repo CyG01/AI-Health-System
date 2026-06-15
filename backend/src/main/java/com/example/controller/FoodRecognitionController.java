@@ -3,12 +3,15 @@ package com.example.controller;
 import com.example.annotation.NoRepeatSubmit;
 import com.example.annotation.RateLimit;
 import com.example.common.Result;
+import com.example.dto.FoodTextRecognizeDTO;
 import com.example.service.FoodRecognitionService;
 import com.example.vo.FoodRecognizeVO;
+import com.example.vo.FoodTextRecognizeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,6 +56,16 @@ public class FoodRecognitionController {
             return Result.error(400, "文件格式与声明类型不匹配，请上传真实图片");
         }
         return Result.success(foodRecognitionService.recognize(image, userId));
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
+    @Operation(summary = "自然语言食物识别（一句话记账）")
+    @PostMapping("/recognize-text")
+    public Result<FoodTextRecognizeVO> recognizeText(
+            @Validated @RequestBody FoodTextRecognizeDTO dto,
+            @RequestAttribute(value = "userId", required = false) Long userId) {
+        return Result.success(foodRecognitionService.recognizeByText(userId, dto.getText()));
     }
 
     /**

@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "目标里程碑")
 @RestController
@@ -67,8 +68,9 @@ public class GoalMilestoneController {
     @Operation(summary = "更新目标状态 (完成/放弃)")
     @PutMapping("/{goalId}/status")
     public Result<GoalMilestoneVO> updateStatus(@PathVariable Long goalId,
-                                                 @RequestParam Integer status,
+                                                 @RequestBody Map<String, String> body,
                                                  @RequestAttribute("userId") Long userId) {
+        Integer status = Integer.valueOf(body.get("status"));
         return Result.success(goalMilestoneService.updateStatus(userId, goalId, status));
     }
 }

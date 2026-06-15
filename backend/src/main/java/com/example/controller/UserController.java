@@ -206,7 +206,7 @@ public class UserController {
     @PutMapping("/notification-preference")
     public Result<Void> updateNotificationPreference(@RequestAttribute("userId") Long userId,
                                                       @Validated @RequestBody NotificationPreferenceDTO dto) {
-        userService.updateNotificationPreference(userId, dto.getNotificationEnabled(), dto.getReminderTime());
+        userService.updateNotificationPreference(userId, dto);
         return Result.success();
     }
 }

@@ -81,6 +81,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LoginVO register(UserRegisterDTO dto) {
+        // 校验免责声明接受
+        if (!dto.isDisclaimerAccepted()) {
+            throw new BusinessException("请先阅读并同意健康管理服务免责声明");
+        }
+
         verifySmsCode(dto.getPhone(), dto.getVerifyCode());
 
         SysUser existByUsername = sysUserMapper.selectOne(
@@ -102,7 +107,11 @@ public class AuthServiceImpl implements AuthService {
         user.setNickname(dto.getUsername());
         user.setRole(DEFAULT_ROLE);
         user.setStatus(USER_STATUS_ENABLED);
+        user.setDisclaimerAcceptedAt(java.time.LocalDateTime.now());
         sysUserMapper.insert(user);
+
+        log.info("用户注册成功 — username={}, disclaimerAcceptedAt={}",
+                user.getUsername(), user.getDisclaimerAcceptedAt());
 
         deleteSmsCode(dto.getPhone());
         return buildLoginVO(user, false);

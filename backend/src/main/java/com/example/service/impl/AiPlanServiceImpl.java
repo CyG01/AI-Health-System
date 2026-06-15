@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.common.BusinessException;
 import com.example.convert.AiPlanConvert;
 import com.example.dto.PlanGenerateDTO;
+import com.example.dto.PlanSolidifyDTO;
 import com.example.entity.AiCallAuditLog;
 import com.example.entity.AiPlan;
 import com.example.entity.AiPlanDetail;
@@ -47,6 +48,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -177,7 +179,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         plan.setDurationDays(dto.getDurationDays());
         plan.setAiContent(aiContent);
         plan.setStartDate(LocalDate.now());
-        plan.setStatus(1);
+        plan.setStatus(0);
 
         aiPlanMapper.insert(plan);
         log.info("AI计划生成成功 userId={} planId={} model={}", userId, plan.getId(), model);
@@ -386,7 +388,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         plan.setDurationDays(dto.getDurationDays());
         plan.setAiContent(aiContent);
         plan.setStartDate(LocalDate.now());
-        plan.setStatus(1);
+        plan.setStatus(0);
 
         aiPlanMapper.insert(plan);
 
@@ -458,7 +460,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         plan.setDurationDays(dto.getDurationDays());
         plan.setAiContent(aiContent);
         plan.setStartDate(LocalDate.now());
-        plan.setStatus(1);
+        plan.setStatus(0);
         return plan;
     }
 
@@ -648,5 +650,147 @@ public class AiPlanServiceImpl implements AiPlanService {
             log.error("解析计划生成消息失败 taskId={}", message.getTaskId(), e);
             throw new RuntimeException("计划生成消息解析失败", e);
         }
+    }
+
+    @Override
+    @Transactional
+    public AiPlanVO solidifyPlan(Long userId, PlanSolidifyDTO dto) {
+        // 1. 查找临时计划
+        AiPlan plan = aiPlanMapper.selectById(dto.getTempPlanId());
+        if (plan == null || !plan.getUserId().equals(userId)) {
+            throw new BusinessException("计划不存在或无权操作");
+        }
+
+        // 2. 将其他活跃计划置为非活跃（同一时间只有一个活跃计划）
+        LambdaQueryWrapper<AiPlan> activeWrapper = new LambdaQueryWrapper<AiPlan>()
+                .eq(AiPlan::getUserId, userId)
+                .eq(AiPlan::getStatus, 1);
+        AiPlan currentActive = aiPlanMapper.selectOne(activeWrapper);
+        if (currentActive != null && !currentActive.getId().equals(plan.getId())) {
+            currentActive.setStatus(0);
+            aiPlanMapper.updateById(currentActive);
+        }
+
+        // 3. 固化为正式计划（DRAFT → ACTIVE）
+        plan.setStatus(1);  // ACTIVE
+        if (plan.getStartDate() == null) {
+            plan.setStartDate(LocalDate.now());
+        }
+        aiPlanMapper.updateById(plan);
+
+        log.info("计划固化成功 userId={} planId={}", userId, plan.getId());
+
+        // 4. 构建返回 VO
+        AiPlanVO vo = new AiPlanVO();
+        vo.setId(plan.getId());
+        vo.setPlanType(plan.getPlanType());
+        vo.setPlanName(plan.getPlanName());
+        vo.setDurationDays(plan.getDurationDays());
+        vo.setStartDate(plan.getStartDate());
+        vo.setStatus(plan.getStatus());
+        vo.setCreateTime(plan.getCreateTime());
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateDayItem(Long planId, Long userId, int dayIndex, int itemIndex, Map<String, Object> newItem) {
+        AiPlan plan = aiPlanMapper.selectById(planId);
+        if (plan == null || !plan.getUserId().equals(userId)) {
+            throw new BusinessException("计划不存在或无权操作");
+        }
+        // daySequence 从 1 开始，dayIndex 从 0 开始
+        int daySequence = dayIndex + 1;
+        LambdaQueryWrapper<AiPlanDetail> wrapper = new LambdaQueryWrapper<AiPlanDetail>()
+                .eq(AiPlanDetail::getPlanId, planId)
+                .eq(AiPlanDetail::getDaySequence, daySequence)
+                .orderByAsc(AiPlanDetail::getPhaseOrder, AiPlanDetail::getId);
+        List<AiPlanDetail> dayDetails = aiPlanDetailMapper.selectList(wrapper);
+        if (itemIndex < 0 || itemIndex >= dayDetails.size()) {
+            throw new BusinessException("任务索引越界");
+        }
+        AiPlanDetail detail = dayDetails.get(itemIndex);
+        if (newItem.containsKey("itemName")) {
+            detail.setItemName(String.valueOf(newItem.get("itemName")));
+        }
+        if (newItem.containsKey("targetAmount")) {
+            detail.setTargetAmount(String.valueOf(newItem.get("targetAmount")));
+        }
+        if (newItem.containsKey("itemType")) {
+            detail.setItemType(String.valueOf(newItem.get("itemType")));
+        }
+        aiPlanDetailMapper.updateById(detail);
+        log.info("Copilot更新单项任务 userId={} planId={} day={} item={}", userId, planId, dayIndex, itemIndex);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void replaceDayItems(Long planId, Long userId, int dayIndex, List<Map<String, Object>> items) {
+        AiPlan plan = aiPlanMapper.selectById(planId);
+        if (plan == null || !plan.getUserId().equals(userId)) {
+            throw new BusinessException("计划不存在或无权操作");
+        }
+        int daySequence = dayIndex + 1;
+        // 删除该天旧任务
+        LambdaQueryWrapper<AiPlanDetail> deleteWrapper = new LambdaQueryWrapper<AiPlanDetail>()
+                .eq(AiPlanDetail::getPlanId, planId)
+                .eq(AiPlanDetail::getDaySequence, daySequence);
+        aiPlanDetailMapper.delete(deleteWrapper);
+        // 插入新任务
+        if (items != null) {
+            for (int i = 0; i < items.size(); i++) {
+                Map<String, Object> item = items.get(i);
+                AiPlanDetail detail = new AiPlanDetail();
+                detail.setPlanId(planId);
+                detail.setDaySequence(daySequence);
+                detail.setItemName(String.valueOf(item.getOrDefault("itemName", "")));
+                detail.setTargetAmount(String.valueOf(item.getOrDefault("targetAmount", "")));
+                detail.setItemType(String.valueOf(item.getOrDefault("itemType", "sport")));
+                detail.setStatus(0);
+                detail.setPhaseOrder(i);
+                aiPlanDetailMapper.insert(detail);
+            }
+        }
+        log.info("Copilot替换整日任务 userId={} planId={} day={} count={}", userId, planId, dayIndex, items != null ? items.size() : 0);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updatePlanContent(Long planId, Long userId, String planJson, List<Map<String, Object>> days) {
+        AiPlan plan = aiPlanMapper.selectById(planId);
+        if (plan == null || !plan.getUserId().equals(userId)) {
+            throw new BusinessException("计划不存在或无权操作");
+        }
+        // 更新 aiContent
+        if (planJson != null) {
+            plan.setAiContent(planJson);
+            aiPlanMapper.updateById(plan);
+        }
+        // 删除所有旧 detail 并重新插入
+        LambdaQueryWrapper<AiPlanDetail> deleteWrapper = new LambdaQueryWrapper<AiPlanDetail>()
+                .eq(AiPlanDetail::getPlanId, planId);
+        aiPlanDetailMapper.delete(deleteWrapper);
+        if (days != null) {
+            for (int d = 0; d < days.size(); d++) {
+                Map<String, Object> day = days.get(d);
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> items = (List<Map<String, Object>>) day.get("items");
+                if (items == null) continue;
+                int daySequence = d + 1;
+                for (int i = 0; i < items.size(); i++) {
+                    Map<String, Object> item = items.get(i);
+                    AiPlanDetail detail = new AiPlanDetail();
+                    detail.setPlanId(planId);
+                    detail.setDaySequence(daySequence);
+                    detail.setItemName(String.valueOf(item.getOrDefault("itemName", item.getOrDefault("text", ""))));
+                    detail.setTargetAmount(String.valueOf(item.getOrDefault("targetAmount", "")));
+                    detail.setItemType(String.valueOf(item.getOrDefault("itemType", "sport")));
+                    detail.setStatus(0);
+                    detail.setPhaseOrder(i);
+                    aiPlanDetailMapper.insert(detail);
+                }
+            }
+        }
+        log.info("Copilot整体替换计划 userId={} planId={}", userId, planId);
     }
 }

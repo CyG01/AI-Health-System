@@ -2,6 +2,7 @@ package com.example.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.io.Serializable;
@@ -14,6 +15,7 @@ public class UpdateProfileDTO implements Serializable {
     private String nickname;
 
     @Size(max = 500, message = "头像地址长度不能超过500个字符")
+    @Pattern(regexp = "^(https?://.+)?$", message = "头像URL格式不正确，必须以http或https开头")
     private String avatar;
 
     @Min(value = 0, message = "性别值无效")

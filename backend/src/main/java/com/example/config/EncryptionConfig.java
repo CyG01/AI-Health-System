@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * 在应用启动时从环境变量加载 AES 密钥并初始化 AesEncryptor。
  * 密钥通过环境变量注入，禁止硬编码。
- * 注入 WebhookNotifier 作为加密失败告警通道。
+ * 注入 WebhookNotifier 作为加密失败告警通道，通过 Webhook 发送通知。
  */
 @Slf4j
 @Configuration
@@ -30,7 +30,7 @@ public class EncryptionConfig {
 
     @PostConstruct
     public void init() {
-        // 设置加密失败告警回调（钉钉/飞书/企微通知）
+        // 设置加密失败告警回调（通过 Webhook 发送通知）
         AesEncryptor.setAlertCallback((severity, ruleName, message) -> {
             try {
                 webhookNotifier.sendAlert(severity, ruleName, message);

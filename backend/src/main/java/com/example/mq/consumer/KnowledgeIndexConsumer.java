@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,10 +19,11 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "rocketmq.enabled", havingValue = "true", matchIfMissing = false)
 @RocketMQMessageListener(
         topic = MqTopics.KNOWLEDGE_INDEX_BUILD,
         consumerGroup = MqTopics.KNOWLEDGE_CONSUMER_GROUP,
-        consumeThreadMax = 2
+        consumeThreadMax = 20
 )
 public class KnowledgeIndexConsumer implements RocketMQListener<String> {
 

@@ -58,8 +58,11 @@ public class EnterprisePlanController {
 
     @Operation(summary = "查看企业版当前配置")
     @GetMapping("/config")
-    public Result<Subscription> getConfig(@RequestAttribute("userId") Long userId) {
+    public Result<Object> getConfig(@RequestAttribute("userId") Long userId) {
         Subscription sub = enterprisePlanService.getEnterpriseConfig(userId);
-        return Result.success(sub != null ? sub : Map.of("message", "非企业版用户"));
+        if (sub != null) {
+            return Result.success(sub);
+        }
+        return Result.success(Map.of("message", "非企业版用户"));
     }
 }

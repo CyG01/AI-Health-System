@@ -2,6 +2,7 @@ package com.example.controller;
 
 import com.example.common.Result;
 import com.example.service.DashboardService;
+import com.example.vo.DashboardGreetingVO;
 import com.example.vo.DashboardMonthVO;
 import com.example.vo.DashboardTodayVO;
 import com.example.vo.DashboardWeekVO;
@@ -37,5 +38,11 @@ public class DashboardController {
     @GetMapping("/month")
     public Result<DashboardMonthVO> month(@RequestAttribute("userId") Long userId) {
         return Result.success(dashboardService.getMonthOverview(userId));
+    }
+
+    @Operation(summary = "AI 预测性问候卡片（规则引擎，非大模型）")
+    @GetMapping("/greeting")
+    public Result<DashboardGreetingVO> greeting(@RequestAttribute("userId") Long userId) {
+        return Result.success(dashboardService.generateGreeting(userId));
     }
 }

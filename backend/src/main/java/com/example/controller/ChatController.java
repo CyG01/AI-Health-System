@@ -5,10 +5,13 @@ import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.ChatSendDTO;
 import com.example.service.ChatService;
+import com.example.util.PromptSanitizer;
 import com.example.vo.ChatSessionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -27,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/api/chat")
 public class ChatController {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     /** 共享线程池，避免每次 SSE 请求创建新线程导致泄漏 */
     private static final ExecutorService SSE_EXECUTOR = new ThreadPoolExecutor(
@@ -90,6 +95,41 @@ public class ChatController {
         if (dto.getCursor() != null && dto.getCursor() > 0) {
             return resumeSSE(dto, userId);
         }
+
+        return doSend(dto, userId);
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @NoRepeatSubmit
+    @Operation(summary = "带页面上下文的AI对话（SSE流式）")
+    @PostMapping(value = "/send-with-context", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter sendWithContext(@Validated @RequestBody ChatSendDTO dto,
+                                       @RequestAttribute("userId") Long userId) {
+        // 将页面上下文注入到消息内容中，让后端 AI 感知当前页面
+        if (dto.getContext() != null && !dto.getContext().isEmpty()) {
+            String page = (String) dto.getContext().getOrDefault("page", "");
+            String entityId = dto.getContext().get("entityId") != null
+                    ? dto.getContext().get("entityId").toString() : "";
+            String contextPrefix = String.format("[用户当前在「%s」页面%s]\n",
+                    page, entityId.isEmpty() ? "" : "，实体ID=" + entityId);
+            dto.setContent(contextPrefix + dto.getContent());
+        }
+        return doSend(dto, userId);
+    }
+
+    /**
+     * 通用 SSE 发送逻辑，抽取为公共方法供 /send 和 /send-with-context 复用。
+     * 包含 Prompt 注入防护和审计日志。
+     */
+    private SseEmitter doSend(ChatSendDTO dto, Long userId) {
+        // === Prompt 注入防护 ===
+        String originalContent = dto.getContent();
+        String sanitizedContent = PromptSanitizer.sanitizeChatMessage(originalContent);
+        if (PromptSanitizer.containsInjection(originalContent)) {
+            log.warn("[PromptInjection] userId={}, originalLength={}, filteredLength={}",
+                    userId, originalContent.length(), sanitizedContent.length());
+        }
+        dto.setContent(sanitizedContent);
 
         SseEmitter emitter = new SseEmitter(120_000L);
         String cacheKey = SSE_CACHE_PREFIX + dto.getSessionId() + ":" + userId;

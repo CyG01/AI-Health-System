@@ -4,9 +4,6 @@ import io.qdrant.client.QdrantClient;
 import io.qdrant.client.QdrantGrpcClient;
 import io.qdrant.client.grpc.Collections.Distance;
 import io.qdrant.client.grpc.Collections.VectorParams;
-import io.qdrant.client.grpc.Collections.VectorsConfig;
-import io.qdrant.client.grpc.Collections.SparseVectorConfig;
-import io.qdrant.client.grpc.Collections.SparseIndexConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -45,10 +42,7 @@ public class QdrantConfig {
 
     @Bean
     public QdrantClient qdrantClient() {
-        QdrantGrpcClient.Builder grpcBuilder = QdrantGrpcClient.newBuilder()
-                .host(host)
-                .port(port)
-                .useTls(useTls);
+        QdrantGrpcClient.Builder grpcBuilder = QdrantGrpcClient.newBuilder(host, port, useTls);
 
         if (apiKey != null && !apiKey.isBlank()) {
             grpcBuilder.withApiKey(apiKey);
@@ -75,25 +69,12 @@ public class QdrantConfig {
             return;
         }
 
-        // 构建向量配置（dense vector 1536 维）
         VectorParams vectorParams = VectorParams.newBuilder()
                 .setSize(vectorDim)
                 .setDistance(Distance.Cosine)
                 .build();
 
-        VectorsConfig.Builder vectorsBuilder = VectorsConfig.newBuilder()
-                .setParams(vectorParams);
-
-        // 可选：稀疏向量（BM25）
-        if (sparseVectorEnabled) {
-            SparseVectorConfig sparseConfig = SparseVectorConfig.newBuilder()
-                    .setIndex(SparseIndexConfig.newBuilder().build())
-                    .build();
-            vectorsBuilder.setSparseVectors(sparseConfig);
-        }
-
-        client.createCollectionAsync(knowledgeDocCollection, vectorsBuilder.build()).get();
-        log.info("集合 {} 创建成功 vectorDim={} sparse={}",
-                knowledgeDocCollection, vectorDim, sparseVectorEnabled);
+        client.createCollectionAsync(knowledgeDocCollection, vectorParams).get();
+        log.info("集合 {} 创建成功 vectorDim={}", knowledgeDocCollection, vectorDim);
     }
 }

@@ -8,12 +8,12 @@ import com.example.common.Result;
 import com.example.entity.Invoice;
 import com.example.entity.Subscription;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 退款与发票管理 — 用户端退款申请、发票开具与查询。
@@ -35,7 +35,8 @@ public class RefundAndInvoiceController {
     @PostMapping("/refund/apply")
     public Result<Subscription> applyRefund(
             @RequestAttribute("userId") Long userId,
-            @Parameter(description = "退款原因") @RequestParam String reason) {
+            @RequestBody Map<String, String> body) {
+        String reason = body.get("reason");
         Subscription sub = refundService.applyRefund(userId, reason);
         return Result.success(sub);
     }
@@ -55,10 +56,11 @@ public class RefundAndInvoiceController {
     @PostMapping("/invoice/apply")
     public Result<Invoice> applyInvoice(
             @RequestAttribute("userId") Long userId,
-            @Parameter(description = "关联订单号") @RequestParam String orderNo,
-            @Parameter(description = "发票类型：personal(个人) / enterprise(企业)") @RequestParam String invoiceType,
-            @Parameter(description = "发票抬头") @RequestParam String invoiceTitle,
-            @Parameter(description = "税号（企业发票必填）") @RequestParam(required = false) String taxNumber) {
+            @RequestBody Map<String, String> body) {
+        String orderNo = body.get("orderNo");
+        String invoiceType = body.get("invoiceType");
+        String invoiceTitle = body.get("invoiceTitle");
+        String taxNumber = body.get("taxNumber");
         Invoice invoice = invoiceService.applyInvoice(userId, orderNo, invoiceType, invoiceTitle, taxNumber);
         return Result.success(invoice);
     }

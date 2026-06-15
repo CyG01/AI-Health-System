@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "AI健康报告")
 @RestController
@@ -26,8 +27,9 @@ public class HealthReportController {
     @NoRepeatSubmit
     @Operation(summary = "手动生成健康报告")
     @PostMapping("/generate")
-    public Result<HealthReportVO> generate(@RequestParam(defaultValue = "weekly") String reportType,
+    public Result<HealthReportVO> generate(@RequestBody(required = false) Map<String, String> body,
                                            @RequestAttribute("userId") Long userId) {
+        String reportType = body != null ? body.getOrDefault("reportType", "weekly") : "weekly";
         if (!"weekly".equals(reportType) && !"monthly".equals(reportType)) {
             return Result.error(400, "报告类型只能为 weekly 或 monthly");
         }

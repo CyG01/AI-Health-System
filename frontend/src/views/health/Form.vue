@@ -1,175 +1,125 @@
 <template>
-  <div class="health-form-page" v-loading="pageLoading">
-    <div class="form-card glass-card">
-      <h2 class="page-title">{{ isEdit ? '修改健康档案' : '创建健康档案' }}</h2>
-      <p class="page-desc">填写您的身体指标与健康状况，我们为您计算 BMI 与基础代谢率</p>
+  <div class="p-1">
+    <n-spin :show="pageLoading">
+      <n-card class="max-w-[860px]">
+        <h2 class="page-title text-xl font-semibold mb-1">
+          {{ isEdit ? '修改健康档案' : '创建健康档案' }}
+        </h2>
+        <p class="page-desc text-gray-400 text-sm mb-6">填写您的身体指标与健康状况，我们为您计算 BMI 与基础代谢率</p>
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="health-form">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="身高(cm)" prop="height">
-              <el-input-number v-model="form.height" :min="100" :max="250" :precision="1" :step="0.5" placeholder="请输入身高" controls-position="right" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="体重(kg)" prop="weight">
-              <el-input-number v-model="form.weight" :min="30" :max="300" :precision="1" :step="0.5" placeholder="请输入体重" controls-position="right" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <HealthFormPanel ref="formPanelRef" v-model="form" />
 
-        <el-form-item label="健康目标" prop="goal">
-          <el-input v-model="form.goal" type="textarea" :rows="2" placeholder="例如：减重5kg、每周运动3次" maxlength="200" show-word-limit />
-        </el-form-item>
-
-        <el-form-item label="既往病史" prop="diseaseHistory">
-          <el-input v-model="form.diseaseHistory" type="textarea" :rows="2" placeholder="例如：高血压、糖尿病等" maxlength="500" show-word-limit />
-        </el-form-item>
-
-        <el-form-item label="过敏史" prop="allergyHistory">
-          <el-input v-model="form.allergyHistory" type="textarea" :rows="2" placeholder="例如：青霉素过敏、花粉过敏等" maxlength="500" show-word-limit />
-        </el-form-item>
-
-        <el-form-item label="运动习惯" prop="exerciseHabit">
-          <el-input v-model="form.exerciseHabit" type="textarea" :rows="2" placeholder="例如：每周慢跑3次、每天步行30分钟" maxlength="500" show-word-limit />
-        </el-form-item>
-
-        <el-form-item label="饮食习惯" prop="dietHabit">
-          <el-input v-model="form.dietHabit" type="textarea" :rows="2" placeholder="例如：偏好清淡、不挑食、每天三餐规律" maxlength="500" show-word-limit />
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" :loading="saveLoading" :disabled="saveLoading" @click="handleSave">
+        <div class="mt-6 pl-[120px] flex gap-3">
+          <n-button type="primary" :loading="saveLoading" :disabled="saveLoading" @click="handleSave">
             {{ isEdit ? '更新档案' : '创建档案' }}
-          </el-button>
-          <el-button :disabled="saveLoading" @click="handleCancel">取消</el-button>
-        </el-form-item>
-      </el-form>
-    </div>
+          </n-button>
+          <n-button :disabled="saveLoading" @click="handleCancel">取消</n-button>
+        </div>
+      </n-card>
+    </n-spin>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { createHealth, updateHealth, getLatestHealth } from '@/api/health'
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { NButton, NCard, NSpin } from 'naive-ui';
+import { fetchCreateHealth, fetchUpdateHealth, fetchGetLatestHealth } from '@/service/api';
+import HealthFormPanel from './components/HealthFormPanel.vue';
+import type { HealthFormData } from './components/HealthFormPanel.vue';
 
-const router = useRouter()
-const formRef = ref(null)
-const pageLoading = ref(false)
-const saveLoading = ref(false)
-const isEdit = ref(false)
+defineOptions({ name: 'HealthForm' });
 
-const form = reactive({
+const router = useRouter();
+const formPanelRef = ref<InstanceType<typeof HealthFormPanel> | null>(null);
+const pageLoading = ref(false);
+const saveLoading = ref(false);
+const isEdit = ref(false);
+
+const form = reactive<HealthFormData>({
   height: null,
   weight: null,
+  gender: 'MALE',
+  targetWeight: null,
   goal: '',
   diseaseHistory: '',
   allergyHistory: '',
+  allergyType: null,
+  familyHistory: '',
+  medication: '',
   exerciseHabit: '',
   dietHabit: ''
-})
+});
 
-const rules = {
-  height: [
-    { required: true, message: '请输入身高', trigger: 'blur' },
-    { type: 'number', min: 100, max: 250, message: '身高必须在100-250cm之间', trigger: 'blur' }
-  ],
-  weight: [
-    { required: true, message: '请输入体重', trigger: 'blur' },
-    { type: 'number', min: 30, max: 300, message: '体重必须在30-300kg之间', trigger: 'blur' }
-  ],
-  goal: [
-    { required: true, message: '请输入健康目标', trigger: 'blur' },
-    { max: 200, message: '健康目标不能超过200个字符', trigger: 'blur' }
-  ],
-  diseaseHistory: [{ max: 500, message: '既往病史不能超过500个字符', trigger: 'blur' }],
-  allergyHistory: [{ max: 500, message: '过敏史不能超过500个字符', trigger: 'blur' }],
-  exerciseHabit: [{ max: 500, message: '运动习惯不能超过500个字符', trigger: 'blur' }],
-  dietHabit: [{ max: 500, message: '饮食习惯不能超过500个字符', trigger: 'blur' }]
-}
-
-async function tryLoadLatest() {
+async function tryLoadLatest(): Promise<void> {
   try {
-    const res = await getLatestHealth()
-    const data = res.data
-    form.height = data.height
-    form.weight = data.weight
-    form.goal = data.goal || ''
-    form.diseaseHistory = data.diseaseHistory || ''
-    form.allergyHistory = data.allergyHistory || ''
-    form.exerciseHabit = data.exerciseHabit || ''
-    form.dietHabit = data.dietHabit || ''
-    isEdit.value = true
+    const { data, error } = await fetchGetLatestHealth();
+    if (error || !data) {
+      isEdit.value = false;
+      return;
+    }
+    form.height = data.height;
+    form.weight = data.weight;
+    form.gender = data.gender || 'MALE';
+    form.targetWeight = data.targetWeight ?? null;
+    form.goal = data.goal || '';
+    form.diseaseHistory = data.diseaseHistory || '';
+    form.allergyHistory = data.allergyHistory || '';
+    form.allergyType = data.allergyType ?? null;
+    form.familyHistory = (data as any).familyHistory || '';
+    form.medication = (data as any).medication || '';
+    form.exerciseHabit = data.exerciseHabit || '';
+    form.dietHabit = data.dietHabit || '';
+    isEdit.value = true;
   } catch {
-    isEdit.value = false
+    isEdit.value = false;
   }
 }
 
 onMounted(async () => {
-  pageLoading.value = true
+  pageLoading.value = true;
   try {
-    await tryLoadLatest()
+    await tryLoadLatest();
   } finally {
-    pageLoading.value = false
+    pageLoading.value = false;
   }
-})
+});
 
-async function handleSave() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    saveLoading.value = true
-    try {
-      const payload = {
-        height: form.height,
-        weight: form.weight,
-        goal: form.goal,
-        diseaseHistory: form.diseaseHistory,
-        allergyHistory: form.allergyHistory,
-        exerciseHabit: form.exerciseHabit,
-        dietHabit: form.dietHabit
-      }
-      if (isEdit.value) {
-        await updateHealth(payload)
-        ElMessage.success('健康档案已更新')
-      } else {
-        await createHealth(payload)
-        ElMessage.success('健康档案已创建')
-      }
-      router.push('/health/view')
-    } finally {
-      saveLoading.value = false
+async function handleSave(): Promise<void> {
+  if (!formPanelRef.value) return;
+  const valid = await formPanelRef.value.validate();
+  if (!valid) return;
+
+  saveLoading.value = true;
+  try {
+    const payload = {
+      height: form.height!,
+      weight: form.weight!,
+      gender: form.gender,
+      targetWeight: form.targetWeight ?? undefined,
+      goal: form.goal,
+      diseaseHistory: form.diseaseHistory,
+      allergyHistory: form.allergyHistory,
+      allergyType: (form.allergyType as Api.Health.AllergyType) ?? undefined,
+      familyHistory: form.familyHistory,
+      medication: form.medication,
+      exerciseHabit: form.exerciseHabit,
+      dietHabit: form.dietHabit
+    };
+    if (isEdit.value) {
+      await fetchUpdateHealth(payload);
+      window.$message?.success('健康档案已更新');
+    } else {
+      await fetchCreateHealth(payload);
+      window.$message?.success('健康档案已创建');
     }
-  })
+    router.push('/health/view');
+  } finally {
+    saveLoading.value = false;
+  }
 }
 
-function handleCancel() {
-  router.back()
+function handleCancel(): void {
+  router.back();
 }
 </script>
-
-<style scoped lang="scss">
-.health-form-page {
-  padding: 4px;
-}
-
-.form-card {
-  padding: 32px;
-  max-width: 860px;
-}
-
-.health-form {
-  margin-top: 24px;
-
-  :deep(.el-input-number) {
-    width: 100%;
-  }
-}
-
-:deep(.el-divider) {
-  border-color: transparent;
-  margin: 28px 0;
-}
-</style>

@@ -33,6 +33,9 @@ public class UserRegisterDTO implements Serializable {
     @Pattern(regexp = "^\\d{6}$", message = "验证码必须为6位数字")
     private String verifyCode;
 
+    /** 是否已阅读并同意免责声明 */
+    private boolean disclaimerAccepted;
+
     @AssertTrue(message = "两次密码不一致")
     public boolean isPasswordMatch() {
         return password != null && password.equals(confirmPassword);
@@ -76,5 +79,13 @@ public class UserRegisterDTO implements Serializable {
 
     public void setVerifyCode(String verifyCode) {
         this.verifyCode = verifyCode;
+    }
+
+    public boolean isDisclaimerAccepted() {
+        return disclaimerAccepted;
+    }
+
+    public void setDisclaimerAccepted(boolean disclaimerAccepted) {
+        this.disclaimerAccepted = disclaimerAccepted;
     }
 }

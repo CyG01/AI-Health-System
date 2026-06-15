@@ -14,6 +14,7 @@ import com.example.util.ImageCompressor;
 import com.example.util.MedicalDisclaimerFilter;
 import com.example.util.PromptSanitizer;
 import com.example.vo.FoodRecognizeVO;
+import com.example.vo.FoodTextRecognizeVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -230,6 +231,117 @@ public class FoodRecognitionServiceImpl implements FoodRecognitionService {
             log.info("发布食物识别事件 userId={} food={}", userId, vo.getFoodName());
         } catch (Exception e) {
             log.error("发布食物识别事件失败 userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public FoodTextRecognizeVO recognizeByText(Long userId, String text) {
+        long startTime = System.currentTimeMillis();
+        AiCallAuditLog auditLog = new AiCallAuditLog();
+        auditLog.setCallType("food_recognize_text");
+        auditLog.setModelName("deepseek-chat");
+        auditLog.setCreatedAt(LocalDateTime.now());
+
+        if (costMonitor.isGlobalCostExceeded()) {
+            auditLog.setSuccess(false);
+            auditLog.setErrorMessage("今日AI调用额度已用尽");
+            auditLogMapper.insert(auditLog);
+            throw new BusinessException("今日AI调用额度已用尽，请明天再试");
+        }
+
+        try {
+            // 注入防护
+            String sanitizedText = PromptSanitizer.sanitize(text);
+
+            String prompt = """
+                    你是一个专业的营养分析助手。请解析用户描述的食物为JSON格式。
+                    对于每种食物，估算其名称、重量（克）和热量（kcal）。
+                    严格按照以下JSON格式输出：
+                    {"items":[{"foodName":"食物名称","weightG":估算重量克数,"calories":估算总热量kcal}]}
+                    用户描述：%s
+                    只输出JSON，不要其他内容。
+                    """.formatted(sanitizedText);
+
+            auditLog.setPromptUsed(prompt);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", "deepseek-chat");
+            requestBody.put("messages", List.of(
+                    Map.of("role", "user", "content", prompt)
+            ));
+            requestBody.put("response_format", Map.of("type", "json_object"));
+
+            String response = webClient.post()
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            if (response != null) {
+                JsonNode root = objectMapper.readTree(response);
+                int inputTokens = root.path("usage").path("prompt_tokens").asInt();
+                int outputTokens = root.path("usage").path("completion_tokens").asInt();
+                costMonitor.recordCall(inputTokens, outputTokens);
+
+                String content = root.path("choices").get(0).path("message").path("content").asText();
+                if (content == null || content.isBlank()) {
+                    auditLog.setSuccess(false);
+                    auditLog.setErrorMessage("AI返回内容为空");
+                    auditLogMapper.insert(auditLog);
+                    throw new BusinessException("AI返回内容为空");
+                }
+
+                JsonNode contentJson = AiResponseParser.extractJson(content);
+                JsonNode itemsNode = contentJson.path("items");
+
+                List<FoodTextRecognizeVO.FoodItem> items = new java.util.ArrayList<>();
+                if (itemsNode.isArray()) {
+                    for (JsonNode itemNode : itemsNode) {
+                        String foodName = PromptSanitizer.sanitize(itemNode.path("foodName").asText());
+                        int weightG = itemNode.path("weightG").asInt(100);
+                        int calories = itemNode.path("calories").asInt(0);
+
+                        // 尝试匹配本地数据库校准热量
+                        List<FoodItem> matched = foodItemMapper.selectList(
+                                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FoodItem>()
+                                        .like(FoodItem::getName, foodName)
+                                        .last("limit 1"));
+                        if (!matched.isEmpty()) {
+                            FoodItem dbItem = matched.get(0);
+                            calories = (int) Math.round(dbItem.getCaloriePer100g() * weightG / 100.0);
+                        }
+
+                        items.add(FoodTextRecognizeVO.FoodItem.builder()
+                                .foodName(foodName)
+                                .weightG(weightG)
+                                .calories(calories)
+                                .build());
+                    }
+                }
+
+                auditLog.setInputTokens(inputTokens);
+                auditLog.setOutputTokens(outputTokens);
+                auditLog.setLatencyMs((int) (System.currentTimeMillis() - startTime));
+                auditLog.setSuccess(true);
+                auditLogMapper.insert(auditLog);
+
+                return FoodTextRecognizeVO.builder().items(items).build();
+            }
+
+            auditLog.setSuccess(false);
+            auditLog.setErrorMessage("AI识别失败");
+            auditLogMapper.insert(auditLog);
+            throw new BusinessException("AI识别失败");
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("文字食物识别异常", e);
+            auditLog.setSuccess(false);
+            auditLog.setErrorMessage("文字食物识别失败: " + e.getMessage());
+            auditLogMapper.insert(auditLog);
+            throw new BusinessException("食物识别失败，请重试");
         }
     }
 }

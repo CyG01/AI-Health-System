@@ -1,69 +1,62 @@
 <template>
-  <div class="water-page" v-loading="pageLoading">
-    <div class="page-header">
-      <h2>饮水记录</h2>
-      <p class="page-desc">每日建议饮水量：{{ dailyTarget }}ml</p>
+  <div class="water-page flex flex-col gap-5">
+    <div>
+      <h2 class="text-xl font-semibold">{{ $t('water.record') || '饮水记录' }}</h2>
+      <p class="text-sm text-secondary">{{ $t('water.dailyTarget') || '每日建议饮水量：' }}{{ dailyTarget }}ml</p>
     </div>
 
     <!-- 今日饮水概览 -->
-    <el-row :gutter="20" class="stats-row">
-      <el-col :span="6">
-        <el-card class="stat-card" shadow="hover">
-          <el-statistic title="今日饮水量" :value="todayAmount" suffix="ml">
-            <template #suffix>
-              <span class="stat-suffix">/ {{ dailyTarget }}ml</span>
-            </template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card" shadow="hover">
-          <el-statistic title="完成度" :value="completionPercent" suffix="%" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card" shadow="hover">
-          <el-statistic title="近7天日均" :value="avgWeekly" suffix="ml" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card" shadow="hover">
-          <el-statistic title="总记录天数" :value="records.length" suffix="天" />
-        </el-card>
-      </el-col>
-    </el-row>
+    <div class="flex gap-5">
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ todayAmount }}<span class="text-sm font-normal text-secondary"> / {{ dailyTarget }}ml</span></div>
+        <div class="text-[13px] text-secondary">今日饮水量</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ completionPercent }}%</div>
+        <div class="text-[13px] text-secondary">完成度</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ rangeAverageDaily || avgWeekly }}</div>
+        <div class="text-[13px] text-secondary">日均饮水量(ml)</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ rangeDaysCount || records.length }}</div>
+        <div class="text-[13px] text-secondary">记录天数</div>
+      </NCard>
+    </div>
 
     <!-- 进度条 -->
-    <div class="progress-card glass-card">
-      <div class="progress-header">
-        <span>今日饮水进度</span>
-        <span class="progress-percent">{{ completionPercent }}%</span>
+    <NCard :bordered="false">
+      <div class="mb-3 flex items-center justify-between text-[15px] font-medium">
+        <span>{{ $t('water.todayProgress') || '今日饮水进度' }}</span>
+        <span class="font-semibold text-[#58a6ff]">{{ completionPercent }}%</span>
       </div>
-      <el-progress
+      <NProgress
+        type="line"
         :percentage="completionPercent"
-        :stroke-width="20"
+        :height="20"
         :color="progressColor"
-        :striped="true"
-        :striped-flow="true"
+        :show-indicator="false"
+        :border-radius="4"
       />
-      <div class="progress-cups">
+      <div class="mt-4 flex justify-between">
         <div
           v-for="i in 8"
           :key="i"
-          class="cup-icon"
-          :class="{ filled: todayAmount >= dailyTarget * i / 8 }"
+          class="flex flex-col items-center gap-1 transition-opacity"
+          :class="todayAmount >= dailyTarget * i / 8 ? 'opacity-100 text-[#58a6ff]' : 'opacity-30'"
         >
-          <el-icon :size="28"><Dish /></el-icon>
-          <span>{{ dailyTarget * i / 8 }}ml</span>
+          <NIcon :size="28"><RestaurantOutline /></NIcon>
+          <span class="text-[11px] text-secondary">{{ dailyTarget * i / 8 }}ml</span>
         </div>
       </div>
-    </div>
+    </NCard>
 
     <!-- 快速记录 -->
-    <div class="submit-card glass-card">
-      <h3 class="card-title">快速记录饮水</h3>
-      <div class="quick-buttons">
-        <el-button
+    <NCard :bordered="false">
+      <template #header><span>{{ $t('water.quickAdd') || '快速记录饮水' }}</span></template>
+      <div class="flex flex-wrap gap-2.5">
+        <NButton
           v-for="opt in quickOptions"
           :key="opt.value"
           :type="opt.highlight ? 'primary' : 'default'"
@@ -71,151 +64,241 @@
           @click="quickAdd(opt.value)"
           :loading="submitting"
         >
-          <el-icon v-if="opt.icon"><component :is="opt.icon" /></el-icon>
           {{ opt.label }}
-        </el-button>
+        </NButton>
       </div>
-      <el-divider />
-      <el-form :model="form" inline @submit.prevent="handleSubmit">
-        <el-form-item label="自定义">
-          <el-input-number v-model="form.amountMl" :min="50" :max="1000" :step="50" />
-          <span style="margin-left: 8px">ml</span>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" native-type="submit" :loading="submitting">记录</el-button>
-        </el-form-item>
-      </el-form>
+      <NDivider />
+      <NForm :model="form" :show-feedback="false" class="flex items-center gap-3" @submit.prevent="handleSubmit">
+        <NFormItem label="自定义">
+          <NInputNumber v-model:value="form.amountMl" :min="50" :max="1000" :step="50" />
+          <span class="ml-2">ml</span>
+        </NFormItem>
+        <NFormItem>
+          <NButton type="primary" attr-type="submit" :loading="submitting">记录</NButton>
+        </NFormItem>
+      </NForm>
+    </NCard>
+
+    <!-- 空状态引导 -->
+    <div v-if="records.length === 0 && !pageLoading" class="flex flex-col items-center gap-3 py-12">
+      <div class="text-5xl">&#128167;</div>
+      <div class="text-lg font-semibold">还没有饮水记录</div>
+      <div class="text-sm text-secondary">点击上方快速记录按钮，开始你的第一次饮水记录吧</div>
     </div>
 
-    <!-- 饮水趋势图 -->
-    <div class="chart-card glass-card" v-if="records.length > 0">
-      <h3 class="card-title">饮水趋势 (近7天)</h3>
+    <!-- 时间范围选择 + 饮水趋势图 -->
+    <NCard v-if="records.length > 0" :bordered="false">
+      <template #header>
+        <div class="flex items-center justify-between">
+          <span>{{ $t('water.trend') || '饮水趋势' }}</span>
+          <NRadioGroup v-model:value="rangeDays" size="small" @update:value="onRangeChange">
+            <NRadioButton :value="7">7天</NRadioButton>
+            <NRadioButton :value="14">14天</NRadioButton>
+            <NRadioButton :value="30">30天</NRadioButton>
+          </NRadioGroup>
+        </div>
+      </template>
+      <div v-if="rangeTotal > 0" class="mb-4 flex flex-wrap gap-4 text-sm">
+        <span class="text-secondary">总计：<b class="text-[#58a6ff]">{{ rangeTotal }}ml</b></span>
+        <span class="text-secondary">日均：<b class="text-[#58a6ff]">{{ rangeAverageDaily }}ml</b></span>
+        <span class="text-secondary">天数：<b class="text-[#58a6ff]">{{ rangeDaysCount }}天</b></span>
+      </div>
       <div class="chart-container" ref="chartRef"></div>
-    </div>
+    </NCard>
 
     <!-- 历史记录 -->
-    <div class="history-card glass-card">
-      <h3 class="card-title">饮水记录</h3>
-      <el-table :data="records" stripe v-loading="pageLoading">
-        <el-table-column prop="recordDate" label="日期" width="140" />
-        <el-table-column label="饮水量" width="150">
-          <template #default="{ row }">
-            <b>{{ row.amountMl }}</b> ml
-            <el-tag v-if="row.amountMl >= dailyTarget" type="success" size="small" effect="plain">达标</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="完成度" min-width="200">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="Math.min(100, Math.round(row.amountMl / dailyTarget * 100))"
-              :stroke-width="12"
-              :color="row.amountMl >= dailyTarget ? '#52c41a' : '#1890ff'"
-            />
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
+    <NCard :bordered="false">
+      <template #header><span>{{ $t('water.records') || '饮水记录' }}</span></template>
+      <NDataTable
+        :data="records"
+        :columns="tableColumns"
+        :loading="pageLoading"
+        :bordered="false"
+        striped
+      />
+    </NCard>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
-import { submitWater, getTodayWater, getWaterList } from '@/api/water'
-import echarts from '@/utils/echarts'
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, h } from 'vue';
+import { useMessage, useDialog, NCard, NProgress, NButton, NIcon, NForm, NFormItem, NInputNumber, NDivider, NTag, NDataTable, NRadioGroup, NRadioButton } from 'naive-ui';
+import type { DataTableColumns } from 'naive-ui';
+import { RestaurantOutline } from '@vicons/ionicons5';
+import { fetchSubmitWater, fetchGetTodayWater, fetchGetWaterList, fetchDeleteWater } from '@/service/api';
+import echarts from '@/utils/echarts';
 
-const pageLoading = ref(false)
-const submitting = ref(false)
-const todayAmount = ref(0)
-const records = ref([])
-const chartRef = ref(null)
-let chart = null
+defineOptions({ name: 'WaterRecord' });
+const message = useMessage();
+const dialog = useDialog();
 
-const dailyTarget = 2000
+interface WaterRecord {
+  id: number;
+  recordDate: string;
+  amountMl: number;
+}
 
-const form = reactive({
+const pageLoading = ref(false);
+const submitting = ref(false);
+const todayAmount = ref(0);
+const records = ref<WaterRecord[]>([]);
+const chartRef = ref<HTMLDivElement | null>(null);
+let chart: echarts.ECharts | null = null;
+
+const dailyTarget = 2000;
+const rangeDays = ref(7);
+
+const rangeTotal = computed(() => records.value.reduce((s, r) => s + r.amountMl, 0));
+const rangeAverageDaily = computed(() => {
+  if (records.value.length === 0) return 0;
+  return Math.round(rangeTotal.value / records.value.length);
+});
+const rangeDaysCount = computed(() => records.value.length);
+
+const form = ref({
   amountMl: 250
-})
+});
 
-const quickOptions = [
+interface QuickOption {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}
+
+const quickOptions: QuickOption[] = [
   { label: '100ml', value: 100 },
   { label: '200ml', value: 200 },
-  { label: '250ml (一杯)', value: 250, icon: 'Dish', highlight: true },
+  { label: '250ml (一杯)', value: 250, highlight: true },
   { label: '300ml', value: 300 },
-  { label: '500ml', value: 500, icon: 'Dish' }
-]
+  { label: '500ml', value: 500 }
+];
 
 const completionPercent = computed(() => {
-  return Math.min(100, Math.round(todayAmount.value / dailyTarget * 100))
-})
+  return Math.min(100, Math.round(todayAmount.value / dailyTarget * 100));
+});
 
 const progressColor = computed(() => {
-  const p = completionPercent.value
-  if (p >= 100) return '#52c41a'
-  if (p >= 50) return '#1890ff'
-  if (p >= 25) return '#fa8c16'
-  return '#ff4d4f'
-})
+  const p = completionPercent.value;
+  if (p >= 100) return '#52c41a';
+  if (p >= 50) return '#58a6ff';
+  if (p >= 25) return '#fa8c16';
+  return '#ff4d4f';
+});
 
 const avgWeekly = computed(() => {
-  if (records.value.length === 0) return 0
-  return Math.round(records.value.reduce((s, r) => s + r.amountMl, 0) / Math.min(records.value.length, 7))
-})
+  if (records.value.length === 0) return 0;
+  return Math.round(records.value.reduce((s, r) => s + r.amountMl, 0) / Math.min(records.value.length, 7));
+});
+
+const tableColumns: DataTableColumns<WaterRecord> = [
+  { title: '日期', key: 'recordDate', width: 140 },
+  {
+    title: '饮水量', key: 'amountMl', width: 150,
+    render: (row) => h('div', { class: 'flex items-center gap-2' }, [
+      h('b', {}, `${row.amountMl} ml`),
+      row.amountMl >= dailyTarget
+        ? h(NTag, { type: 'success', size: 'small', bordered: false }, { default: () => '达标' })
+        : null
+    ])
+  },
+  {
+    title: '完成度', key: 'completion', minWidth: 200,
+    render: (row) => h(NProgress, {
+      type: 'line',
+      percentage: Math.min(100, Math.round(row.amountMl / dailyTarget * 100)),
+      height: 12,
+      color: row.amountMl >= dailyTarget ? '#52c41a' : '#58a6ff',
+      showIndicator: false,
+      borderRadius: 4
+    })
+  },
+  {
+    title: '操作', key: 'actions', width: 80, fixed: 'right',
+    render: (row) => h(NButton, { type: 'error', size: 'small', text: true, onClick: () => handleDeleteWater(row.id) }, { default: () => '删除' })
+  }
+];
 
 async function loadToday() {
   try {
-    const res = await getTodayWater()
-    todayAmount.value = res.data?.amountMl || 0
+    const { data } = await fetchGetTodayWater();
+    todayAmount.value = data?.amountMl || 0;
   } catch {
-    todayAmount.value = 0
+    todayAmount.value = 0;
   }
 }
 
 async function loadRecords() {
-  pageLoading.value = true
+  pageLoading.value = true;
   try {
-    const res = await getWaterList(7)
-    records.value = res.data || []
+    const { data } = await fetchGetWaterList(rangeDays.value);
+    records.value = data || [];
   } finally {
-    pageLoading.value = false
+    pageLoading.value = false;
   }
 }
 
-async function quickAdd(amount) {
-  submitting.value = true
+async function onRangeChange() {
+  await loadRecords();
+  await nextTick();
+  initChart();
+}
+
+async function quickAdd(amount: number) {
+  submitting.value = true;
   try {
-    await submitWater({ amountMl: amount, recordDate: new Date().toISOString().slice(0, 10) })
-    ElMessage.success(`已记录 ${amount}ml`)
-    await loadToday()
-    await loadRecords()
+    await fetchSubmitWater({ amountMl: amount, recordDate: new Date().toISOString().slice(0, 10) });
+    message.success(`已记录 ${amount}ml`);
+    await loadToday();
+    await loadRecords();
+    await nextTick();
+    initChart();
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 async function handleSubmit() {
-  if (form.amountMl <= 0) {
-    ElMessage.warning('请输入饮水量')
-    return
+  if (form.value.amountMl <= 0) {
+    message.warning('请输入饮水量');
+    return;
   }
-  submitting.value = true
+  submitting.value = true;
   try {
-    await submitWater({ amountMl: form.amountMl, recordDate: new Date().toISOString().slice(0, 10) })
-    ElMessage.success('已记录')
-    form.amountMl = 250
-    await loadToday()
-    await loadRecords()
+    await fetchSubmitWater({ amountMl: form.value.amountMl, recordDate: new Date().toISOString().slice(0, 10) });
+    message.success('已记录');
+    form.value.amountMl = 250;
+    await loadToday();
+    await loadRecords();
+    await nextTick();
+    initChart();
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
+function handleDeleteWater(id: number) {
+  dialog.warning({
+    title: '删除确认',
+    content: '确定删除此条饮水记录吗？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const { error } = await fetchDeleteWater(id);
+      if (!error) {
+        message.success('已删除');
+        loadToday();
+        loadRecords();
+      }
+    }
+  });
+}
+
 function initChart() {
-  if (!chartRef.value || records.value.length === 0) return
+  if (!chartRef.value || records.value.length === 0) return;
   if (!chart) {
-    chart = echarts.init(chartRef.value)
+    chart = echarts.init(chartRef.value);
   }
-  const reversed = [...records.value].reverse()
+  const reversed = [...records.value].reverse();
   chart.setOption({
     tooltip: { trigger: 'axis' },
     grid: { left: 40, right: 20, top: 20, bottom: 20 },
@@ -234,7 +317,7 @@ function initChart() {
         type: 'bar',
         data: reversed.map(r => r.amountMl),
         itemStyle: {
-          color: (params) => params.value >= dailyTarget ? '#52c41a' : '#1890ff',
+          color: (params: any) => params.value >= dailyTarget ? '#52c41a' : '#58a6ff',
           borderRadius: [4, 4, 0, 0]
         },
         markLine: {
@@ -243,106 +326,26 @@ function initChart() {
         }
       }
     ]
-  })
+  });
 }
 
 onMounted(async () => {
-  await loadToday()
-  await loadRecords()
-  await nextTick()
-  initChart()
-})
+  await loadToday();
+  await loadRecords();
+  await nextTick();
+  initChart();
+});
 
 onUnmounted(() => {
-  chart?.dispose()
-})
+  chart?.dispose();
+});
+
+watch(records, () => {
+  nextTick(() => initChart());
+}, { deep: true });
 </script>
 
-<style scoped lang="scss">
-.water-page {
-  padding: 0 4px;
-}
-
-.page-header {
-  margin-bottom: 20px;
-
-  h2 { margin: 0 0 6px; font-size: 22px; color: var(--text-primary); }
-  .page-desc { margin: 0; font-size: 14px; color: var(--text-secondary); }
-}
-
-.stats-row {
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  :deep(.el-statistic) {
-    .el-statistic__head { font-size: 13px; color: var(--text-secondary); }
-    .el-statistic__content { font-size: 28px; font-weight: 700; color: var(--text-primary); }
-  }
-}
-
-.stat-suffix {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-left: 4px;
-}
-
-.progress-card {
-  padding: 20px 24px;
-  margin-bottom: 20px;
-
-  .progress-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-  .progress-percent { color: var(--brand-primary); font-weight: 600; }
-}
-
-.progress-cups {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 16px;
-
-  .cup-icon {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    opacity: 0.3;
-    transition: opacity 0.3s;
-
-    &.filled { opacity: 1; color: #58a6ff; }
-    span { font-size: 11px; color: var(--text-secondary); }
-  }
-}
-
-.submit-card {
-  padding: 20px 24px;
-  margin-bottom: 20px;
-}
-
-.card-title {
-  margin: 0 0 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.quick-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.chart-card, .history-card {
-  padding: 20px 24px;
-  margin-bottom: 20px;
-}
-
+<style scoped>
 .chart-container {
   width: 100%;
   height: 280px;

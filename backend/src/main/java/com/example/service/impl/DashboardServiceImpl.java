@@ -19,6 +19,7 @@ import com.example.vo.CheckinStatsVO;
 import com.example.vo.DashboardMonthVO;
 import com.example.vo.DashboardTodayVO;
 import com.example.vo.DashboardWeekVO;
+import com.example.vo.DashboardGreetingVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -285,5 +286,69 @@ public class DashboardServiceImpl implements DashboardService {
         vo.setWeeklySummary(weeklySummary);
 
         return vo;
+    }
+
+    @Override
+    public DashboardGreetingVO generateGreeting(Long userId) {
+        LocalDate today = LocalDate.now();
+
+        // 1. 查询今日打卡状态
+        LambdaQueryWrapper<DailyCheckin> checkinWrapper = new LambdaQueryWrapper<DailyCheckin>()
+                .eq(DailyCheckin::getUserId, userId)
+                .eq(DailyCheckin::getCheckDate, today);
+        DailyCheckin todayCheckin = dailyCheckinMapper.selectOne(checkinWrapper);
+        boolean isCheckedIn = todayCheckin != null;
+
+        // 2. 连续打卡天数
+        CheckinStatsVO stats = checkinService.getStats(userId);
+        int streakDays = stats.getConsecutiveDays();
+
+        // 3. 查询当前活跃计划
+        LambdaQueryWrapper<AiPlan> planWrapper = new LambdaQueryWrapper<AiPlan>()
+                .eq(AiPlan::getUserId, userId)
+                .eq(AiPlan::getStatus, 1);
+        AiPlan activePlan = aiPlanMapper.selectOne(planWrapper);
+        boolean hasActivePlan = activePlan != null;
+        String planName = hasActivePlan ? activePlan.getPlanName() : null;
+        Long planId = hasActivePlan ? activePlan.getId() : null;
+
+        // 4. 今日任务完成情况
+        int completedTasks = 0;
+        int totalTasks = 0;
+        if (hasActivePlan) {
+            LambdaQueryWrapper<AiPlanDetail> detailWrapper = new LambdaQueryWrapper<AiPlanDetail>()
+                    .eq(AiPlanDetail::getPlanId, activePlan.getId());
+            List<AiPlanDetail> details = aiPlanDetailMapper.selectList(detailWrapper);
+            totalTasks = details.size();
+            completedTasks = (int) details.stream()
+                    .filter(d -> d.getStatus() != null && d.getStatus() == 1)
+                    .count();
+        }
+
+        // 5. 今日运动/饮食消耗
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(LocalTime.MAX);
+        int exerciseCal = exerciseRecordMapper.selectList(
+                new LambdaQueryWrapper<ExerciseRecord>()
+                        .eq(ExerciseRecord::getUserId, userId)
+                        .between(ExerciseRecord::getCreateTime, startOfDay, endOfDay))
+                .stream()
+                .mapToInt(r -> r.getCaloriesBurned() != null ? r.getCaloriesBurned() : 0)
+                .sum();
+        int dietCal = dietRecordMapper.selectList(
+                new LambdaQueryWrapper<DietRecord>()
+                        .eq(DietRecord::getUserId, userId)
+                        .between(DietRecord::getCreateTime, startOfDay, endOfDay))
+                .stream()
+                .mapToInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)
+                .sum();
+
+        // 6. 调用规则引擎生成卡片
+        return com.example.engine.GreetingRuleEngine.evaluate(
+                isCheckedIn, streakDays,
+                hasActivePlan, planName, planId,
+                completedTasks, totalTasks,
+                exerciseCal, dietCal
+        );
     }
 }

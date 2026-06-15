@@ -82,14 +82,14 @@ public class ContentSafetyValidator {
 
         // Layer1: Regex
         SafetyResult l1 = layer1RegexCheck(content);
-        if (!l1.isPassed()) {
+        if (!l1.passed()) {
             log.warn("[Safety-L1] 输入拦截: {}", l1.reason());
             return l1;
         }
 
         // Layer2: BERT
         SafetyResult l2 = layer2BertCheck(content);
-        if (!l2.isPassed()) {
+        if (!l2.passed()) {
             log.warn("[Safety-L2] 输入拦截: {}", l2.reason());
             return l2;
         }
@@ -108,21 +108,21 @@ public class ContentSafetyValidator {
 
         // Layer1: Regex
         SafetyResult l1 = layer1RegexCheck(content);
-        if (!l1.isPassed()) {
+        if (!l1.passed()) {
             log.warn("[Safety-L1] 输出拦截: {}", l1.reason());
             return l1;
         }
 
         // Layer2: BERT
         SafetyResult l2 = layer2BertCheck(content);
-        if (!l2.isPassed()) {
+        if (!l2.passed()) {
             log.warn("[Safety-L2] 输出拦截: {}", l2.reason());
             return l2;
         }
 
         // Layer3: LLM Agent 最终审查
         SafetyResult l3 = layer3AgentReview(content, userContext, knowledgeContext);
-        if (!l3.isPassed()) {
+        if (!l3.passed()) {
             log.warn("[Safety-L3] 审查结果: {}", l3.reason());
             return l3;
         }
@@ -211,7 +211,7 @@ public class ContentSafetyValidator {
 
             if ("MODIFY".equalsIgnoreCase(verdict)) {
                 List<String> suggestions = (List<String>) result.get("suggestions");
-                String suggestionText = suggestions != null && !issues.isEmpty()
+                String suggestionText = suggestions != null && !suggestions.isEmpty()
                         ? String.join("; ", suggestions)
                         : "内容需修改";
                 return SafetyResult.modify(suggestionText);

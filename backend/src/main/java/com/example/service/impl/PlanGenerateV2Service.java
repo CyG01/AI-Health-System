@@ -194,7 +194,7 @@ public class PlanGenerateV2Service {
         plan.setDurationDays(dto.getDurationDays());
         plan.setAiContent(aiResponse);
         plan.setStartDate(LocalDate.now());
-        plan.setStatus(1);
+        plan.setStatus(0);
 
         aiPlanMapper.insert(plan);
 

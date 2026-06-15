@@ -4,8 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -463,14 +463,14 @@ public class TSDBConnectionPool {
                     log.warn("Failed to create read connection to master: {}", e.getMessage());
                 }
             }
-            NodeInfo node = new NodeInfo("Master-Read", masterUrl, conns);
+            NodeInfo node = new NodeInfo("Master-Read", masterUrl, masterUsername, masterPassword, new CopyOnWriteArrayList<>(conns));
             node.available = !conns.isEmpty();
             readNodes.add(node);
         }
     }
 
     private void registerReadNode(String name, String url, String username, String password) {
-        List<PooledConnection> conns = new CopyOnWriteArrayList<>();
+        CopyOnWriteArrayList<PooledConnection> conns = new CopyOnWriteArrayList<>();
         for (int i = 0; i < maxReadConnectionsPerNode; i++) {
             try {
                 Connection conn = createConnection(url, username, password);

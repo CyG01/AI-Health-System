@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.AdminOnly;
 import com.example.annotation.NoRepeatSubmit;
 import com.example.annotation.RateLimit;
 import com.example.common.Result;
@@ -9,6 +10,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * AI反馈控制器。
@@ -35,17 +38,20 @@ public class AiFeedbackController {
         return Result.success();
     }
 
+    @AdminOnly
     @Operation(summary = "获取待审核反馈列表（管理员）")
     @GetMapping("/pending")
     public Result<?> getPendingReview() {
         return Result.success(feedbackService.getPendingReviewList());
     }
 
+    @AdminOnly
     @Operation(summary = "审核反馈（管理员）")
     @PostMapping("/review/{id}")
     public Result<Void> review(@PathVariable Long id,
-                               @RequestParam String result,
+                               @RequestBody Map<String, String> body,
                                @RequestAttribute("userId") Long reviewerId) {
+        String result = body.get("result");
         feedbackService.reviewFeedback(id, result, reviewerId);
         return Result.success();
     }

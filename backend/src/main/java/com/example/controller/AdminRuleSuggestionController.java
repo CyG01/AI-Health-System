@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.annotation.AdminOnly;
 import com.example.common.Result;
 import com.example.entity.RuleSuggestion;
 import com.example.service.AuditLogService;
@@ -8,11 +9,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 管理员 - 规则建议管理接口。
  * 查看、审批或拒绝来自采样分析的规则建议。
  */
+@AdminOnly
 @RestController
 @RequestMapping("/api/admin/rule-suggestions")
 @RequiredArgsConstructor
@@ -35,8 +38,9 @@ public class AdminRuleSuggestionController {
      */
     @PostMapping("/{id}/approve")
     public Result<String> approveSuggestion(@PathVariable Long id,
-                                             @RequestParam String reviewerName,
+                                             @RequestBody Map<String, String> body,
                                              @RequestHeader("X-Admin-Id") Long adminId) {
+        String reviewerName = body.get("reviewerName");
         String msg = iterationService.approveSuggestion(id, reviewerName);
         auditLogService.log(adminId, reviewerName, "APPROVE_RULE_SUGGESTION",
                 "rule_suggestion", id, "审批规则建议: result=" + msg, null);
@@ -48,8 +52,9 @@ public class AdminRuleSuggestionController {
      */
     @PostMapping("/{id}/reject")
     public Result<String> rejectSuggestion(@PathVariable Long id,
-                                            @RequestParam String reviewerName,
+                                            @RequestBody Map<String, String> body,
                                             @RequestHeader("X-Admin-Id") Long adminId) {
+        String reviewerName = body.get("reviewerName");
         String msg = iterationService.rejectSuggestion(id, reviewerName);
         auditLogService.log(adminId, reviewerName, "REJECT_RULE_SUGGESTION",
                 "rule_suggestion", id, "拒绝规则建议", null);

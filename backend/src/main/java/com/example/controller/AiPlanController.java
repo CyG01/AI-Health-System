@@ -5,6 +5,7 @@ import com.example.annotation.NoRepeatSubmit;
 import com.example.annotation.RateLimit;
 import com.example.common.Result;
 import com.example.dto.PlanGenerateDTO;
+import com.example.dto.PlanSolidifyDTO;
 import com.example.sdui.AiAgentResponse;
 import com.example.service.AiPlanService;
 import com.example.service.impl.PlanGenerateV2Service;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "AI智能计划生成")
 @RestController
@@ -112,6 +114,55 @@ public class AiPlanController {
     public Result<Void> completeTask(@PathVariable Long detailId,
                                      @RequestAttribute("userId") Long userId) {
         aiPlanService.completeTask(detailId, userId);
+        return Result.success();
+    }
+
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
+    @Operation(summary = "将聊天生成的临时计划固化为正式计划")
+    @PostMapping("/solidify")
+    public Result<AiPlanVO> solidify(@Validated @RequestBody PlanSolidifyDTO dto,
+                                      @RequestAttribute("userId") Long userId) {
+        return Result.success(aiPlanService.solidifyPlan(userId, dto));
+    }
+
+    @RateLimit(time = 60, count = 20)
+    @Operation(summary = "更新计划中某天的单个任务项")
+    @PutMapping("/{planId}/day/{dayIndex}/item/{itemIndex}")
+    public Result<Void> updateDayItem(@PathVariable Long planId,
+                                       @PathVariable int dayIndex,
+                                       @PathVariable int itemIndex,
+                                       @RequestBody Map<String, Object> body,
+                                       @RequestAttribute("userId") Long userId) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> newItem = (Map<String, Object>) body.get("newItem");
+        aiPlanService.updateDayItem(planId, userId, dayIndex, itemIndex, newItem);
+        return Result.success();
+    }
+
+    @RateLimit(time = 60, count = 20)
+    @Operation(summary = "替换计划中某天的全部任务项")
+    @PutMapping("/{planId}/day/{dayIndex}/items")
+    public Result<Void> replaceDayItems(@PathVariable Long planId,
+                                         @PathVariable int dayIndex,
+                                         @RequestBody Map<String, Object> body,
+                                         @RequestAttribute("userId") Long userId) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
+        aiPlanService.replaceDayItems(planId, userId, dayIndex, items);
+        return Result.success();
+    }
+
+    @RateLimit(time = 60, count = 10)
+    @Operation(summary = "整体替换计划内容（Copilot set_plan）")
+    @PutMapping("/{planId}/content")
+    public Result<Void> updatePlanContent(@PathVariable Long planId,
+                                           @RequestBody Map<String, Object> body,
+                                           @RequestAttribute("userId") Long userId) {
+        String plan = body.get("plan") != null ? body.get("plan").toString() : null;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> days = (List<Map<String, Object>>) body.get("days");
+        aiPlanService.updatePlanContent(planId, userId, plan, days);
         return Result.success();
     }
 }

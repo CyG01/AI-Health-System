@@ -70,6 +70,9 @@ public class SysUser implements Serializable {
     @Version
     private Integer version;
 
+    /** 免责声明接受时间（注册时记录） */
+    private LocalDateTime disclaimerAcceptedAt;
+
     public Long getId() {
         return id;
     }
@@ -201,5 +204,13 @@ public class SysUser implements Serializable {
 
     public void setVersion(Integer version) {
         this.version = version;
+    }
+
+    public LocalDateTime getDisclaimerAcceptedAt() {
+        return disclaimerAcceptedAt;
+    }
+
+    public void setDisclaimerAcceptedAt(LocalDateTime disclaimerAcceptedAt) {
+        this.disclaimerAcceptedAt = disclaimerAcceptedAt;
     }
 }

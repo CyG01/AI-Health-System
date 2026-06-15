@@ -1,105 +1,172 @@
-<template>
-  <div class="admin-notification-page">
-    <div class="page-header">
-      <h2>发送系统通知</h2>
-    </div>
+<script setup lang="ts">
+import { ref } from 'vue';
+import {
+  NButton,
+  NCard,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NSelect,
+  NRadioGroup,
+  NRadioButton,
+  NAlert,
+  NSpace,
+  useMessage,
+  useDialog
+} from 'naive-ui';
+import type { FormInst, FormRules, SelectOption } from 'naive-ui';
+import { fetchSendAdminNotification, executeWithApproval } from '@/service/api';
+import { useAuthStore } from '@/store/modules/auth';
 
-    <el-card shadow="hover">
-      <el-form :model="form" label-width="120px" @submit.prevent="handleSend">
-        <el-form-item label="发送方式" required>
-          <el-radio-group v-model="broadcastMode">
-            <el-radio :value="false">指定用户</el-radio>
-            <el-radio :value="true">全体用户</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="!broadcastMode" label="目标用户ID">
-          <el-input v-model="form.userId" type="number" placeholder="输入用户ID" />
-        </el-form-item>
-        <el-form-item label="通知标题" required>
-          <el-input v-model="form.title" placeholder="输入通知标题" maxlength="100" show-word-limit />
-        </el-form-item>
-        <el-form-item label="通知内容" required>
-          <el-input
-            v-model="form.content"
-            type="textarea"
-            :rows="5"
-            placeholder="输入通知内容"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="通知类型">
-          <el-select v-model="form.type" style="width: 200px">
-            <el-option label="系统通知" value="system" />
-            <el-option label="提醒" value="reminder" />
-            <el-option label="公告" value="announcement" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" native-type="submit" :loading="sending" size="large">
-            发送通知
-          </el-button>
-          <el-button @click="handleClear">清空</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+defineOptions({ name: 'AdminNotificationSend' });
 
-    <div class="tips" style="margin-top: 20px; color: #8c8c8c; font-size: 13px">
-      提示：
-      <ul>
-        <li>选择「全体用户」将向所有启用通知的用户发送消息</li>
-        <li>选择「指定用户」需填写目标用户ID</li>
-        <li>通知类型选择「提醒」可触发用户端推送</li>
-      </ul>
-    </div>
-  </div>
-</template>
+const message = useMessage();
+const dialog = useDialog();
+const authStore = useAuthStore();
 
-<script setup>
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { sendAdminNotification } from '@/api/admin'
+const broadcastMode = ref(true);
+const sending = ref(false);
+const formRef = ref<FormInst | null>(null);
 
-const broadcastMode = ref(true)
-const sending = ref(false)
+interface NotificationForm {
+  userId: number | null;
+  title: string;
+  content: string;
+  type: string;
+}
 
-const form = ref({
+const form = ref<NotificationForm>({
   userId: null,
   title: '',
   content: '',
   type: 'system'
-})
+});
+
+const typeOptions: SelectOption[] = [
+  { label: '系统通知', value: 'system' },
+  { label: '提醒', value: 'reminder' },
+  { label: '公告', value: 'announcement' }
+];
+
+const formRules: FormRules = {
+  title: { required: true, message: '请输入通知标题', trigger: 'blur' },
+  content: { required: true, message: '请输入通知内容', trigger: 'blur' }
+};
 
 async function handleSend() {
-  if (!form.value.title || !form.value.content) {
-    ElMessage.warning('请填写标题和内容')
-    return
+  if (formRef.value) {
+    try {
+      await formRef.value.validate();
+    } catch {
+      return;
+    }
   }
   if (!broadcastMode.value && !form.value.userId) {
-    ElMessage.warning('请输入目标用户ID')
-    return
+    message.warning('请输入目标用户ID');
+    return;
   }
-  sending.value = true
-  try {
-    const data = { ...form.value }
-    if (broadcastMode.value) {
-      delete data.userId
+
+  const targetDesc = broadcastMode.value ? '全体用户' : `用户ID: ${form.value.userId}`;
+
+  dialog.warning({
+    title: '审批确认',
+    content: `确定要发送通知「${form.value.title}」给${targetDesc}吗？此操作需要审批。`,
+    positiveText: '发起审批并执行',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      sending.value = true;
+      try {
+        const data: Record<string, any> = {
+          title: form.value.title,
+          content: form.value.content,
+          type: form.value.type
+        };
+        if (!broadcastMode.value && form.value.userId) {
+          data.targetUserIds = [form.value.userId];
+        } else {
+          data.targetAll = true;
+        }
+        await executeWithApproval(
+          'send_notification',
+          `发送通知: ${form.value.title} -> ${targetDesc}`,
+          (approvalId: string) => fetchSendAdminNotification(data, approvalId),
+          authStore.userInfo?.id
+        );
+        message.success('通知发送成功');
+        handleClear();
+      } catch {
+        // cancelled or error handled by interceptor
+      } finally {
+        sending.value = false;
+      }
     }
-    await sendAdminNotification(data)
-    ElMessage.success('通知发送成功')
-    handleClear()
-  } finally {
-    sending.value = false
-  }
+  });
 }
 
 function handleClear() {
-  form.value = { userId: null, title: '', content: '', type: 'system' }
+  form.value = { userId: null, title: '', content: '', type: 'system' };
 }
 </script>
 
-<style scoped>
-.admin-notification-page { padding: 20px 0; }
-.page-header { margin-bottom: 20px; }
-.page-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-</style>
+<template>
+  <div class="flex-col-stretch gap-16px overflow-auto p-16px">
+    <NCard title="发送系统通知">
+      <NForm
+        ref="formRef"
+        :model="form"
+        :rules="formRules"
+        label-placement="left"
+        label-width="120"
+        style="max-width: 640px"
+      >
+        <NFormItem label="发送方式">
+          <NRadioGroup v-model:value="broadcastMode">
+            <NRadioButton :value="false">指定用户</NRadioButton>
+            <NRadioButton :value="true">全体用户</NRadioButton>
+          </NRadioGroup>
+        </NFormItem>
+        <NFormItem v-if="!broadcastMode" label="目标用户ID" path="userId">
+          <NInputNumber
+            v-model:value="form.userId"
+            :min="1"
+            placeholder="输入用户ID"
+            style="width: 200px"
+          />
+        </NFormItem>
+        <NFormItem label="通知标题" path="title">
+          <NInput v-model:value="form.title" placeholder="输入通知标题" :maxlength="100" show-count />
+        </NFormItem>
+        <NFormItem label="通知内容" path="content">
+          <NInput
+            v-model:value="form.content"
+            type="textarea"
+            :rows="5"
+            placeholder="输入通知内容"
+            :maxlength="500"
+            show-count
+          />
+        </NFormItem>
+        <NFormItem label="通知类型">
+          <NSelect v-model:value="form.type" :options="typeOptions" style="width: 200px" />
+        </NFormItem>
+        <NFormItem label=" ">
+          <NSpace>
+            <NButton type="primary" :loading="sending" size="large" @click="handleSend">
+              发送通知
+            </NButton>
+            <NButton size="large" @click="handleClear">清空</NButton>
+          </NSpace>
+        </NFormItem>
+      </NForm>
+    </NCard>
+
+    <NAlert title="提示" type="info">
+      <ul style="margin: 0; padding-left: 20px; line-height: 1.8">
+        <li>选择「全体用户」将向所有启用通知的用户发送消息</li>
+        <li>选择「指定用户」需填写目标用户ID</li>
+        <li>通知类型选择「提醒」可触发用户端推送</li>
+      </ul>
+    </NAlert>
+  </div>
+</template>

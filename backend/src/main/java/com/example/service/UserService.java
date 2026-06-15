@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.dto.NotificationPreferenceDTO;
 import com.example.dto.UpdatePasswordDTO;
 import com.example.dto.UpdateProfileDTO;
 import com.example.vo.UserInfoVO;
@@ -18,5 +19,5 @@ public interface UserService {
 
     void deactivateAccount(Long userId);
 
-    void updateNotificationPreference(Long userId, String notificationEnabled, String reminderTime);
+    void updateNotificationPreference(Long userId, NotificationPreferenceDTO dto);
 }

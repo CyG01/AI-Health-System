@@ -45,7 +45,7 @@ public class LlmCostController {
         result.put("totalCost", totalCost);
         result.put("tierCosts", tierCosts);
         result.put("date", java.time.LocalDate.now().toString());
-        return Result.ok(result);
+        return Result.success(result);
     }
 
     @AdminOnly
@@ -64,14 +64,14 @@ public class LlmCostController {
         result.put("costByModel", costByModel);
         result.put("isPaused", isPaused);
         result.put("date", java.time.LocalDate.now().toString());
-        return Result.ok(result);
+        return Result.success(result);
     }
 
     @AdminOnly
     @Operation(summary = "获取超预算用户列表")
     @GetMapping("/over-budget-users")
     public Result<List<Map<String, Object>>> getOverBudgetUsers() {
-        return Result.ok(costMonitor.getOverBudgetUsers());
+        return Result.success(costMonitor.getOverBudgetUsers());
     }
 
     @AdminOnly
@@ -79,7 +79,7 @@ public class LlmCostController {
     @PostMapping("/user/{userId}/pause")
     public Result<String> pauseUser(@PathVariable Long userId) {
         costMonitor.pauseUser(userId);
-        return Result.ok("用户 " + userId + " 已暂停LLM调用");
+        return Result.success("用户 " + userId + " 已暂停LLM调用");
     }
 
     @AdminOnly
@@ -87,20 +87,20 @@ public class LlmCostController {
     @PostMapping("/user/{userId}/resume")
     public Result<String> resumeUser(@PathVariable Long userId) {
         costMonitor.resumeUser(userId);
-        return Result.ok("用户 " + userId + " 已恢复LLM调用");
+        return Result.success("用户 " + userId + " 已恢复LLM调用");
     }
 
     @AdminOnly
     @Operation(summary = "获取模型路由状态")
     @GetMapping("/model-status")
     public Result<Map<String, Object>> getModelStatus() {
-        return Result.ok(modelRouter.getModelStatus());
+        return Result.success(modelRouter.getModelStatus());
     }
 
     @AdminOnly
     @Operation(summary = "获取 Tier 熔断器状态")
     @GetMapping("/tier-circuit-breakers")
     public Result<Map<String, Object>> getTierCircuitBreakerStatus() {
-        return Result.ok(modelRouter.getTierCircuitBreakerStatus());
+        return Result.success(modelRouter.getTierCircuitBreakerStatus());
     }
 }

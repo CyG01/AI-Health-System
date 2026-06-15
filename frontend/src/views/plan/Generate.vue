@@ -1,493 +1,394 @@
 <template>
-  <div class="generate-page">
+  <div class="p-1 relative">
     <MedicalDisclaimerBanner />
-    <div v-if="!streaming" class="form-card glass-card">
-      <h2 class="page-title">AI 智能计划生成</h2>
-      <p class="page-desc">基于您的健康档案，由 DeepSeek 为您量身定制个性化健康计划（运动/饮食/综合/康复/冥想）</p>
-      <el-alert title="每日最多生成3次计划" type="info" :closable="false" show-icon class="limit-tip" />
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="generate-form">
-        <el-form-item label="计划类型" prop="planType">
-          <el-radio-group v-model="form.planType">
-            <el-radio value="sport">运动计划</el-radio>
-            <el-radio value="diet">饮食计划</el-radio>
-            <el-radio value="comprehensive">综合计划</el-radio>
-            <el-radio value="rehabilitation">康复计划</el-radio>
-            <el-radio value="meditation">冥想放松</el-radio>
-          </el-radio-group>
-        </el-form-item>
+    <!-- Form Section -->
+    <n-card v-if="!streaming" class="max-w-[720px]">
+      <h2 class="text-xl font-semibold mb-1">AI 智能计划生成</h2>
+      <p class="text-gray-400 text-sm mb-4">基于您的健康档案，由 DeepSeek 为您量身定制个性化健康计划（运动/饮食/综合/康复/冥想）</p>
 
-        <el-form-item label="计划天数" prop="durationDays">
-          <el-radio-group v-model="form.durationDays">
-            <el-radio :value="7">7天</el-radio>
-            <el-radio :value="30">30天</el-radio>
-          </el-radio-group>
-        </el-form-item>
+      <n-alert title="每日最多生成3次计划" type="warning" :closable="false" class="mb-4" />
 
-        <el-form-item label="运动强度" prop="intensity">
-          <el-select v-model="form.intensity" placeholder="请选择运动强度" clearable style="width: 240px">
-            <el-option label="轻松（适合入门）" value="轻松" />
-            <el-option label="适中（常规训练）" value="适中" />
-            <el-option label="高强度（挑战极限）" value="高强度" />
-          </el-select>
-        </el-form-item>
+      <n-form ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="120" class="mt-6">
+        <n-form-item label="计划类型" path="planType">
+          <n-radio-group v-model:value="form.planType">
+            <n-radio value="sport">运动计划</n-radio>
+            <n-radio value="diet">饮食计划</n-radio>
+            <n-radio value="comprehensive">综合计划</n-radio>
+            <n-radio value="rehabilitation">康复计划</n-radio>
+            <n-radio value="meditation">冥想放松</n-radio>
+          </n-radio-group>
+        </n-form-item>
 
-        <el-form-item label="口味偏好" prop="tastePreference" v-if="form.planType === 'diet'">
-          <el-select v-model="form.tastePreference" placeholder="请选择口味偏好" clearable style="width: 240px">
-            <el-option label="清淡" value="清淡" />
-            <el-option label="家常" value="家常" />
-            <el-option label="低脂" value="低脂" />
-            <el-option label="高蛋白" value="高蛋白" />
-          </el-select>
-        </el-form-item>
+        <n-form-item label="计划天数" path="durationDays">
+          <n-radio-group v-model:value="form.durationDays">
+            <n-radio :value="7">7天</n-radio>
+            <n-radio :value="30">30天</n-radio>
+          </n-radio-group>
+        </n-form-item>
 
-        <el-form-item>
-          <el-button
-            type="primary"
-            size="large"
-            :loading="generating"
-            :disabled="generating"
-            @click="handleGenerate"
-          >
-            {{ generating ? '正在生成中...' : '开始生成' }}
-          </el-button>
-          <el-button :disabled="generating" @click="$router.push('/plan/list')">返回列表</el-button>
-        </el-form-item>
-      </el-form>
-    </div>
+        <n-form-item label="运动强度" path="intensity">
+          <n-select
+            v-model:value="form.intensity"
+            placeholder="请选择运动强度"
+            clearable
+            :options="intensityOptions"
+            class="w-[240px]"
+          />
+        </n-form-item>
 
-    <div v-if="streaming" class="streaming-container glass-card">
-      <div class="streaming-header">
-        <div class="streaming-header-left">
-          <span class="terminal-dot" style="background:#3fb950"></span>
-          <span class="terminal-dot" style="background:#d29922"></span>
-          <span class="terminal-dot" style="background:#f85149"></span>
-          <span class="terminal-label">{{ planTypeLabel }} · {{ form.durationDays }}天 · AI生成中</span>
+        <n-form-item v-if="form.planType === 'diet'" label="口味偏好" path="tastePreference">
+          <n-select
+            v-model:value="form.tastePreference"
+            placeholder="请选择口味偏好"
+            clearable
+            :options="tasteOptions"
+            class="w-[240px]"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <div class="flex gap-3">
+            <n-button
+              type="primary"
+              size="large"
+              :loading="generating"
+              :disabled="generating"
+              @click="handleGenerate"
+            >
+              {{ generating ? '正在生成中...' : '开始生成' }}
+            </n-button>
+            <n-button :disabled="generating" @click="router.push('/plan/list')">返回列表</n-button>
+          </div>
+        </n-form-item>
+      </n-form>
+    </n-card>
+
+    <!-- Streaming Section -->
+    <div v-if="streaming" class="max-w-[900px] border border-blue-400 rounded-lg overflow-hidden flex flex-col" style="height: calc(100vh - 140px)">
+      <!-- Streaming Header -->
+      <div class="flex items-center justify-between px-4 py-3 bg-gray-900/95 border-b border-gray-700">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full" style="background:#3fb950"></span>
+          <span class="w-3 h-3 rounded-full" style="background:#d29922"></span>
+          <span class="w-3 h-3 rounded-full" style="background:#f85149"></span>
+          <span class="text-[13px] text-gray-400 ml-2 font-mono">{{ planTypeLabel }} · {{ form.durationDays }}天 · AI生成中</span>
         </div>
-        <div class="streaming-header-right">
-          <span v-if="streamStatus === 'streaming'" class="status-badge streaming">
-            <span class="pulse-dot"></span>实时生成中
+        <div class="flex items-center">
+          <span v-if="streamStatus === 'streaming'" class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-blue-500/12 text-blue-400 border border-blue-500/25">
+            <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>实时生成中
           </span>
-          <span v-else-if="streamStatus === 'complete'" class="status-badge complete">
-            <el-icon><CircleCheck /></el-icon>生成成功
+          <span v-else-if="streamStatus === 'complete'" class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-green-500/12 text-green-400 border border-green-500/25">
+            ✓ 生成成功
           </span>
-          <span v-else-if="streamStatus === 'error'" class="status-badge error">
-            <el-icon><CircleClose /></el-icon>生成失败
+          <span v-else-if="streamStatus === 'error'" class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-red-500/12 text-red-400 border border-red-500/25">
+            ✗ 生成失败
           </span>
         </div>
       </div>
-      <div class="streaming-body" ref="streamBodyRef">
-        <pre class="streaming-text">{{ displayText }}<span v-if="streamStatus === 'streaming'" class="cursor-blink">|</span></pre>
+
+      <!-- Streaming Body -->
+      <div
+        ref="streamBodyRef"
+        class="flex-1 px-6 py-5 overflow-y-auto bg-gray-950/95 font-mono text-sm leading-relaxed text-gray-300 whitespace-pre-wrap break-words"
+      >
+        <pre class="m-0 whitespace-pre-wrap break-words">{{ displayText }}<span v-if="streamStatus === 'streaming'" class="text-blue-400 animate-pulse">|</span></pre>
       </div>
-      <div class="streaming-footer">
+
+      <!-- Streaming Footer -->
+      <div class="flex items-center justify-center gap-3 px-4 py-3 bg-gray-900/95 border-t border-gray-700 min-h-[48px]">
         <template v-if="streamStatus === 'complete'">
-          <el-button type="primary" size="small" @click="goToPlanList">
+          <n-button type="primary" size="small" @click="goToPlanList">
             生成成功！正在跳转... ({{ countdown }}秒)
-          </el-button>
+          </n-button>
         </template>
         <template v-else-if="streamStatus === 'error'">
-          <el-alert :title="errorMessage" type="error" :closable="false" show-icon class="error-alert" />
-          <el-button type="primary" size="small" @click="resetForm">重新生成</el-button>
+          <n-alert :title="errorMessage" type="error" :closable="false" class="max-w-[360px]" />
+          <n-button type="primary" size="small" @click="resetForm">重新生成</n-button>
         </template>
-        <span v-else class="bytes-info">{{ totalChars }} 字符已生成</span>
+        <template v-else>
+          <span class="text-xs text-gray-600 font-mono">{{ totalChars }} 字符已生成</span>
+          <n-button size="tiny" quaternary type="error" @click="abortStreaming">取消</n-button>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, watch, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
-import { generatePlanStream } from '@/api/aiPlan'
-import MedicalDisclaimerBanner from '@/components/MedicalDisclaimerBanner.vue'
+<script setup lang="ts">
+import { ref, reactive, computed, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { NAlert, NButton, NCard, NForm, NFormItem, NRadio, NRadioGroup, NSelect } from 'naive-ui';
+import type { FormInst, FormRules } from 'naive-ui';
+import { createSSEStream } from '@/utils/sseClient';
+import { usePlanStore } from '@/store/modules/plan';
+import MedicalDisclaimerBanner from '@/components/MedicalDisclaimerBanner.vue';
 
-const router = useRouter()
-const formRef = ref(null)
-const streamBodyRef = ref(null)
-const generating = ref(false)
-const streaming = ref(false)
-const displayText = ref('')
-const streamStatus = ref('streaming')
-const errorMessage = ref('')
-const totalChars = ref(0)
-const countdown = ref(0)
+defineOptions({ name: 'PlanGenerate' });
 
-let typewriterQueue = []
-let typewriterTimer = null
-let aborted = false
-let countdownTimer = null
+interface PlanForm {
+  planType: string;
+  durationDays: number;
+  intensity: string;
+  tastePreference: string;
+}
 
-const form = reactive({
+type StreamStatus = 'streaming' | 'complete' | 'error';
+
+const router = useRouter();
+const planStore = usePlanStore();
+const formRef = ref<FormInst | null>(null);
+const streamBodyRef = ref<HTMLElement | null>(null);
+const generating = ref(false);
+const streaming = ref(false);
+const displayText = ref('');
+const streamStatus = ref<StreamStatus>('streaming');
+const errorMessage = ref('');
+const totalChars = ref(0);
+const countdown = ref(0);
+
+let typewriterQueue: string[] = [];
+let typewriterTimer: ReturnType<typeof setInterval> | null = null;
+let aborted = false;
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+let currentStreamControl: ReturnType<typeof createSSEStream> | null = null;
+
+const form = reactive<PlanForm>({
   planType: 'sport',
   durationDays: 7,
   intensity: '',
   tastePreference: ''
-})
+});
+
+const intensityOptions = [
+  { label: '轻松（适合入门）', value: '轻松' },
+  { label: '适中（常规训练）', value: '适中' },
+  { label: '高强度（挑战极限）', value: '高强度' }
+];
+
+const tasteOptions = [
+  { label: '清淡', value: '清淡' },
+  { label: '家常', value: '家常' },
+  { label: '低脂', value: '低脂' },
+  { label: '高蛋白', value: '高蛋白' }
+];
 
 const planTypeLabel = computed(() => {
-  const map = { sport: '运动计划', diet: '饮食计划', comprehensive: '综合计划', rehabilitation: '康复计划', meditation: '冥想放松' }
-  return map[form.planType] || '健康计划'
-})
+  const map: Record<string, string> = {
+    sport: '运动计划',
+    diet: '饮食计划',
+    comprehensive: '综合计划',
+    rehabilitation: '康复计划',
+    meditation: '冥想放松'
+  };
+  return map[form.planType] || '健康计划';
+});
 
-const rules = {
+const rules: FormRules = {
   planType: [{ required: true, message: '请选择计划类型', trigger: 'change' }],
-  durationDays: [{ required: true, message: '请选择计划天数', trigger: 'change' }]
-}
+  durationDays: [{ required: true, type: 'number', message: '请选择计划天数', trigger: 'change' }]
+};
 
-function autoScroll() {
+function autoScroll(): void {
   if (streamBodyRef.value) {
-    streamBodyRef.value.scrollTop = streamBodyRef.value.scrollHeight
+    streamBodyRef.value.scrollTop = streamBodyRef.value.scrollHeight;
   }
 }
 
-function startTypewriter(fullText) {
-  const chars = fullText.split('')
-  typewriterQueue.push(...chars)
+function startTypewriter(fullText: string): void {
+  const chars = fullText.split('');
+  typewriterQueue.push(...chars);
   if (!typewriterTimer) {
-    runTypewriter()
+    runTypewriter();
   }
 }
 
-function runTypewriter() {
+function runTypewriter(): void {
   typewriterTimer = setInterval(() => {
-    if (aborted) return
+    if (aborted) return;
     if (typewriterQueue.length === 0) {
-      clearInterval(typewriterTimer)
-      typewriterTimer = null
-      return
+      clearInterval(typewriterTimer!);
+      typewriterTimer = null;
+      return;
     }
-    const chunk = typewriterQueue.splice(0, 1)
-    displayText.value += chunk.join('')
-    totalChars.value = displayText.value.length
-    autoScroll()
-  }, 20)
+    const chunk = typewriterQueue.splice(0, 1);
+    displayText.value += chunk.join('');
+    totalChars.value = displayText.value.length;
+    autoScroll();
+  }, 20);
 }
 
-function startCountdown(seconds) {
-  countdown.value = seconds
+function startCountdown(seconds: number): void {
+  countdown.value = seconds;
   countdownTimer = setInterval(() => {
-    countdown.value--
+    countdown.value--;
     if (countdown.value <= 0) {
-      clearInterval(countdownTimer)
-      countdownTimer = null
-      router.push('/plan/list')
+      clearInterval(countdownTimer!);
+      countdownTimer = null;
+      router.push('/plan/list');
     }
-  }, 1000)
+  }, 1000);
 }
 
-function handleIncomingMessage(data) {
-  if (aborted) return
+function flushTypewriterQueue(): void {
+  if (typewriterTimer) {
+    clearInterval(typewriterTimer);
+    typewriterTimer = null;
+  }
+  if (typewriterQueue.length > 0) {
+    displayText.value += typewriterQueue.join('');
+    typewriterQueue = [];
+    totalChars.value = displayText.value.length;
+    autoScroll();
+  }
+}
+
+function handleIncomingMessage(data: string): void {
+  if (aborted) return;
 
   if (data === '[DONE]') {
-    streamStatus.value = 'complete'
-    if (typewriterTimer) {
-      clearInterval(typewriterTimer)
-      typewriterTimer = null
-    }
-    if (typewriterQueue.length > 0) {
-      displayText.value += typewriterQueue.join('')
-      typewriterQueue = []
-      totalChars.value = displayText.value.length
-      autoScroll()
-    }
-    startCountdown(2)
-    return
+    streamStatus.value = 'complete';
+    flushTypewriterQueue();
+    planStore.finishStreaming();
+    startCountdown(2);
+    return;
   }
 
   if (data === '[ERROR]') {
-    streamStatus.value = 'error'
-    if (typewriterTimer) {
-      clearInterval(typewriterTimer)
-      typewriterTimer = null
-    }
-    if (typewriterQueue.length > 0) {
-      displayText.value += typewriterQueue.join('')
-      typewriterQueue = []
-    }
-    errorMessage.value = errorMessage.value || 'AI服务调用失败'
-    generating.value = false
-    return
+    streamStatus.value = 'error';
+    flushTypewriterQueue();
+    errorMessage.value = errorMessage.value || 'AI服务调用失败';
+    generating.value = false;
+    planStore.finishStreaming();
+    return;
   }
 
-  totalChars.value = displayText.value.length + typewriterQueue.length + data.length
-  startTypewriter(data)
+  // Update store streaming content
+  planStore.appendStreamingContent(data);
+  totalChars.value = displayText.value.length + typewriterQueue.length + data.length;
+  startTypewriter(data);
 }
 
-async function handleGenerate() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
+function abortStreaming(): void {
+  aborted = true;
+  if (currentStreamControl) {
+    currentStreamControl.abort();
+    currentStreamControl = null;
+  }
+  flushTypewriterQueue();
+  planStore.resetStreaming();
+  streaming.value = false;
+  generating.value = false;
+}
 
-    generating.value = true
-    streaming.value = true
-    displayText.value = ''
-    streamStatus.value = 'streaming'
-    errorMessage.value = ''
-    totalChars.value = 0
-    aborted = false
+async function handleGenerate(): Promise<void> {
+  if (!formRef.value) return;
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
 
-    try {
-      const payload = {
-        planType: form.planType,
-        durationDays: form.durationDays,
-        intensity: form.intensity || undefined,
-        tastePreference: form.tastePreference || undefined
-      }
+  generating.value = true;
+  streaming.value = true;
+  displayText.value = '';
+  streamStatus.value = 'streaming';
+  errorMessage.value = '';
+  totalChars.value = 0;
+  aborted = false;
 
-      const emitter = await generatePlanStream(payload)
-      emitter.onMessage = handleIncomingMessage
-      emitter.onError = (err) => {
-        if (aborted) return
-        streamStatus.value = 'error'
-        errorMessage.value = '网络连接中断，请重试'
-        generating.value = false
+  // Start store streaming state
+  planStore.startStreaming(form.planType);
+
+  try {
+    const payload = {
+      planType: form.planType,
+      durationDays: form.durationDays,
+      intensity: form.intensity || undefined,
+      tastePreference: form.tastePreference || undefined
+    };
+
+    // CRITICAL: createSSEStream takes 3 args: (url, data, callbacks_object)
+    currentStreamControl = createSSEStream('/ai-plan/generate-stream', payload, {
+      onMessage: (text: string) => {
+        handleIncomingMessage(text);
+      },
+      onDone: () => {
+        streaming.value = false;
+        generating.value = false;
+        currentStreamControl = null;
+      },
+      onError: (err: Error) => {
+        if (aborted) return;
+        streamStatus.value = 'error';
+        errorMessage.value = err.message || '网络连接中断，请重试';
+        generating.value = false;
+        planStore.finishStreaming();
         if (typewriterTimer) {
-          clearInterval(typewriterTimer)
-          typewriterTimer = null
+          clearInterval(typewriterTimer);
+          typewriterTimer = null;
         }
+        currentStreamControl = null;
       }
-      await emitter
-    } catch (err) {
-      if (aborted) return
-      streamStatus.value = 'error'
-      errorMessage.value = '网络连接中断，请重试'
-    }
-    generating.value = false
-  })
+    });
+
+    await currentStreamControl.promise;
+  } catch {
+    if (aborted) return;
+    streamStatus.value = 'error';
+    errorMessage.value = '网络连接中断，请重试';
+    planStore.resetStreaming();
+  }
+  generating.value = false;
+  currentStreamControl = null;
 }
 
-function resetForm() {
-  aborted = true
+function resetForm(): void {
+  aborted = true;
+  if (currentStreamControl) {
+    currentStreamControl.abort();
+    currentStreamControl = null;
+  }
   if (typewriterTimer) {
-    clearInterval(typewriterTimer)
-    typewriterTimer = null
+    clearInterval(typewriterTimer);
+    typewriterTimer = null;
   }
   if (countdownTimer) {
-    clearInterval(countdownTimer)
-    countdownTimer = null
+    clearInterval(countdownTimer);
+    countdownTimer = null;
   }
-  typewriterQueue = []
-  streaming.value = false
-  streaming.value = false
-  displayText.value = ''
-  generating.value = false
-  errorMessage.value = ''
-  countdown.value = 0
-  streamStatus.value = 'streaming'
-  totalChars.value = 0
+  typewriterQueue = [];
+  streaming.value = false;
+  displayText.value = '';
+  generating.value = false;
+  errorMessage.value = '';
+  countdown.value = 0;
+  streamStatus.value = 'streaming';
+  totalChars.value = 0;
+  planStore.resetStreaming();
 }
 
-function goToPlanList() {
-  clearInterval(countdownTimer)
-  countdownTimer = null
-  router.push('/plan/list')
+function goToPlanList(): void {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  router.push('/plan/list');
 }
 
 onUnmounted(() => {
-  aborted = true
+  aborted = true;
+  if (currentStreamControl) {
+    currentStreamControl.abort();
+    currentStreamControl = null;
+  }
   if (typewriterTimer) {
-    clearInterval(typewriterTimer)
-    typewriterTimer = null
+    clearInterval(typewriterTimer);
+    typewriterTimer = null;
   }
   if (countdownTimer) {
-    clearInterval(countdownTimer)
-    countdownTimer = null
+    clearInterval(countdownTimer);
+    countdownTimer = null;
   }
-})
+});
 </script>
-
-<style scoped lang="scss">
-.generate-page {
-  padding: 4px;
-  position: relative;
-}
-
-.form-card {
-  padding: 32px;
-  max-width: 720px;
-}
-
-.limit-tip {
-  margin-top: 16px;
-  margin-bottom: 4px;
-  background: rgba(210, 153, 34, 0.08);
-  border: 1px solid rgba(210, 153, 34, 0.2);
-  border-radius: 8px;
-
-  :deep(.el-alert__icon) {
-    color: #d29922;
-  }
-  :deep(.el-alert__title) {
-    color: #d29922;
-    font-size: 13px;
-  }
-}
-
-.generate-form {
-  margin-top: 24px;
-}
-
-:deep(.el-radio-group) {
-  .el-radio {
-    margin-right: 24px;
-  }
-}
-
-.streaming-container {
-  max-width: 900px;
-  border: 1px solid #58a6ff;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 140px);
-}
-
-.streaming-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: rgba(22, 27, 34, 0.95);
-  border-bottom: 1px solid #30363d;
-}
-
-.streaming-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.terminal-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.terminal-label {
-  font-size: 13px;
-  color: #8b949e;
-  margin-left: 8px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-}
-
-.streaming-header-right {
-  display: flex;
-  align-items: center;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-weight: 500;
-
-  &.streaming {
-    background: rgba(88, 166, 255, 0.12);
-    color: #58a6ff;
-    border: 1px solid rgba(88, 166, 255, 0.25);
-  }
-
-  &.complete {
-    background: rgba(63, 185, 80, 0.12);
-    color: #3fb950;
-    border: 1px solid rgba(63, 185, 80, 0.25);
-  }
-
-  &.error {
-    background: rgba(248, 81, 73, 0.12);
-    color: #f85149;
-    border: 1px solid rgba(248, 81, 73, 0.25);
-  }
-}
-
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #58a6ff;
-  animation: pulse-dot 1.2s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-.streaming-body {
-  flex: 1;
-  padding: 20px 24px;
-  overflow-y: auto;
-  background: rgba(13, 17, 23, 0.95);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #c9d1d9;
-  white-space: pre-wrap;
-  word-break: break-word;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: #30363d;
-    border-radius: 3px;
-  }
-}
-
-.streaming-text {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.cursor-blink {
-  color: #58a6ff;
-  animation: blink 0.8s step-end infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.streaming-footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: rgba(22, 27, 34, 0.95);
-  border-top: 1px solid #30363d;
-  min-height: 48px;
-}
-
-.bytes-info {
-  font-size: 12px;
-  color: #484f58;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-}
-
-.error-alert {
-  max-width: 360px;
-  background: rgba(248, 81, 73, 0.08);
-  border: 1px solid rgba(248, 81, 73, 0.2);
-  border-radius: 8px;
-
-  :deep(.el-alert__icon) {
-    color: #f85149;
-  }
-  :deep(.el-alert__title) {
-    color: #f85149;
-    font-size: 13px;
-  }
-}
-</style>

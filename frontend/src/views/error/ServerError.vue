@@ -23,18 +23,18 @@
 }
 .error-content h1 {
   font-size: 80px;
-  color: #f56c6c;
+  color: var(--color-danger);
   margin: 0;
   line-height: 1;
 }
 .desc {
-  font-size: 20px;
-  color: #606266;
-  margin: 16px 0 8px;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  margin: var(--space-base) 0 var(--space-sm);
 }
 .tip {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 24px;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xl);
 }
 </style>

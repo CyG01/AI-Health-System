@@ -62,7 +62,9 @@ public class ModelRouter {
     private final ObjectMapper objectMapper;
     private final CircuitBreakerRegistry cbRegistry;
     private final RetryRegistry retryRegistry;
-    private final OllamaService ollamaService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OllamaService ollamaService;
 
     /** 被质量降级的模型集合（幻觉率高或其他质量问题） */
     private final java.util.Set<String> deprioritizedModels = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -97,15 +99,13 @@ public class ModelRouter {
                         BillingService billingService,
                         ObjectMapper objectMapper,
                         CircuitBreakerRegistry cbRegistry,
-                        RetryRegistry retryRegistry,
-                        OllamaService ollamaService) {
+                        RetryRegistry retryRegistry) {
         this.healthChecker = healthChecker;
         this.costMonitor = costMonitor;
         this.billingService = billingService;
         this.objectMapper = objectMapper;
         this.cbRegistry = cbRegistry;
         this.retryRegistry = retryRegistry;
-        this.ollamaService = ollamaService;
     }
 
     /**

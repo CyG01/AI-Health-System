@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -97,14 +98,24 @@ public class NotificationServiceImpl implements NotificationService {
     public void sendNotification(SendNotificationDTO dto) {
         if (dto.isSendToAll()) {
             List<SysUser> allUsers = sysUserMapper.selectList(null);
+            String notificationType = dto.getType() != null ? dto.getType() : "system";
+
+            List<SysNotification> notifications = new ArrayList<>(allUsers.size());
             for (SysUser user : allUsers) {
                 SysNotification notification = new SysNotification();
                 notification.setUserId(user.getId());
                 notification.setTitle(dto.getTitle());
                 notification.setContent(dto.getContent());
-                notification.setType(dto.getType() != null ? dto.getType() : "system");
+                notification.setType(notificationType);
                 notification.setIsRead(0);
-                sysNotificationMapper.insert(notification);
+                notifications.add(notification);
+            }
+
+            // 分批插入，每批500条，避免SQL语句过长
+            int batchSize = 500;
+            for (int i = 0; i < notifications.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, notifications.size());
+                sysNotificationMapper.batchInsert(notifications.subList(i, end));
             }
             log.info("管理员向全体用户发送通知 title={} count={}", dto.getTitle(), allUsers.size());
         } else {

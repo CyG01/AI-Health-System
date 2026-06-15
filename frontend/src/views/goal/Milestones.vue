@@ -1,199 +1,234 @@
 <template>
-  <div class="goal-page" v-loading="pageLoading">
+  <div class="goal-page">
     <div class="page-header">
-      <h2>目标里程碑</h2>
-      <el-button type="primary" @click="showDialog = true">
-        <el-icon><Plus /></el-icon> 新建目标
-      </el-button>
+      <h2 class="text-xl font-semibold">{{ $t('goal.milestones') || '目标里程碑' }}</h2>
+      <NButton type="primary" @click="showDialog = true">
+        <template #icon><NIcon><AddOutline /></NIcon></template>
+        {{ $t('goal.create') || '新建目标' }}
+      </NButton>
     </div>
 
     <!-- 目标总览 -->
-    <el-row :gutter="20" class="overview-row" v-if="goals.length > 0">
-      <el-col :span="6">
-        <el-card class="overview-card" shadow="hover">
-          <el-statistic title="总目标数" :value="goals.length" suffix="个" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="overview-card" shadow="hover">
-          <el-statistic title="进行中" :value="activeGoals.length" suffix="个">
-            <template #suffix><span class="sub-text"> / {{ goals.length }}</span></template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="overview-card" shadow="hover">
-          <el-statistic title="已完成" :value="completedGoals.length" suffix="个" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="overview-card" shadow="hover">
-          <el-statistic title="平均完成度" :value="avgProgress" suffix="%" />
-        </el-card>
-      </el-col>
-    </el-row>
+    <NGrid v-if="goals.length > 0" :x-gap="16" :y-gap="16" :cols="4" class="mb-5" item-responsive responsive="screen">
+      <NGi span="4 m:1">
+        <NCard size="small" class="text-center">
+          <NStatistic :label="$t('goal.total') || '总目标数'" :value="goals.length">
+            <template #suffix>{{ $t('goal.unit') || '个' }}</template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi span="4 m:1">
+        <NCard size="small" class="text-center">
+          <NStatistic :label="$t('goal.active') || '进行中'" :value="activeGoals.length">
+            <template #suffix> / {{ goals.length }}</template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi span="4 m:1">
+        <NCard size="small" class="text-center">
+          <NStatistic :label="$t('goal.completed') || '已完成'" :value="completedGoals.length">
+            <template #suffix>{{ $t('goal.unit') || '个' }}</template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi span="4 m:1">
+        <NCard size="small" class="text-center">
+          <NStatistic :label="$t('goal.avgProgress') || '平均完成度'" :value="avgProgress">
+            <template #suffix>%</template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+    </NGrid>
 
     <!-- 进行中目标 -->
-    <div class="section" v-if="activeGoals.length > 0">
-      <h3 class="section-title">进行中</h3>
-      <el-row :gutter="20">
-        <el-col :span="8" v-for="goal in activeGoals" :key="goal.id">
-          <el-card class="goal-card" shadow="hover" :body-style="{ padding: '20px' }">
+    <div v-if="activeGoals.length > 0" class="mb-6">
+      <h3 class="section-title">{{ $t('goal.active') || '进行中' }}</h3>
+      <NGrid :x-gap="16" :y-gap="16" :cols="3" item-responsive responsive="screen">
+        <NGi v-for="goal in activeGoals" :key="goal.id" span="3 m:1">
+          <NCard class="goal-card">
             <div class="goal-header">
-              <el-tag :type="goalTypeColor(goal.goalType)" size="small" effect="plain">
-                {{ goal.goalTypeLabel }}
-              </el-tag>
-              <el-dropdown trigger="click" @command="(cmd) => handleGoalAction(cmd, goal)">
-                <el-button text :icon="MoreFilled" />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                    <el-dropdown-item command="complete">标记完成</el-dropdown-item>
-                    <el-dropdown-item command="abandon" divided>放弃目标</el-dropdown-item>
-                    <el-dropdown-item command="delete" style="color: #ff4d4f">删除</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <NTag :type="goalTypeColor(goal.goalType)" size="small">{{ goal.goalTypeLabel }}</NTag>
+              <NDropdown :options="goalActionOptions" @select="(cmd: string) => handleGoalAction(cmd, goal)" trigger="click">
+                <NButton text>
+                  <template #icon><NIcon><EllipsisVertical /></NIcon></template>
+                </NButton>
+              </NDropdown>
             </div>
             <h4 class="goal-name">{{ goal.goalName }}</h4>
-            <div class="goal-progress">
-              <el-progress
-                :percentage="goal.progressPercent"
-                :stroke-width="14"
-                :color="progressColor(goal.progressPercent)"
-                :striped="true"
-                :striped-flow="true"
-              />
-            </div>
+            <NProgress
+              type="line"
+              :percentage="goal.progressPercent"
+              :height="14"
+              :color="progressColor(goal.progressPercent)"
+              :show-indicator="false"
+              :border-radius="4"
+              class="mb-2"
+            />
             <div class="goal-meta">
-              <span>{{ goal.currentValue }} / {{ goal.targetValue }} {{ goal.unit }}</span>
-              <span v-if="goal.remainingDays !== null" class="remaining">
-                剩余 <b>{{ goal.remainingDays }}</b> 天
+              <span class="text-[13px] text-secondary">{{ goal.currentValue }} / {{ goal.targetValue }} {{ goal.unit }}</span>
+              <span v-if="goal.remainingDays !== null" class="text-[13px] text-secondary">
+                {{ $t('goal.remaining') || '剩余' }} <b class="text-brand">{{ goal.remainingDays }}</b> {{ $t('goal.days') || '天' }}
               </span>
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </NCard>
+        </NGi>
+      </NGrid>
     </div>
 
     <!-- 已完成目标 -->
-    <div class="section" v-if="completedGoals.length > 0">
-      <h3 class="section-title">已完成</h3>
-      <el-row :gutter="20">
-        <el-col :span="8" v-for="goal in completedGoals" :key="goal.id">
-          <el-card class="goal-card completed" shadow="hover" :body-style="{ padding: '20px' }">
+    <div v-if="completedGoals.length > 0" class="mb-6">
+      <h3 class="section-title">{{ $t('goal.completed') || '已完成' }}</h3>
+      <NGrid :x-gap="16" :y-gap="16" :cols="3" item-responsive responsive="screen">
+        <NGi v-for="goal in completedGoals" :key="goal.id" span="3 m:1">
+          <NCard class="goal-card goal-card--completed">
             <div class="goal-header">
-              <el-tag :type="goalTypeColor(goal.goalType)" size="small" effect="plain">
-                {{ goal.goalTypeLabel }}
-              </el-tag>
-              <el-icon color="#52c41a" :size="24"><CircleCheckFilled /></el-icon>
+              <NTag :type="goalTypeColor(goal.goalType)" size="small">{{ goal.goalTypeLabel }}</NTag>
+              <NIcon :size="24" color="#3fb950"><CheckmarkCircle /></NIcon>
             </div>
             <h4 class="goal-name">{{ goal.goalName }}</h4>
-            <div class="goal-progress">
-              <el-progress :percentage="100" :stroke-width="14" color="#52c41a" />
-            </div>
+            <NProgress type="line" :percentage="100" :height="14" color="#3fb950" :show-indicator="false" :border-radius="4" class="mb-2" />
             <div class="goal-meta">
-              <span>{{ goal.targetValue }} {{ goal.unit }}</span>
-              <span class="completed-date">{{ goal.completedDate }} 达成</span>
+              <span class="text-[13px] text-secondary">{{ goal.targetValue }} {{ goal.unit }}</span>
+              <span class="text-[13px] text-[#3fb950]">{{ goal.completedDate }} {{ $t('goal.achieved') || '达成' }}</span>
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </NCard>
+        </NGi>
+      </NGrid>
     </div>
 
     <!-- 已放弃目标 -->
-    <div class="section" v-if="abandonedGoals.length > 0">
-      <h3 class="section-title">已放弃</h3>
-      <el-row :gutter="20">
-        <el-col :span="8" v-for="goal in abandonedGoals" :key="goal.id">
-          <el-card class="goal-card abandoned" shadow="hover" :body-style="{ padding: '20px' }">
+    <div v-if="abandonedGoals.length > 0" class="mb-6">
+      <h3 class="section-title">{{ $t('goal.abandoned') || '已放弃' }}</h3>
+      <NGrid :x-gap="16" :y-gap="16" :cols="3" item-responsive responsive="screen">
+        <NGi v-for="goal in abandonedGoals" :key="goal.id" span="3 m:1">
+          <NCard class="goal-card goal-card--abandoned">
             <div class="goal-header">
-              <el-tag type="info" size="small" effect="plain">{{ goal.goalTypeLabel }}</el-tag>
-              <el-tag type="danger" size="small" effect="plain">已放弃</el-tag>
+              <NTag type="info" size="small">{{ goal.goalTypeLabel }}</NTag>
+              <NTag type="error" size="small">{{ $t('goal.abandoned') || '已放弃' }}</NTag>
             </div>
             <h4 class="goal-name">{{ goal.goalName }}</h4>
-            <div class="goal-progress">
-              <el-progress :percentage="goal.progressPercent" :stroke-width="14" color="#c0c4cc" />
-            </div>
+            <NProgress type="line" :percentage="goal.progressPercent" :height="14" color="#484f58" :show-indicator="false" :border-radius="4" class="mb-2" />
             <div class="goal-meta">
-              <span>{{ goal.currentValue }} / {{ goal.targetValue }} {{ goal.unit }}</span>
+              <span class="text-[13px] text-secondary">{{ goal.currentValue }} / {{ goal.targetValue }} {{ goal.unit }}</span>
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </NCard>
+        </NGi>
+      </NGrid>
     </div>
 
     <!-- 空状态 -->
-    <el-empty v-if="goals.length === 0 && !pageLoading" description="还没有设定目标，点击上方按钮创建第一个目标吧" />
+    <NEmpty v-if="goals.length === 0 && !pageLoading" :description="$t('goal.empty') || '还没有设定目标，点击上方按钮创建第一个目标吧'" />
 
     <!-- 创建/编辑弹窗 -->
-    <el-dialog
-      v-model="showDialog"
-      :title="editingGoal ? '编辑目标' : '新建目标'"
-      width="520px"
-      destroy-on-close
+    <NModal
+      v-model:show="showDialog"
+      preset="card"
+      :title="editingGoal ? ($t('goal.edit') || '编辑目标') : ($t('goal.create') || '新建目标')"
+      style="width: 520px; max-width: 90vw"
+      :mask-closable="true"
+      @after-leave="resetForm"
     >
-      <el-form :model="form" label-width="80px" :rules="rules" ref="formRef">
-        <el-form-item label="目标类型" prop="goalType">
-          <el-select v-model="form.goalType" style="width:100%">
-            <el-option label="减重" value="weight_loss" />
-            <el-option label="增重" value="weight_gain" />
-            <el-option label="增肌" value="muscle_gain" />
-            <el-option label="运动天数" value="exercise_days" />
-            <el-option label="连续打卡" value="checkin_days" />
-            <el-option label="饮水目标" value="water_target" />
-            <el-option label="自定义" value="custom" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="目标名称" prop="goalName">
-          <el-input v-model="form.goalName" placeholder="例如：减重5公斤" maxlength="50" />
-        </el-form-item>
-        <el-form-item label="目标值" prop="targetValue">
-          <el-input-number v-model="form.targetValue" :min="0.1" :precision="1" style="width:150px" />
-          <el-input v-model="form.unit" placeholder="单位: kg/天/ml..." style="width:120px;margin-left:8px" />
-        </el-form-item>
-        <el-form-item label="起始日期">
-          <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" placeholder="今天" style="width:100%" />
-        </el-form-item>
-        <el-form-item label="目标日期">
-          <el-date-picker v-model="form.targetDate" type="date" value-format="YYYY-MM-DD" placeholder="可选" style="width:100%" />
-        </el-form-item>
-      </el-form>
+      <NForm ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="80px">
+        <NFormItem :label="$t('goal.type') || '目标类型'" path="goalType">
+          <NSelect v-model:value="form.goalType" :options="goalTypeOptions" class="w-full" />
+        </NFormItem>
+        <NFormItem :label="$t('goal.name') || '目标名称'" path="goalName">
+          <NInput v-model:value="form.goalName" :placeholder="$t('goal.namePlaceholder') || '例如：减重5公斤'" :maxlength="50" />
+        </NFormItem>
+        <NFormItem :label="$t('goal.targetValue') || '目标值'" path="targetValue">
+          <div class="flex items-center gap-2">
+            <NInputNumber v-model:value="form.targetValue" :min="0.1" :precision="1" class="w-[150px]" />
+            <NInput v-model:value="form.unit" :placeholder="$t('goal.unitPlaceholder') || '单位: kg/天/ml...'" class="w-[120px]" />
+          </div>
+        </NFormItem>
+        <NFormItem :label="$t('goal.startDate') || '起始日期'">
+          <NDatePicker v-model:formatted-value="form.startDate" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
+        </NFormItem>
+        <NFormItem :label="$t('goal.targetDate') || '目标日期'">
+          <NDatePicker v-model:formatted-value="form.targetDate" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
+        </NFormItem>
+      </NForm>
       <template #footer>
-        <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
+        <div class="flex justify-end gap-2.5">
+          <NButton @click="showDialog = false">{{ $t('common.cancel') || '取消' }}</NButton>
+          <NButton type="primary" :loading="submitting" @click="handleSubmit">{{ $t('common.save') || '保存' }}</NButton>
+        </div>
       </template>
-    </el-dialog>
+    </NModal>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheckFilled, Plus, MoreFilled } from '@element-plus/icons-vue'
-import { createGoal, updateGoal, deleteGoal, getGoalList, updateGoalStatus } from '@/api/goal'
+import {
+  NButton, NIcon, NCard, NTag, NProgress, NEmpty, NModal,
+  NForm, NFormItem, NInput, NInputNumber, NSelect, NDatePicker,
+  NGrid, NGi, NStatistic, NDropdown,
+  useMessage, useDialog
+} from 'naive-ui'
+import type { FormInst, FormRules } from 'naive-ui'
+import { AddOutline, EllipsisVertical, CheckmarkCircle } from '@vicons/ionicons5'
+import { fetchCreateGoal, fetchUpdateGoal, fetchDeleteGoal, fetchGetGoalList, fetchUpdateGoalStatus } from '@/service/api'
+
+defineOptions({ name: 'GoalMilestones' })
+const message = useMessage()
+const dialog = useDialog()
+
+interface Goal {
+  id: number | string
+  goalType: string
+  goalTypeLabel: string
+  goalName: string
+  targetValue: number
+  currentValue: number
+  unit: string
+  progressPercent: number
+  remainingDays: number | null
+  status: number
+  completedDate?: string
+  startDate?: string
+  targetDate?: string
+}
 
 const pageLoading = ref(false)
 const submitting = ref(false)
 const showDialog = ref(false)
-const formRef = ref(null)
-const goals = ref([])
-const editingGoal = ref(null)
+const formRef = ref<FormInst | null>(null)
+const goals = ref<Goal[]>([])
+const editingGoal = ref<Goal | null>(null)
 
 const form = reactive({
-  goalType: '',
+  goalType: '' as string,
   goalName: '',
-  targetValue: null,
+  targetValue: null as number | null,
   unit: '',
-  startDate: null,
-  targetDate: null
+  startDate: null as string | null,
+  targetDate: null as string | null
 })
 
-const rules = {
-  goalType: [{ required: true, message: '请选择目标类型', trigger: 'change' }],
-  goalName: [{ required: true, message: '请输入目标名称', trigger: 'blur' }],
-  targetValue: [{ required: true, message: '请输入目标值', trigger: 'blur' }]
+const formRules: FormRules = {
+  goalType: { type: 'string', required: true, message: '请选择目标类型', trigger: 'change' },
+  goalName: { type: 'string', required: true, message: '请输入目标名称', trigger: 'blur' },
+  targetValue: { type: 'number', required: true, message: '请输入目标值', trigger: 'blur' }
 }
+
+const goalTypeOptions = [
+  { label: '减重', value: 'weight_loss' },
+  { label: '增重', value: 'weight_gain' },
+  { label: '增肌', value: 'muscle_gain' },
+  { label: '运动天数', value: 'exercise_days' },
+  { label: '连续打卡', value: 'checkin_days' },
+  { label: '饮水目标', value: 'water_target' },
+  { label: '自定义', value: 'custom' }
+]
+
+const goalActionOptions = [
+  { label: '编辑', key: 'edit' },
+  { label: '标记完成', key: 'complete' },
+  { type: 'divider' as const, key: 'd1' },
+  { label: '放弃目标', key: 'abandon' },
+  { label: '删除', key: 'delete', props: { style: 'color: var(--color-danger, #f85149)' } }
+]
 
 const activeGoals = computed(() => goals.value.filter(g => g.status === 0))
 const completedGoals = computed(() => goals.value.filter(g => g.status === 1))
@@ -205,26 +240,31 @@ const avgProgress = computed(() => {
   return Math.round(active.reduce((s, g) => s + (g.progressPercent || 0), 0) / active.length)
 })
 
-function goalTypeColor(type) {
-  const map = {
-    weight_loss: 'danger', weight_gain: 'warning', muscle_gain: 'success',
-    exercise_days: '', checkin_days: 'info', water_target: '', custom: ''
+function goalTypeColor(type: string): 'default' | 'info' | 'success' | 'warning' | 'error' {
+  const map: Record<string, 'default' | 'info' | 'success' | 'warning' | 'error'> = {
+    weight_loss: 'error',
+    weight_gain: 'warning',
+    muscle_gain: 'success',
+    exercise_days: 'default',
+    checkin_days: 'info',
+    water_target: 'default',
+    custom: 'default'
   }
   return map[type] || 'info'
 }
 
-function progressColor(pct) {
-  if (pct >= 100) return '#52c41a'
-  if (pct >= 50) return '#1890ff'
-  if (pct >= 25) return '#fa8c16'
-  return '#ff4d4f'
+function progressColor(pct: number): string {
+  if (pct >= 100) return '#3fb950'
+  if (pct >= 50) return '#58a6ff'
+  if (pct >= 25) return '#d29922'
+  return '#f85149'
 }
 
 async function loadGoals() {
   pageLoading.value = true
   try {
-    const res = await getGoalList()
-    goals.value = res.data || []
+    const { data } = await fetchGetGoalList()
+    goals.value = (data as any) || []
   } finally {
     pageLoading.value = false
   }
@@ -241,17 +281,22 @@ function resetForm() {
 }
 
 async function handleSubmit() {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
+  if (formRef.value) {
+    try {
+      await formRef.value.validate()
+    } catch {
+      return
+    }
+  }
 
   submitting.value = true
   try {
     if (editingGoal.value) {
-      await updateGoal({ ...form, id: editingGoal.value.id })
-      ElMessage.success('目标已更新')
+      await fetchUpdateGoal({ ...form, id: editingGoal.value.id } as any)
+      message.success('目标已更新')
     } else {
-      await createGoal({ ...form })
-      ElMessage.success('目标创建成功')
+      await fetchCreateGoal({ ...form } as any)
+      message.success('目标创建成功')
     }
     showDialog.value = false
     resetForm()
@@ -261,7 +306,7 @@ async function handleSubmit() {
   }
 }
 
-function handleGoalAction(command, goal) {
+function handleGoalAction(command: string, goal: Goal) {
   switch (command) {
     case 'edit':
       editingGoal.value = goal
@@ -269,33 +314,48 @@ function handleGoalAction(command, goal) {
       form.goalName = goal.goalName
       form.targetValue = goal.targetValue
       form.unit = goal.unit
-      form.startDate = goal.startDate
-      form.targetDate = goal.targetDate
+      form.startDate = goal.startDate || null
+      form.targetDate = goal.targetDate || null
       showDialog.value = true
       break
     case 'complete':
-      ElMessageBox.confirm(`确认达成目标「${goal.goalName}」吗？`, '确认', { type: 'success' })
-        .then(async () => {
-          await updateGoalStatus(goal.id, 1)
-          ElMessage.success('目标已达成！')
+      dialog.success({
+        title: '确认',
+        content: `确认达成目标「${goal.goalName}」吗？`,
+        positiveText: '确定',
+        negativeText: '取消',
+        onPositiveClick: async () => {
+          await fetchUpdateGoalStatus(goal.id as number, '1')
+          message.success('目标已达成！')
           await loadGoals()
-        }).catch(() => {})
+        }
+      })
       break
     case 'abandon':
-      ElMessageBox.confirm(`确认放弃目标「${goal.goalName}」吗？`, '确认', { type: 'warning' })
-        .then(async () => {
-          await updateGoalStatus(goal.id, 2)
-          ElMessage.success('已放弃目标')
+      dialog.warning({
+        title: '确认',
+        content: `确认放弃目标「${goal.goalName}」吗？`,
+        positiveText: '确定',
+        negativeText: '取消',
+        onPositiveClick: async () => {
+          await fetchUpdateGoalStatus(goal.id as number, '2')
+          message.success('已放弃目标')
           await loadGoals()
-        }).catch(() => {})
+        }
+      })
       break
     case 'delete':
-      ElMessageBox.confirm(`确定删除目标「${goal.goalName}」吗？此操作不可恢复。`, '警告', { type: 'error' })
-        .then(async () => {
-          await deleteGoal(goal.id)
-          ElMessage.success('已删除')
+      dialog.error({
+        title: '警告',
+        content: `确定删除目标「${goal.goalName}」吗？此操作不可恢复。`,
+        positiveText: '确定删除',
+        negativeText: '取消',
+        onPositiveClick: async () => {
+          await fetchDeleteGoal(goal.id as number)
+          message.success('已删除')
           await loadGoals()
-        }).catch(() => {})
+        }
+      })
       break
   }
 }
@@ -305,7 +365,7 @@ onMounted(() => {
 })
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .goal-page { padding: 0 4px; }
 
 .page-header {
@@ -313,28 +373,31 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  h2 { margin: 0; font-size: 22px; color: var(--text-primary); }
 }
-
-.overview-row { margin-bottom: 24px; }
-
-.section { margin-bottom: 24px; }
 
 .section-title {
   margin: 0 0 16px;
   font-size: 17px;
   font-weight: 600;
-  color: var(--text-primary);
   padding-left: 12px;
-  border-left: 3px solid var(--brand-primary);
+  border-left: 3px solid var(--brand-primary, #58a6ff);
 }
 
 .goal-card {
-  margin-bottom: 16px;
   transition: transform 0.2s;
-  &:hover { transform: translateY(-2px); }
-  &.completed { border-left: 3px solid #52c41a; }
-  &.abandoned { opacity: 0.6; }
+  height: 100%;
+}
+
+.goal-card:hover {
+  transform: translateY(-2px);
+}
+
+.goal-card--completed {
+  border-left: 3px solid #3fb950;
+}
+
+.goal-card--abandoned {
+  opacity: 0.6;
 }
 
 .goal-header {
@@ -347,19 +410,19 @@ onMounted(() => {
 .goal-name {
   margin: 0 0 14px;
   font-size: 16px;
-  color: var(--text-primary);
 }
-
-.goal-progress { margin-bottom: 10px; }
 
 .goal-meta {
   display: flex;
   justify-content: space-between;
   font-size: 13px;
-  color: var(--text-secondary);
-  .remaining { b { color: var(--brand-primary); } }
-  .completed-date { color: #52c41a; }
 }
 
-.sub-text { font-size: 13px; color: var(--text-secondary); }
+.text-brand {
+  color: var(--brand-primary, #58a6ff);
+}
+
+.text-secondary {
+  color: #8b949e;
+}
 </style>

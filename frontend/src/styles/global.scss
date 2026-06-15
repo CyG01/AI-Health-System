@@ -1,16 +1,116 @@
+/* ============================================================
+   Design Tokens — 统一色彩 / 间距 / 字号体系
+   所有页面和组件必须引用这些变量，禁止硬编码色值
+   ============================================================ */
 :root {
-  --bg-primary: #0d1117;
-  --bg-card: #161b22;
-  --border-color: #30363d;
+  /* ---- 品牌色 ---- */
   --color-primary: #58a6ff;
+  --color-primary-hover: #79b8ff;
+  --color-primary-bg: rgba(88, 166, 255, 0.08);
   --color-success: #3fb950;
+  --color-success-bg: rgba(63, 185, 80, 0.08);
   --color-warning: #d29922;
+  --color-warning-bg: rgba(210, 153, 34, 0.08);
   --color-danger: #f85149;
+  --color-danger-bg: rgba(248, 81, 73, 0.06);
+
+  /* ---- 语义色（Dashboard 统计卡片等） ---- */
+  --color-info-blue: #1890ff;
+  --color-info-green: #52c41a;
+  --color-info-orange: #fa8c16;
+  --color-info-red: #ff4d4f;
+  --color-info-purple: #a371f7;
+
+  /* ---- 背景 & 表面 ---- */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #161b22;
+  --bg-elevated: #1c2333;
+  --bg-input: #0d1117;
+
+  /* ---- 边框 ---- */
+  --border-color: #30363d;
+  --border-color-subtle: #21262d;
+  --border-color-muted: rgba(48, 54, 61, 0.5);
+
+  /* ---- 文字 ---- */
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --text-tertiary: #484f58;
+  --text-link: var(--color-primary);
+
+  /* ---- 间距比例 (4px base) ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-base: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* ---- 字体阶梯 ---- */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 30px;
+
+  /* ---- 圆角 ---- */
+  --radius-sm: 4px;
   --radius-base: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ---- 字体族 ---- */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ---- 特效 ---- */
   --glass-blur: blur(12px);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-base: 0 4px 24px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+  /* ---- 图表色板 ---- */
+  --chart-blue: #58a6ff;
+  --chart-green: #3fb950;
+  --chart-amber: #d29922;
+  --chart-red: #f85149;
+  --chart-purple: #a371f7;
+  --chart-gray: #8b949e;
+}
+
+/* ============================================================
+   亮色主题 — html:not(.dark) 覆盖
+   ============================================================ */
+html:not(.dark) {
+  --bg-primary: #f6f8fa;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #f0f2f5;
+  --bg-input: #ffffff;
+
+  --border-color: #d0d7de;
+  --border-color-subtle: #e1e4e8;
+  --border-color-muted: rgba(208, 215, 222, 0.5);
+
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --text-tertiary: #8c959f;
+
+  --color-primary-bg: rgba(88, 166, 255, 0.12);
+  --color-success-bg: rgba(63, 185, 80, 0.12);
+  --color-warning-bg: rgba(210, 153, 34, 0.12);
+  --color-danger-bg: rgba(248, 81, 73, 0.1);
+
+  --shadow-sm: 0 1px 3px rgba(31, 35, 40, 0.08);
+  --shadow-base: 0 3px 12px rgba(31, 35, 40, 0.1);
+  --shadow-lg: 0 8px 24px rgba(31, 35, 40, 0.14);
+
+  color-scheme: light;
 }
 
 html {
@@ -43,17 +143,15 @@ body,
   width: 100%;
   height: 100%;
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: var(--text-base);
   color: var(--text-primary);
   background-color: var(--bg-primary);
-  /* 启用硬件加速滚动 */
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
 
 body {
-  min-width: 1366px;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 a {
@@ -79,20 +177,27 @@ a {
   background: rgba(22, 27, 34, 0.75);
   backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-base);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-lg);
 }
 
+html:not(.dark) .glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow-base);
+}
+
+/* ---- 通用文本工具类 ---- */
 .page-title {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .page-desc {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
+/* ---- Element Plus 覆盖 ---- */
 .el-button {
   border-radius: var(--radius-base) !important;
   transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease !important;
@@ -110,12 +215,12 @@ a {
   background: var(--bg-card) !important;
   border: none !important;
   border-radius: var(--radius-base) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25) !important;
+  box-shadow: var(--shadow-base) !important;
   transition: transform 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 .el-card:hover {
-  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 
 .el-menu {
@@ -125,11 +230,10 @@ a {
 .el-table {
   --el-table-bg-color: var(--bg-card);
   --el-table-tr-bg-color: var(--bg-card);
-  --el-table-header-bg-color: rgba(13, 17, 23, 0.6);
+  --el-table-header-bg-color: var(--bg-elevated);
   --el-table-border-color: transparent;
 }
 
-/* 表格行悬浮过渡 */
 .el-table__body tr {
   transition: background-color 0.15s ease;
 }
@@ -139,7 +243,7 @@ a {
   --el-pagination-button-bg-color: var(--bg-card);
 }
 
-/* 通用淡入动画 */
+/* ---- 动画 ---- */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -149,20 +253,69 @@ a {
   animation: fade-in-up 0.4s ease-out both;
 }
 
-/* 通用骨架屏闪烁 */
+/* ---- 骨架屏闪烁 ---- */
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #161b22 25%, #1c2333 50%, #161b22 75%);
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-elevated) 50%, var(--bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-/* 图片懒加载占位 */
+/* ---- 图片懒加载占位 ---- */
 img[loading="lazy"] {
   background: var(--bg-card);
   min-height: 40px;
+}
+
+/* ---- 空状态引导组件 ---- */
+.empty-state-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3xl) var(--space-xl);
+  text-align: center;
+}
+
+.empty-state-guide .empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-base);
+  opacity: 0.6;
+}
+
+.empty-state-guide .empty-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.empty-state-guide .empty-desc {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* ---- Inline error + retry ---- */
+.inline-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px dashed var(--color-danger);
+  border-radius: var(--radius-base);
+  background: var(--color-danger-bg);
+  text-align: center;
+}
+
+.inline-error .error-msg {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
 }

@@ -2,6 +2,7 @@ package com.example.service.impl;
 
 import com.example.common.BusinessException;
 import com.example.convert.UserConvert;
+import com.example.dto.NotificationPreferenceDTO;
 import com.example.dto.UpdatePasswordDTO;
 import com.example.dto.UpdateProfileDTO;
 import com.example.entity.SysUser;
@@ -107,17 +108,22 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateNotificationPreference(Long userId, String notificationEnabled, String reminderTime) {
+    public void updateNotificationPreference(Long userId, NotificationPreferenceDTO dto) {
         SysUser user = sysUserMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
-        if (notificationEnabled != null) {
-            user.setNotificationEnabled(Integer.parseInt(notificationEnabled));
+        if (dto.getNotificationEnabled() != null) {
+            user.setNotificationEnabled(dto.getNotificationEnabled());
         }
-        if (reminderTime != null) {
-            user.setReminderTime(reminderTime);
+        if (dto.getReminderTime() != null) {
+            user.setReminderTime(dto.getReminderTime());
         }
+        if (dto.getNotifyExercise() != null) user.setNotifyExercise(dto.getNotifyExercise());
+        if (dto.getNotifyDiet() != null) user.setNotifyDiet(dto.getNotifyDiet());
+        if (dto.getNotifyCheckin() != null) user.setNotifyCheckin(dto.getNotifyCheckin());
+        if (dto.getQuietStart() != null) user.setQuietStart(dto.getQuietStart());
+        if (dto.getQuietEnd() != null) user.setQuietEnd(dto.getQuietEnd());
         sysUserMapper.updateById(user);
     }
 }

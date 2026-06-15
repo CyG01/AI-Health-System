@@ -1,337 +1,375 @@
 <template>
-  <div class="exercise-record-page">
-    <div class="page-header">
-      <h2>运动记录</h2>
+  <div class="exercise-record-page flex flex-col gap-5">
+    <div>
+      <h2 class="text-xl font-semibold">{{ $t('exercise.record') || '运动记录' }}</h2>
     </div>
 
-    <!-- 提交运动记录 -->
-    <el-card class="submit-card" shadow="hover">
-      <template #header><span>记录运动</span></template>
-      <el-form :model="form" label-width="80px" @submit.prevent="handleSubmit">
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="运动项目">
-              <el-select
-                v-model="form.exerciseItemId"
-                filterable
-                placeholder="搜索运动项目"
-                :loading="itemsLoading"
-                @change="onItemChange"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in exerciseItems"
-                  :key="item.id"
-                  :label="`${item.name} (${item.caloriesPerUnit}kcal/${item.unit})`"
-                  :value="item.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="4">
-            <el-form-item label="时长(分)">
-              <el-input-number v-model="form.duration" :min="1" :max="480" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="4">
-            <el-form-item label="数量">
-              <el-input-number v-model="form.amount" :min="0.1" :precision="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="4">
-            <el-form-item label="单位">
-              <el-input v-model="form.unit" placeholder="次/组/分钟" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="4">
-            <el-form-item>
-              <el-button type="primary" native-type="submit" :loading="submitting">提交记录</el-button>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-    </el-card>
+    <!-- Submit Form -->
+    <NCard :title="$t('exercise.recordActivity') || '记录运动'" :bordered="false">
+      <NForm ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="80" @submit.prevent="handleSubmit">
+        <div class="flex flex-wrap items-end gap-4">
+          <NFormItem label="运动项目" path="itemId" class="min-w-[200px] flex-1">
+            <NSelect
+              v-model:value="form.itemId"
+              filterable
+              placeholder="搜索运动项目"
+              :loading="itemsLoading"
+              :options="exerciseItemOptions"
+              @update:value="onItemChange"
+            />
+          </NFormItem>
+          <NFormItem label="时长(分)" path="durationMinutes">
+            <NInputNumber v-model:value="form.durationMinutes" :min="1" :max="480" class="w-[120px]" />
+          </NFormItem>
+          <NFormItem>
+            <NButton type="primary" attr-type="submit" :loading="submitting">提交记录</NButton>
+          </NFormItem>
+        </div>
+      </NForm>
+    </NCard>
 
-    <!-- 今日统计 -->
-    <el-row :gutter="20" class="stats-row" v-if="todayTotal > 0">
-      <el-col :span="6">
-        <el-statistic title="今日总消耗" :value="todayTotal" suffix="kcal" />
-      </el-col>
-      <el-col :span="6">
-        <el-statistic title="今日运动次数" :value="records.length" suffix="次" />
-      </el-col>
-    </el-row>
+    <!-- Today Stats -->
+    <div v-if="todayTotal > 0 || todayDuration > 0" class="flex gap-5">
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ todayTotal }}</div>
+        <div class="text-[13px] text-secondary">今日总消耗 (kcal)</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ todayDuration }}</div>
+        <div class="text-[13px] text-secondary">今日总时长 (分钟)</div>
+      </NCard>
+      <NCard :bordered="false" class="flex-1 text-center">
+        <div class="text-2xl font-bold">{{ records.length }}</div>
+        <div class="text-[13px] text-secondary">今日运动次数</div>
+      </NCard>
+    </div>
 
-    <!-- AI运动指导 -->
-    <el-card v-if="selectedItem" class="guidance-card" shadow="hover">
+    <!-- AI Exercise Guidance -->
+    <NCard v-if="selectedItem" :bordered="false">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span><el-icon><MagicStick /></el-icon> AI运动指导 - {{ selectedItem.name }}</span>
-          <el-button size="small" type="primary" :loading="guidanceLoading" @click="handleGetGuidance">
+        <div class="flex items-center justify-between">
+          <span>AI运动指导 - {{ selectedItem.name }}</span>
+          <NButton size="small" type="primary" :loading="guidanceLoading" @click="handleGetGuidance">
             {{ guidance ? '刷新指导' : '获取AI指导' }}
-          </el-button>
+          </NButton>
         </div>
       </template>
-      <div v-if="guidance" class="guidance-content">
-        <div class="guidance-section" v-if="guidance.basicInfo">
-          <h4>基本信息</h4>
-          <el-row :gutter="16">
-            <el-col :span="6"><span class="label">类型</span>：{{ guidance.basicInfo.type }}</el-col>
-            <el-col :span="6"><span class="label">目标肌群</span>：{{ guidance.basicInfo.targetMuscle }}</el-col>
-            <el-col :span="6"><span class="label">难度</span>：<el-tag size="small">{{ guidance.basicInfo.difficulty }}</el-tag></el-col>
-            <el-col :span="6"><span class="label">热量消耗</span>：~{{ selectedItem.caloriesPerUnit }}kcal/{{ selectedItem.unit }}</el-col>
-          </el-row>
+
+      <div v-if="guidance" class="flex flex-col gap-4">
+        <div v-if="guidance.basicInfo">
+          <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">基本信息</h4>
+          <div class="flex flex-wrap gap-4 text-[13px]">
+            <span><span class="text-secondary">类型</span>：{{ guidance.basicInfo.type }}</span>
+            <span><span class="text-secondary">目标肌群</span>：{{ guidance.basicInfo.targetMuscle }}</span>
+            <span><span class="text-secondary">难度</span>：<NTag size="small">{{ guidance.basicInfo.difficulty }}</NTag></span>
+            <span><span class="text-secondary">热量消耗</span>：~{{ selectedItem.caloriesPerUnit }}kcal/{{ selectedItem.unit }}</span>
+          </div>
         </div>
-        <div class="guidance-section" v-if="guidance.breathing">
-          <h4>呼吸节奏</h4>
-          <p>{{ guidance.breathing }}</p>
+        <div v-if="guidance.breathing">
+          <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">呼吸节奏</h4>
+          <p class="text-[13px] leading-relaxed">{{ guidance.breathing }}</p>
         </div>
-        <div class="guidance-section" v-if="guidance.steps?.length">
-          <h4>动作要领</h4>
-          <ul class="step-list">
-            <li v-for="(step, i) in guidance.steps" :key="i">
-              <span class="step-num">{{ i + 1 }}</span> {{ step }}
+        <div v-if="guidance.steps?.length">
+          <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">动作要领</h4>
+          <ul class="flex flex-col gap-2">
+            <li v-for="(step, i) in guidance.steps" :key="i" class="flex items-start gap-2.5 text-[13px] leading-relaxed">
+              <span class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#58a6ff] to-[#7c3aed] text-[11px] font-bold text-white">{{ i + 1 }}</span>
+              {{ step }}
             </li>
           </ul>
         </div>
-        <div class="guidance-section" v-if="guidance.commonMistakes?.length">
-          <h4>常见错误</h4>
-          <ul class="mistake-list">
-            <li v-for="(m, i) in guidance.commonMistakes" :key="i">
-              <el-tag type="danger" size="small" effect="dark">错误{{ i + 1 }}</el-tag> {{ m }}
+        <div v-if="guidance.commonMistakes?.length">
+          <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">常见错误</h4>
+          <ul class="flex flex-col gap-2">
+            <li v-for="(m, i) in guidance.commonMistakes" :key="i" class="flex items-start gap-2 text-[13px] leading-relaxed">
+              <NTag type="error" size="small">错误{{ i + 1 }}</NTag> {{ m }}
             </li>
           </ul>
         </div>
-        <div class="guidance-section" v-if="guidance.tips">
-          <h4>小贴士</h4>
-          <p>{{ guidance.tips }}</p>
+        <div v-if="guidance.tips">
+          <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">小贴士</h4>
+          <p class="text-[13px] leading-relaxed">{{ guidance.tips }}</p>
         </div>
       </div>
-      <el-empty v-else description="点击按钮获取AI运动指导" :image-size="50" />
-    </el-card>
+      <NEmpty v-else description="点击按钮获取AI运动指导" size="small" />
+    </NCard>
 
-    <!-- 记录列表 -->
-    <el-card class="list-card" shadow="hover">
+    <!-- Records Table -->
+    <NCard :bordered="false">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>运动记录</span>
-          <el-pagination
-            v-model:current-page="page"
-            small
-            layout="prev, pager, next"
-            :total="total"
-            :page-size="10"
-            @current-change="loadRecords"
-          />
+        <div class="flex items-center justify-between">
+          <span>{{ $t('exercise.records') || '运动记录' }}</span>
+          <NPagination v-model:page="page" :page-count="Math.ceil(total / 10)" :page-size="10" size="small" @update:page="loadRecords" />
         </div>
       </template>
-      <el-table :data="records" stripe v-loading="recordsLoading">
-        <el-table-column prop="exerciseItemName" label="运动项目" min-width="120" />
-        <el-table-column label="运动类型" width="100">
-          <template #default="{ row }">
-            <el-tag>{{ row.exerciseType || '-' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="duration" label="时长(分钟)" width="100" />
-        <el-table-column label="运动量" width="100">
-          <template #default="{ row }">{{ row.amount }} {{ row.unit }}</template>
-        </el-table-column>
-        <el-table-column label="消耗热量" width="100">
-          <template #default="{ row }"><b>{{ row.caloriesBurned }}</b> kcal</template>
-        </el-table-column>
-        <el-table-column label="时间" width="100">
-          <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+
+      <NEmpty v-if="records.length === 0 && !recordsLoading" :description="$t('exercise.empty') || '还没有运动记录，使用上方的快捷录入记录你的第一次运动'" />
+
+      <NDataTable
+        v-else
+        :data="records"
+        :columns="tableColumns"
+        :loading="recordsLoading"
+        :bordered="false"
+        striped
+      />
+    </NCard>
+
+    <!-- Edit Modal -->
+    <NModal
+      v-model:show="editModalVisible"
+      preset="card"
+      title="编辑运动记录"
+      class="w-[500px]"
+      :mask-closable="false"
+    >
+      <NForm ref="editFormRef" :model="editForm" :rules="editFormRules" label-placement="left" label-width="80">
+        <NFormItem label="运动项目" path="itemId">
+          <NSelect
+            v-model:value="editForm.itemId"
+            filterable
+            placeholder="搜索运动项目"
+            :options="exerciseItemOptions"
+          />
+        </NFormItem>
+        <NFormItem label="时长(分)" path="durationMinutes">
+          <NInputNumber v-model:value="editForm.durationMinutes" :min="1" :max="480" class="w-full" />
+        </NFormItem>
+        <NFormItem label="消耗热量" path="caloriesBurned">
+          <NInputNumber v-model:value="editForm.caloriesBurned" :min="0" :max="10000" class="w-full" />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <NButton @click="editModalVisible = false">取消</NButton>
+          <NButton type="primary" :loading="editSubmitting" @click="handleEditSubmit">保存</NButton>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getExerciseItems, submitExerciseRecord, getExerciseRecordsPage } from '@/api/exercise'
-import { getExerciseGuidance } from '@/api/exercise'
+<script setup lang="ts">
+import { ref, computed, onMounted, h } from 'vue';
+import { useMessage, useDialog, NCard, NForm, NFormItem, NSelect, NInputNumber, NButton, NTag, NPagination, NDataTable, NEmpty, NModal } from 'naive-ui';
+import type { DataTableColumns } from 'naive-ui';
+import { fetchGetExerciseItems, fetchSubmitExerciseRecord, fetchGetExerciseRecordsPage, fetchGetExerciseGuidance, fetchGetTodayCheckin, fetchDeleteExerciseRecord, fetchUpdateExerciseRecord } from '@/service/api';
 
-const exerciseItems = ref([])
-const itemsLoading = ref(false)
-const records = ref([])
-const recordsLoading = ref(false)
-const submitting = ref(false)
-const guidanceLoading = ref(false)
-const guidance = ref(null)
-const selectedItem = ref(null)
-const page = ref(1)
-const total = ref(0)
+defineOptions({ name: 'ExerciseRecord' });
+const message = useMessage();
+const dialog = useDialog();
 
-const form = ref({
-  exerciseItemId: null,
-  duration: 30,
-  amount: 1,
-  unit: '次'
-})
-
-const todayTotal = computed(() =>
-  records.value.reduce((sum, r) => sum + (r.caloriesBurned || 0), 0)
-)
-
-function formatTime(t) {
-  if (!t) return '-'
-  return t.substring(11, 16)
+interface ExerciseItem {
+  id: number;
+  name: string;
+  caloriesPerUnit?: number;
+  unit?: string;
+  exerciseType?: string;
 }
 
-async function loadItems() {
-  itemsLoading.value = true
+const exerciseItems = ref<ExerciseItem[]>([]);
+const itemsLoading = ref(false);
+const records = ref<any[]>([]);
+const recordsLoading = ref(false);
+const submitting = ref(false);
+const guidanceLoading = ref(false);
+const guidance = ref<any>(null);
+const selectedItem = ref<ExerciseItem | null>(null);
+const page = ref(1);
+const total = ref(0);
+const formRef = ref();
+
+// Edit state
+const editModalVisible = ref(false);
+const editSubmitting = ref(false);
+const editFormRef = ref();
+const editingId = ref<number | null>(null);
+const editForm = ref({
+  itemId: null as number | null,
+  durationMinutes: 30,
+  caloriesBurned: 0
+});
+
+const editFormRules = {
+  itemId: { type: 'number' as const, required: true, message: '请选择运动项目', trigger: 'change' },
+  durationMinutes: { type: 'number' as const, required: true, message: '请输入时长', trigger: 'blur' }
+};
+
+const form = ref({
+  itemId: null as number | null,
+  durationMinutes: 30
+});
+
+const formRules = {
+  itemId: { type: 'number' as const, required: true, message: '请选择运动项目', trigger: 'change' },
+  durationMinutes: { type: 'number' as const, required: true, message: '请输入时长', trigger: 'blur' }
+};
+
+const exerciseItemOptions = computed(() =>
+  exerciseItems.value.map(item => ({
+    label: `${item.name} (${item.caloriesPerUnit || 0}kcal/${item.unit || '次'})`,
+    value: item.id
+  }))
+);
+
+const todayTotal = computed(() =>
+  records.value.reduce((sum: number, r: any) => sum + (r.caloriesBurned || 0), 0)
+);
+
+const todayDuration = computed(() =>
+  records.value.reduce((sum: number, r: any) => sum + (r.durationMinutes || r.duration || 0), 0)
+);
+
+function handleDelete(id: number) {
+  dialog.warning({
+    title: '确认删除',
+    content: '确定要删除此记录吗？',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const { error } = await fetchDeleteExerciseRecord(id);
+      if (!error) {
+        window.$message?.success('删除成功');
+        loadRecords();
+      }
+    }
+  });
+}
+
+function handleEdit(row: any) {
+  editingId.value = row.id;
+  editForm.value = {
+    itemId: row.itemId || row.exerciseItemId || null,
+    durationMinutes: row.durationMinutes || row.duration || 30,
+    caloriesBurned: row.caloriesBurned || 0
+  };
+  editModalVisible.value = true;
+}
+
+async function handleEditSubmit() {
+  if (editingId.value === null) return;
+  if (editFormRef.value) {
+    try {
+      await editFormRef.value.validate();
+    } catch {
+      return;
+    }
+  }
+  editSubmitting.value = true;
   try {
-    const res = await getExerciseItems()
-    exerciseItems.value = res.data || []
+    const { error } = await fetchUpdateExerciseRecord(editingId.value, {
+      itemId: editForm.value.itemId,
+      durationMinutes: editForm.value.durationMinutes,
+      caloriesBurned: editForm.value.caloriesBurned
+    } as any);
+    if (!error) {
+      message.success('更新成功');
+      editModalVisible.value = false;
+      loadRecords();
+    }
   } finally {
-    itemsLoading.value = false
+    editSubmitting.value = false;
   }
 }
 
-function onItemChange(val) {
-  selectedItem.value = exerciseItems.value.find(i => i.id === val) || null
-  guidance.value = null
+const tableColumns: DataTableColumns = [
+  { title: '运动项目', key: 'exerciseItemName', minWidth: 120 },
+  {
+    title: '运动类型', key: 'exerciseType', width: 100,
+    render: (row: any) => h(NTag, { size: 'small' }, { default: () => row.exerciseType || '-' })
+  },
+  { title: '时长(分钟)', key: 'durationMinutes', width: 100, render: (row: any) => row.durationMinutes || row.duration || '-' },
+  { title: '消耗热量', key: 'caloriesBurned', width: 100, render: (row: any) => h('b', {}, `${row.caloriesBurned} kcal`) },
+  { title: '时间', key: 'createTime', width: 100, render: (row: any) => formatTime(row.createTime) },
+  {
+    title: '操作', key: 'actions', width: 140, fixed: 'right' as const,
+    render: (row: any) => h('div', { class: 'flex gap-2' }, [
+      h(NButton, { type: 'primary', size: 'small', text: true, onClick: () => handleEdit(row) }, { default: () => '编辑' }),
+      h(NButton, { type: 'error', size: 'small', text: true, onClick: () => handleDelete(row.id) }, { default: () => '删除' })
+    ])
+  }
+];
+
+function formatTime(t: string): string {
+  if (!t) return '-';
+  return t.substring(11, 16);
+}
+
+function onItemChange(val: number) {
+  selectedItem.value = exerciseItems.value.find(i => i.id === val) || null;
+  guidance.value = null;
 }
 
 async function handleGetGuidance() {
-  if (!selectedItem.value) return
-  guidanceLoading.value = true
+  if (!selectedItem.value) return;
+  guidanceLoading.value = true;
   try {
-    const res = await getExerciseGuidance(selectedItem.value.id)
-    if (res.data?.data) {
-      guidance.value = res.data.data
-    } else {
-      guidance.value = res.data
+    const { data } = await fetchGetExerciseGuidance(selectedItem.value.id);
+    if (data) {
+      guidance.value = data;
     }
   } finally {
-    guidanceLoading.value = false
+    guidanceLoading.value = false;
+  }
+}
+
+async function loadItems() {
+  itemsLoading.value = true;
+  try {
+    const { data } = await fetchGetExerciseItems();
+    exerciseItems.value = data || [];
+  } finally {
+    itemsLoading.value = false;
   }
 }
 
 async function loadRecords() {
-  recordsLoading.value = true
+  recordsLoading.value = true;
   try {
-    const res = await getExerciseRecordsPage({ page: page.value, size: 10 })
-    if (res.data) {
-      records.value = res.data.records || []
-      total.value = res.data.total || 0
+    const { data } = await fetchGetExerciseRecordsPage({ page: page.value, size: 10 });
+    if (data) {
+      records.value = data.records || [];
+      total.value = data.total || 0;
     }
   } finally {
-    recordsLoading.value = false
+    recordsLoading.value = false;
   }
 }
 
 async function handleSubmit() {
-  if (!form.value.exerciseItemId) {
-    ElMessage.warning('请选择运动项目')
-    return
-  }
-  submitting.value = true
+  submitting.value = true;
   try {
-    const res = await submitExerciseRecord(form.value)
-    if (res.code === 200) {
-      ElMessage.success('记录成功')
-      form.value.duration = 30
-      form.value.amount = 1
-      form.value.exerciseItemId = null
-      loadRecords()
+    let checkinId: number | null = null;
+    try {
+      const { data: checkinData } = await fetchGetTodayCheckin();
+      checkinId = checkinData?.id ?? null;
+    } catch { /* not checked in */ }
+
+    const exercise = selectedItem.value;
+    const caloriesBurned = exercise
+      ? Math.round((exercise.caloriesPerUnit || 0) * form.value.durationMinutes / 60)
+      : 0;
+
+    const { error } = await fetchSubmitExerciseRecord({
+      itemId: form.value.itemId,
+      durationMinutes: form.value.durationMinutes,
+      caloriesBurned,
+      checkinId
+    });
+    if (!error) {
+      message.success('记录成功');
+      form.value.durationMinutes = 30;
+      form.value.itemId = null;
+      selectedItem.value = null;
+      loadRecords();
     }
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 onMounted(() => {
-  loadItems()
-  loadRecords()
-})
+  loadItems();
+  loadRecords();
+});
 </script>
-
-<style scoped>
-.exercise-record-page { padding: 20px 0; }
-.page-header { margin-bottom: 20px; }
-.page-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-.submit-card { margin-bottom: 20px; }
-.stats-row { margin-bottom: 20px; }
-.list-card { margin-bottom: 20px; }
-
-.guidance-card {
-  margin-bottom: 20px;
-  :deep(.el-card__header) { border-color: rgba(88, 166, 255, 0.2); }
-}
-
-.guidance-content { padding: 8px 0; }
-
-.guidance-section {
-  margin-bottom: 16px;
-}
-
-.guidance-section h4 {
-  font-size: 14px;
-  color: #58a6ff;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #21262d;
-}
-
-.guidance-section p {
-  color: #c9d1d9;
-  font-size: 13px;
-  line-height: 1.8;
-  margin: 0;
-}
-
-.guidance-section .label { color: #8b949e; }
-
-.step-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.step-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: #c9d1d9;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.step-num {
-  width: 22px;
-  height: 22px;
-  background: linear-gradient(135deg, #58a6ff, #7c3aed);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.mistake-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mistake-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  color: #c9d1d9;
-  font-size: 13px;
-  line-height: 1.6;
-}
-</style>

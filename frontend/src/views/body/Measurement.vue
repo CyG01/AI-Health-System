@@ -1,193 +1,136 @@
 <template>
-  <div class="body-page" v-loading="pageLoading">
-    <div class="page-header">
-      <h2>身体围度测量</h2>
-      <p class="page-desc">定期记录围度数据，比单纯体重更能反映体型变化</p>
-    </div>
+  <div class="body-page">
+    <NSpin :show="pageLoading">
+      <div class="page-header">
+        <h2>{{ $t('body.measurement') || '身体围度测量' }}</h2>
+        <p class="page-desc">{{ $t('body.measurementDesc') || '定期记录围度数据，比单纯体重更能反映体型变化' }}</p>
+      </div>
 
-    <!-- 统计卡片 -->
-    <el-row :gutter="20" class="stats-row" v-if="latest">
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">腰围</div>
-          <div class="stat-value">{{ latest.waist ?? '--' }}<span class="stat-unit">cm</span></div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">臀围</div>
-          <div class="stat-value">{{ latest.hip ?? '--' }}<span class="stat-unit">cm</span></div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">腰臀比</div>
-          <div class="stat-value" :class="whrClass">{{ latest.waistHipRatio ?? '--' }}</div>
-          <div class="stat-whr-tag">
-            <el-tag :type="whrTagType" size="small">{{ whrLabel }}</el-tag>
+      <!-- 统计卡片 -->
+      <div v-if="latest" class="grid grid-cols-4 xl:grid-cols-8 gap-3 mb-5">
+        <NCard v-for="item in statCards" :key="item.label" size="small" class="stat-card text-center">
+          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-value" :class="item.classFn ? item.classFn(latest) : ''">
+            {{ item.getValue(latest) }}
+            <span v-if="item.unit" class="stat-unit">{{ item.unit }}</span>
           </div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">胸围</div>
-          <div class="stat-value">{{ latest.chest ?? '--' }}<span class="stat-unit">cm</span></div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">大腿围</div>
-          <div class="stat-value">{{ latest.thigh ?? '--' }}<span class="stat-unit">cm</span></div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">臂围</div>
-          <div class="stat-value">{{ latest.arm ?? '--' }}<span class="stat-unit">cm</span></div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover" :body-style="{ background: latest.bodyFatRate ? '#fff7e6' : '' }">
-          <div class="stat-label">体脂率</div>
-          <div class="stat-value">{{ latest.bodyFatRate ?? '--' }}<span class="stat-unit">%</span></div>
-        </el-card>
-      </el-col>
-      <el-col :span="3">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-label">测量日期</div>
-          <div class="stat-value date-value">{{ latest.recordDate }}</div>
-        </el-card>
-      </el-col>
-    </el-row>
+          <div v-if="item.tag" class="stat-whr-tag">
+            <NTag :type="whrTagType" size="small">{{ whrLabel }}</NTag>
+          </div>
+        </NCard>
+      </div>
 
-    <!-- 提交表单 -->
-    <div class="submit-card glass-card">
-      <h3 class="card-title">{{ latest ? '更新围度数据' : '首次记录围度' }}</h3>
-      <el-form :model="form" label-width="80px" @submit.prevent="handleSubmit">
-        <el-row :gutter="16">
-          <el-col :span="3">
-            <el-form-item label="日期">
-              <el-date-picker v-model="form.recordDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="腰围(cm)">
-              <el-input-number v-model="form.waist" :min="30" :max="200" :precision="1" :step="0.5" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="臀围(cm)">
-              <el-input-number v-model="form.hip" :min="30" :max="200" :precision="1" :step="0.5" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="胸围(cm)">
-              <el-input-number v-model="form.chest" :min="30" :max="200" :precision="1" :step="0.5" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="大腿围(cm)">
-              <el-input-number v-model="form.thigh" :min="20" :max="120" :precision="1" :step="0.5" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="臂围(cm)">
-              <el-input-number v-model="form.arm" :min="15" :max="80" :precision="1" :step="0.5" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="体脂率(%)">
-              <el-input-number v-model="form.bodyFatRate" :min="1" :max="60" :precision="1" :step="0.5" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="3">
-            <el-form-item label="">
-              <el-button type="primary" native-type="submit" :loading="submitting">保存</el-button>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="备注">
-          <el-input v-model="form.note" placeholder="测量备注..." maxlength="200" show-word-limit />
-        </el-form-item>
-      </el-form>
-    </div>
+      <!-- 提交表单 -->
+      <NCard class="mb-5">
+        <h3 class="card-title">{{ latest ? ($t('body.update') || '更新围度数据') : ($t('body.firstRecord') || '首次记录围度') }}</h3>
+        <NForm :model="form" label-placement="left" label-width="80px" @submit.prevent="handleSubmit">
+          <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
+            <NFormItem label="日期">
+              <NDatePicker v-model:formatted-value="form.recordDate" type="date" value-format="yyyy-MM-dd" class="w-full" />
+            </NFormItem>
+            <NFormItem label="腰围(cm)">
+              <NInputNumber v-model:value="form.waist" :min="30" :max="200" :precision="1" :step="0.5" class="w-full" />
+            </NFormItem>
+            <NFormItem label="臀围(cm)">
+              <NInputNumber v-model:value="form.hip" :min="30" :max="200" :precision="1" :step="0.5" class="w-full" />
+            </NFormItem>
+            <NFormItem label="胸围(cm)">
+              <NInputNumber v-model:value="form.chest" :min="30" :max="200" :precision="1" :step="0.5" class="w-full" />
+            </NFormItem>
+            <NFormItem label="大腿围(cm)">
+              <NInputNumber v-model:value="form.thigh" :min="20" :max="120" :precision="1" :step="0.5" class="w-full" />
+            </NFormItem>
+            <NFormItem label="臂围(cm)">
+              <NInputNumber v-model:value="form.arm" :min="15" :max="80" :precision="1" :step="0.5" class="w-full" />
+            </NFormItem>
+            <NFormItem label="体脂率(%)">
+              <NInputNumber v-model:value="form.bodyFatRate" :min="1" :max="60" :precision="1" :step="0.5" class="w-full" />
+            </NFormItem>
+            <NFormItem label=" ">
+              <NButton type="primary" attr-type="submit" :loading="submitting">保存</NButton>
+            </NFormItem>
+          </div>
+          <NFormItem label="备注">
+            <NInput v-model:value="form.note" placeholder="测量备注..." :maxlength="200" show-count />
+          </NFormItem>
+        </NForm>
+      </NCard>
 
-    <!-- 趋势图 -->
-    <el-row :gutter="20" class="chart-row" v-if="trend.length > 1">
-      <el-col :span="12">
-        <el-card class="chart-card" shadow="hover">
-          <template #header><span>围度趋势</span></template>
-          <div class="chart-container" ref="waistChartRef"></div>
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card class="chart-card" shadow="hover">
-          <template #header><span>腰臀比趋势</span></template>
-          <div class="chart-container" ref="whrChartRef"></div>
-        </el-card>
-      </el-col>
-    </el-row>
+      <!-- 趋势图 -->
+      <div v-if="trend.length > 1" class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+        <NCard :title="$t('body.measurementTrend') || '围度趋势'" size="small">
+          <div ref="waistChartRef" class="h-70" />
+        </NCard>
+        <NCard :title="$t('body.whrTrend') || '腰臀比趋势'" size="small">
+          <div ref="whrChartRef" class="h-70" />
+        </NCard>
+      </div>
 
-    <!-- 历史记录 -->
-    <div class="history-card glass-card">
-      <h3 class="card-title">历史记录</h3>
-      <el-table :data="history" stripe v-loading="pageLoading">
-        <el-table-column prop="recordDate" label="日期" width="120" />
-        <el-table-column label="腰围" width="90">
-          <template #default="{ row }">{{ row.waist }}cm</template>
-        </el-table-column>
-        <el-table-column label="臀围" width="90">
-          <template #default="{ row }">{{ row.hip }}cm</template>
-        </el-table-column>
-        <el-table-column label="腰臀比" width="100">
-          <template #default="{ row }">{{ row.waistHipRatio ?? '--' }}</template>
-        </el-table-column>
-        <el-table-column label="胸围" width="90">
-          <template #default="{ row }">{{ row.chest ?? '--' }}cm</template>
-        </el-table-column>
-        <el-table-column label="大腿围" width="90">
-          <template #default="{ row }">{{ row.thigh ?? '--' }}cm</template>
-        </el-table-column>
-        <el-table-column label="臂围" width="90">
-          <template #default="{ row }">{{ row.arm ?? '--' }}cm</template>
-        </el-table-column>
-        <el-table-column label="体脂率" width="90">
-          <template #default="{ row }">{{ row.bodyFatRate ?? '--' }}%</template>
-        </el-table-column>
-        <el-table-column prop="note" label="备注" min-width="150" show-overflow-tooltip />
-      </el-table>
-    </div>
+      <!-- 历史记录 -->
+      <NCard :title="$t('body.history') || '历史记录'">
+        <NDataTable :columns="historyColumns" :data="history" :loading="pageLoading" :bordered="false" :row-key="(row: BodyRecord) => row.id" />
+      </NCard>
+    </NSpin>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
-import { submitBodyMeasurement, getLatestBodyMeasurement, getBodyMeasurementHistory, getBodyMeasurementTrend } from '@/api/bodyMeasurement'
-import echarts from '@/utils/echarts'
+<script setup lang="ts">
+import { ref, reactive, computed, h, onMounted, onUnmounted, nextTick } from 'vue'
+import {
+  NCard, NButton, NForm, NFormItem, NInput, NInputNumber, NDatePicker,
+  NDataTable, NTag, NSpin, NEmpty,
+  useMessage, useDialog,
+  type DataTableColumns
+} from 'naive-ui'
+import { fetchSubmitBodyMeasurement, fetchGetLatestBodyMeasurement, fetchGetBodyMeasurementHistory, fetchGetBodyMeasurementTrend, fetchDeleteBodyMeasurement } from '@/service/api'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import {
+  GridComponent, TooltipComponent, LegendComponent, MarkLineComponent
+} from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, CanvasRenderer])
+
+defineOptions({ name: 'BodyMeasurement' })
+
+interface BodyRecord {
+  id: number | string
+  recordDate: string
+  waist: number | null
+  hip: number | null
+  chest: number | null
+  thigh: number | null
+  arm: number | null
+  bodyFatRate: number | null
+  waistHipRatio: number | null
+  note: string
+}
+
+const message = useMessage()
+const dialog = useDialog()
 
 const pageLoading = ref(false)
 const submitting = ref(false)
-const latest = ref(null)
-const history = ref([])
-const trend = ref([])
-const waistChartRef = ref(null)
-const whrChartRef = ref(null)
-let waistChart = null
-let whrChart = null
+const latest = ref<BodyRecord | null>(null)
+const history = ref<BodyRecord[]>([])
+const trend = ref<BodyRecord[]>([])
+const waistChartRef = ref<HTMLElement | null>(null)
+const whrChartRef = ref<HTMLElement | null>(null)
+let waistChart: echarts.ECharts | null = null
+let whrChart: echarts.ECharts | null = null
 
 const form = reactive({
   recordDate: new Date().toISOString().slice(0, 10),
-  waist: null,
-  hip: null,
-  chest: null,
-  thigh: null,
-  arm: null,
-  bodyFatRate: null,
+  waist: null as number | null,
+  hip: null as number | null,
+  chest: null as number | null,
+  thigh: null as number | null,
+  arm: null as number | null,
+  bodyFatRate: null as number | null,
   note: ''
 })
 
-// 腰臀比评估
 const whrLabel = computed(() => {
   const ratio = latest.value?.waistHipRatio
   if (!ratio) return '--'
@@ -196,12 +139,12 @@ const whrLabel = computed(() => {
   return '偏高'
 })
 
-const whrTagType = computed(() => {
+const whrTagType = computed<'success' | 'warning' | 'error' | 'info'>(() => {
   const ratio = latest.value?.waistHipRatio
   if (!ratio) return 'info'
   if (ratio < 0.85) return 'success'
   if (ratio < 0.9) return 'warning'
-  return 'danger'
+  return 'error'
 })
 
 const whrClass = computed(() => {
@@ -212,10 +155,69 @@ const whrClass = computed(() => {
   return 'text-danger'
 })
 
+interface StatCard {
+  label: string
+  getValue: (r: BodyRecord) => string | number | null
+  unit?: string
+  classFn?: (r: BodyRecord) => string
+  tag?: boolean
+}
+
+const statCards = computed<StatCard[]>(() => [
+  { label: '腰围', getValue: (r) => r.waist ?? '--', unit: 'cm' },
+  { label: '臀围', getValue: (r) => r.hip ?? '--', unit: 'cm' },
+  { label: '腰臀比', getValue: (r) => r.waistHipRatio ?? '--', classFn: () => whrClass.value, tag: true },
+  { label: '胸围', getValue: (r) => r.chest ?? '--', unit: 'cm' },
+  { label: '大腿围', getValue: (r) => r.thigh ?? '--', unit: 'cm' },
+  { label: '臂围', getValue: (r) => r.arm ?? '--', unit: 'cm' },
+  { label: '体脂率', getValue: (r) => r.bodyFatRate ?? '--', unit: '%' },
+  { label: '测量日期', getValue: (r) => r.recordDate }
+])
+
+const historyColumns = computed<DataTableColumns<BodyRecord>>(() => [
+  { title: '日期', key: 'recordDate', width: 120 },
+  {
+    title: '腰围', key: 'waist', width: 90,
+    render: (row) => h('span', {}, row.waist != null ? `${row.waist}cm` : '--')
+  },
+  {
+    title: '臀围', key: 'hip', width: 90,
+    render: (row) => h('span', {}, row.hip != null ? `${row.hip}cm` : '--')
+  },
+  {
+    title: '腰臀比', key: 'waistHipRatio', width: 100,
+    render: (row) => h('span', {}, row.waistHipRatio ?? '--')
+  },
+  {
+    title: '胸围', key: 'chest', width: 90,
+    render: (row) => h('span', {}, row.chest != null ? `${row.chest}cm` : '--')
+  },
+  {
+    title: '大腿围', key: 'thigh', width: 90,
+    render: (row) => h('span', {}, row.thigh != null ? `${row.thigh}cm` : '--')
+  },
+  {
+    title: '臂围', key: 'arm', width: 90,
+    render: (row) => h('span', {}, row.arm != null ? `${row.arm}cm` : '--')
+  },
+  {
+    title: '体脂率', key: 'bodyFatRate', width: 90,
+    render: (row) => h('span', {}, row.bodyFatRate != null ? `${row.bodyFatRate}%` : '--')
+  },
+  { title: '备注', key: 'note', ellipsis: { tooltip: true } },
+  {
+    title: '操作', key: 'actions', width: 80, fixed: 'right',
+    render: (row) => h(NButton, {
+      type: 'error', size: 'small', text: true,
+      onClick: () => handleDeleteBody(row.id)
+    }, { default: () => '删除' })
+  }
+])
+
 async function loadLatest() {
   try {
-    const res = await getLatestBodyMeasurement()
-    latest.value = res.data
+    const { data } = await fetchGetLatestBodyMeasurement()
+    latest.value = data as any
     if (latest.value) {
       form.recordDate = latest.value.recordDate
       form.waist = latest.value.waist
@@ -232,8 +234,8 @@ async function loadLatest() {
 async function loadHistory() {
   pageLoading.value = true
   try {
-    const res = await getBodyMeasurementHistory(20)
-    history.value = res.data || []
+    const { data } = await fetchGetBodyMeasurementHistory(20)
+    history.value = (data as any) || []
   } finally {
     pageLoading.value = false
   }
@@ -241,20 +243,20 @@ async function loadHistory() {
 
 async function loadTrend() {
   try {
-    const res = await getBodyMeasurementTrend(6)
-    trend.value = res.data || []
+    const { data } = await fetchGetBodyMeasurementTrend(6)
+    trend.value = (data as any) || []
   } catch { /* ignore */ }
 }
 
 async function handleSubmit() {
   if (!form.waist || !form.hip || !form.chest) {
-    ElMessage.warning('腰围、臀围和胸围为必填项')
+    message.warning('腰围、臀围和胸围为必填项')
     return
   }
   submitting.value = true
   try {
-    await submitBodyMeasurement({ ...form })
-    ElMessage.success('围度数据已保存')
+    await fetchSubmitBodyMeasurement({ ...form } as any)
+    message.success('围度数据已保存')
     await loadLatest()
     await loadHistory()
     await loadTrend()
@@ -263,6 +265,21 @@ async function handleSubmit() {
   } finally {
     submitting.value = false
   }
+}
+
+async function handleDeleteBody(id: number | string) {
+  dialog.warning({
+    title: '删除确认',
+    content: '确定删除此条围度记录吗？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await fetchDeleteBodyMeasurement(id as number)
+      message.success('已删除')
+      loadHistory()
+      loadTrend()
+    }
+  })
 }
 
 function initCharts() {
@@ -275,7 +292,7 @@ function initCharts() {
     whrChart = echarts.init(whrChartRef.value)
   }
 
-  const dates = trend.value.map(r => r.recordDate)
+  const dates = trend.value.map((r) => r.recordDate)
 
   if (waistChart) {
     waistChart.setOption({
@@ -285,9 +302,9 @@ function initCharts() {
       xAxis: { type: 'category', data: dates },
       yAxis: { type: 'value', name: 'cm' },
       series: [
-        { name: '腰围', type: 'line', data: trend.value.map(r => r.waist), smooth: true, symbol: 'circle' },
-        { name: '臀围', type: 'line', data: trend.value.map(r => r.hip), smooth: true, symbol: 'circle' },
-        { name: '胸围', type: 'line', data: trend.value.map(r => r.chest), smooth: true, symbol: 'circle' }
+        { name: '腰围', type: 'line', data: trend.value.map((r) => r.waist), smooth: true, symbol: 'circle' },
+        { name: '臀围', type: 'line', data: trend.value.map((r) => r.hip), smooth: true, symbol: 'circle' },
+        { name: '胸围', type: 'line', data: trend.value.map((r) => r.chest), smooth: true, symbol: 'circle' }
       ]
     })
   }
@@ -301,7 +318,7 @@ function initCharts() {
       series: [
         {
           name: '腰臀比', type: 'line',
-          data: trend.value.map(r => r.waistHipRatio),
+          data: trend.value.map((r) => r.waistHipRatio),
           smooth: true, areaStyle: { opacity: 0.15 },
           markLine: {
             data: [
@@ -339,14 +356,10 @@ onUnmounted(() => {
   .page-desc { margin: 0; font-size: 14px; color: var(--text-secondary); }
 }
 
-.stats-row { margin-bottom: 20px; }
-
 .stat-card {
-  text-align: center;
   .stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); }
   .stat-unit { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-left: 2px; }
-  .date-value { font-size: 15px !important; }
   .stat-whr-tag { margin-top: 4px; }
 }
 
@@ -354,25 +367,10 @@ onUnmounted(() => {
 .text-warning { color: #fa8c16; }
 .text-danger { color: #ff4d4f; }
 
-.submit-card {
-  padding: 20px 24px;
-  margin-bottom: 20px;
-}
-
 .card-title {
   margin: 0 0 16px;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.chart-row { margin-bottom: 20px; }
-
-.chart-card {
-  .chart-container { width: 100%; height: 280px; }
-}
-
-.history-card {
-  padding: 20px 24px;
 }
 </style>

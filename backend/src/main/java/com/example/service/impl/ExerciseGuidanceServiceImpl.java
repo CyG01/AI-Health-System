@@ -81,9 +81,15 @@ public class ExerciseGuidanceServiceImpl implements ExerciseGuidanceService {
         try {
             String prompt = String.format(
                     "请为运动项目\"%s\"（类型：%s，难度：%s）生成专业的动作指导。" +
-                            "严格输出JSON格式：{\"technique\":\"动作要领(分步骤描述)\",\"breathing\":\"呼吸节奏说明\"," +
-                            "\"commonMistakes\":\"常见错误(3-5条)\",\"safetyTips\":\"安全提示(2-3条)\"}。只输出JSON。",
-                    item.getName(), item.getType(), item.getDifficulty() != null ? item.getDifficulty() : "初级");
+                            "严格输出JSON格式：{" +
+                            "\"basicInfo\":{\"type\":\"%s\",\"targetMuscle\":\"目标肌群名称\",\"difficulty\":\"%s\"}," +
+                            "\"breathing\":\"呼吸节奏说明\"," +
+                            "\"steps\":[\"步骤1\",\"步骤2\",\"步骤3\",\"步骤4\"]," +
+                            "\"commonMistakes\":[\"错误1\",\"错误2\",\"错误3\"]," +
+                            "\"tips\":\"安全提示(2-3条)\"}。只输出JSON。",
+                    item.getName(), item.getType(), item.getDifficulty() != null ? item.getDifficulty() : "初级",
+                    item.getType() != null ? item.getType() : "综合",
+                    item.getDifficulty() != null ? item.getDifficulty() : "初级");
 
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", deepSeekProperties.getModel());
@@ -110,10 +116,36 @@ public class ExerciseGuidanceServiceImpl implements ExerciseGuidanceService {
 
             ExerciseGuidanceVO vo = new ExerciseGuidanceVO();
             vo.setExerciseName(item.getName());
-            vo.setTechnique(guidanceJson.path("technique").asText("暂无"));
-            vo.setBreathing(guidanceJson.path("breathing").asText("暂无"));
-            vo.setCommonMistakes(guidanceJson.path("commonMistakes").asText("暂无"));
-            vo.setSafetyTips(guidanceJson.path("safetyTips").asText("暂无"));
+
+            // 解析 basicInfo
+            JsonNode basicInfoNode = guidanceJson.path("basicInfo");
+            if (!basicInfoNode.isMissingNode()) {
+                ExerciseGuidanceVO.BasicInfo basicInfo = new ExerciseGuidanceVO.BasicInfo();
+                basicInfo.setType(basicInfoNode.path("type").asText(item.getType()));
+                basicInfo.setTargetMuscle(basicInfoNode.path("targetMuscle").asText("全身"));
+                basicInfo.setDifficulty(basicInfoNode.path("difficulty").asText("初级"));
+                vo.setBasicInfo(basicInfo);
+            }
+
+            vo.setBreathing(guidanceJson.path("breathing").asText("用力时呼气，放松时吸气"));
+
+            // 解析 steps 数组
+            JsonNode stepsNode = guidanceJson.path("steps");
+            if (stepsNode.isArray()) {
+                vo.setSteps(objectMapper.convertValue(stepsNode, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}));
+            } else if (stepsNode.isTextual()) {
+                vo.setSteps(List.of(stepsNode.asText().split("[;；\n]")));
+            }
+
+            // 解析 commonMistakes 数组
+            JsonNode mistakesNode = guidanceJson.path("commonMistakes");
+            if (mistakesNode.isArray()) {
+                vo.setCommonMistakes(objectMapper.convertValue(mistakesNode, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}));
+            } else if (mistakesNode.isTextual()) {
+                vo.setCommonMistakes(List.of(mistakesNode.asText().split("[;；\n]")));
+            }
+
+            vo.setTips(guidanceJson.path("tips").asText("运动前充分热身，如有不适立即停止"));
 
             // 缓存到Redis
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(vo), 30, TimeUnit.DAYS);
@@ -132,10 +164,9 @@ public class ExerciseGuidanceServiceImpl implements ExerciseGuidanceService {
     private ExerciseGuidanceVO generateFallback(ExerciseItem item) {
         ExerciseGuidanceVO vo = new ExerciseGuidanceVO();
         vo.setExerciseName(item.getName());
-        vo.setTechnique("保持正确姿势，动作平稳，避免使用爆发力。");
         vo.setBreathing("用力时呼气，放松时吸气，保持呼吸均匀。");
-        vo.setCommonMistakes("1.动作过快\n2.姿势不正确\n3.呼吸不规律");
-        vo.setSafetyTips("1.运动前充分热身\n2.如有不适立即停止");
+        vo.setCommonMistakes(List.of("动作过快", "姿势不正确", "呼吸不规律"));
+        vo.setTips("运动前充分热身，如有不适立即停止");
         return vo;
     }
 }

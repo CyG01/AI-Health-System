@@ -5,30 +5,30 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, markRaw } from 'vue'
+import type { ECharts, EChartsOption } from 'echarts'
 
-const props = defineProps({
-  option: { type: Object, required: true },
-  // 是否自动调整大小（窗口变化时）
-  autoResize: { type: Boolean, default: true },
-  // 高度（支持 css 单位）
-  height: { type: String, default: '100%' }
+const props = withDefaults(defineProps<{
+  option: EChartsOption
+  autoResize?: boolean
+  height?: string
+}>(), {
+  autoResize: true,
+  height: '100%'
 })
 
-const chartRoot = ref(null)
+const chartRoot = ref<HTMLDivElement | null>(null)
 const ready = ref(false)
-let chartInstance = null
-let resizeHandler = null
+let chartInstance: ECharts | null = null
+let resizeHandler: (() => void) | null = null
 
 async function initChart() {
   if (ready.value || !chartRoot.value) return
 
-  const [{ default: echarts }] = await Promise.all([
-    import('@/utils/echarts')
-  ])
+  const [{ default: echarts }] = await Promise.all([import('@/utils/echarts')])
 
-  chartInstance = markRaw(echarts.init(chartRoot.value, null, { locale: 'ZH' }))
+  chartInstance = markRaw(echarts.init(chartRoot.value, undefined, { locale: 'ZH' }))
   chartInstance.setOption(props.option, { notMerge: true })
 
   if (props.autoResize) {
@@ -43,24 +43,32 @@ async function initChart() {
   ready.value = true
 }
 
-watch(() => props.option, (newVal) => {
-  if (chartInstance && !chartInstance.isDisposed()) {
-    chartInstance.setOption(newVal, { notMerge: true })
-  }
-}, { deep: false })
+watch(
+  () => props.option,
+  newVal => {
+    if (chartInstance && !chartInstance.isDisposed()) {
+      chartInstance.setOption(newVal, { notMerge: true })
+    }
+  },
+  { deep: false }
+)
 
 // IntersectionObserver 懒加载：图表进入视口才初始化
-let observer = null
+let observer: IntersectionObserver | null = null
+
 onMounted(() => {
   if (window.IntersectionObserver) {
-    observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        initChart()
-        observer?.disconnect()
-        observer = null
-      }
-    }, { rootMargin: '200px' })
-    observer.observe(chartRoot.value)
+    observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          initChart()
+          observer?.disconnect()
+          observer = null
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(chartRoot.value!)
   } else {
     initChart()
   }
@@ -74,6 +82,15 @@ onUnmounted(() => {
   if (chartInstance && !chartInstance.isDisposed()) {
     chartInstance.dispose()
     chartInstance = null
+  }
+})
+
+/** 暴露刷新方法供父组件调用 */
+defineExpose({
+  refresh() {
+    if (chartInstance && !chartInstance.isDisposed()) {
+      chartInstance.resize()
+    }
   }
 })
 </script>
@@ -96,7 +113,7 @@ onUnmounted(() => {
   border-radius: 8px;
 }
 .shimmer {
-  background: linear-gradient(90deg, #161b22 25%, #1c2333 50%, #161b22 75%);
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-elevated) 50%, var(--bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }

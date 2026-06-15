@@ -1,112 +1,176 @@
-<template>
-  <div class="admin-exercise-page">
-    <div class="page-header">
-      <h2>运动字典管理 ({{ items.length }}条)</h2>
-      <el-button type="primary" @click="handleAdd">新增运动</el-button>
-    </div>
+<script setup lang="ts">
+import { ref, reactive, h, onMounted, computed } from 'vue';
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NSelect,
+  NRadioGroup,
+  NRadioButton,
+  NTag,
+  NSpace,
+  NPopconfirm,
+  useMessage
+} from 'naive-ui';
+import type { DataTableColumns, FormInst, FormRules, SelectOption } from 'naive-ui';
+import {
+  fetchGetAdminExerciseItems,
+  fetchCreateExerciseItem,
+  fetchUpdateExerciseItem,
+  fetchDeleteExerciseItem,
+  executeWithApproval
+} from '@/service/api';
+import { useAuthStore } from '@/store/modules/auth';
 
-    <el-table :data="items" stripe v-loading="loading">
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="name" label="运动名称" min-width="110" />
-      <el-table-column prop="type" label="类型" width="80" />
-      <el-table-column prop="calorieCoefficient" label="热量系数" width="90">
-        <template #default="{ row }">{{ row.calorieCoefficient }} kcal/kg/h</template>
-      </el-table-column>
-      <el-table-column prop="targetMuscle" label="目标肌群" width="90">
-        <template #default="{ row }">
-          <el-tag v-if="row.targetMuscle" size="small" effect="plain">{{ row.targetMuscle }}</el-tag>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="difficulty" label="难度" width="70">
-        <template #default="{ row }">
-          <el-tag :type="row.difficulty === '高级' ? 'danger' : row.difficulty === '中级' ? 'warning' : 'success'" size="small">
-            {{ row.difficulty || '-' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="70">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-            {{ row.status === 1 ? '启用' : '禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-          <el-popconfirm title="确定删除该运动？" @confirm="handleDelete(row.id)">
-            <template #reference>
-              <el-button size="small" type="danger">删除</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
+defineOptions({ name: 'AdminExerciseManage' });
 
-    <el-dialog
-      :title="isEditing ? '编辑运动' : '新增运动'"
-      v-model="dialogVisible"
-      width="520px"
-      @close="resetForm"
-    >
-      <el-form :model="form" label-width="100px">
-        <el-form-item label="运动名称" required>
-          <el-input v-model="form.name" placeholder="如：慢跑" />
-        </el-form-item>
-        <el-form-item label="运动类型" required>
-          <el-select v-model="form.type" style="width: 100%">
-            <el-option label="有氧" value="有氧" />
-            <el-option label="无氧" value="无氧" />
-            <el-option label="拉伸" value="拉伸" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="热量系数" required>
-          <el-input-number v-model="form.calorieCoefficient" :min="0" :precision="1" style="width: 100%" />
-          <span class="form-hint">单位: kcal/kg/h</span>
-        </el-form-item>
-        <el-form-item label="目标肌群">
-          <el-select v-model="form.targetMuscle" style="width: 100%" clearable>
-            <el-option label="全身" value="全身" />
-            <el-option label="胸" value="胸" />
-            <el-option label="背" value="背" />
-            <el-option label="腿" value="腿" />
-            <el-option label="核心" value="核心" />
-            <el-option label="肩" value="肩" />
-            <el-option label="手臂" value="手臂" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="难度等级">
-          <el-radio-group v-model="form.difficulty">
-            <el-radio label="初级">初级</el-radio>
-            <el-radio label="中级">中级</el-radio>
-            <el-radio label="高级">高级</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="视频链接">
-          <el-input v-model="form.videoUrl" placeholder="选填" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
-      </template>
-    </el-dialog>
-  </div>
-</template>
+const message = useMessage();
+const authStore = useAuthStore();
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getAdminExerciseItems, createExerciseItem, updateExerciseItem, deleteExerciseItem } from '@/api/admin'
+interface ExerciseRow {
+  id: number;
+  name: string;
+  type: string;
+  calorieCoefficient: number | null;
+  targetMuscle: string;
+  difficulty: string;
+  videoUrl: string;
+  status: number;
+}
 
-const items = ref([])
-const loading = ref(false)
-const saving = ref(false)
-const dialogVisible = ref(false)
-const isEditing = ref(false)
+const typeOptions: SelectOption[] = [
+  { label: '有氧', value: '有氧' },
+  { label: '无氧', value: '无氧' },
+  { label: '拉伸', value: '拉伸' }
+];
 
-const form = ref({
+const targetMuscleOptions: SelectOption[] = [
+  { label: '全身', value: '全身' },
+  { label: '胸', value: '胸' },
+  { label: '背', value: '背' },
+  { label: '腿', value: '腿' },
+  { label: '核心', value: '核心' },
+  { label: '肩', value: '肩' },
+  { label: '手臂', value: '手臂' }
+];
+
+// Search / filter
+const searchKeyword = ref('');
+const filterType = ref<string | null>(null);
+
+const filteredItems = computed(() => {
+  return items.value.filter(item => {
+    const matchKeyword = !searchKeyword.value || item.name.includes(searchKeyword.value);
+    const matchType = !filterType.value || item.type === filterType.value;
+    return matchKeyword && matchType;
+  });
+});
+
+function difficultyTagType(d: string): 'error' | 'warning' | 'success' {
+  if (d === '高级') return 'error';
+  if (d === '中级') return 'warning';
+  return 'success';
+}
+
+// Table columns
+const columns: DataTableColumns<ExerciseRow> = [
+  { title: 'ID', key: 'id', width: 60 },
+  { title: '运动名称', key: 'name', minWidth: 110 },
+  { title: '类型', key: 'type', width: 80 },
+  {
+    title: '热量系数',
+    key: 'calorieCoefficient',
+    width: 120,
+    render(row) {
+      return `${row.calorieCoefficient ?? '-'} kcal/kg/h`;
+    }
+  },
+  {
+    title: '目标肌群',
+    key: 'targetMuscle',
+    width: 90,
+    render(row) {
+      if (row.targetMuscle) {
+        return h(NTag, { size: 'small', bordered: false }, { default: () => row.targetMuscle });
+      }
+      return '-';
+    }
+  },
+  {
+    title: '难度',
+    key: 'difficulty',
+    width: 70,
+    render(row) {
+      if (!row.difficulty) return '-';
+      return h(
+        NTag,
+        { type: difficultyTagType(row.difficulty), size: 'small', bordered: false },
+        { default: () => row.difficulty }
+      );
+    }
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 70,
+    render(row) {
+      return h(
+        NTag,
+        { type: row.status === 1 ? 'success' : 'info', size: 'small', bordered: false },
+        { default: () => (row.status === 1 ? '启用' : '禁用') }
+      );
+    }
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 160,
+    fixed: 'right',
+    render(row) {
+      return h(NSpace, null, {
+        default: () => [
+          h(NButton, { size: 'small', onClick: () => handleEdit(row) }, { default: () => '编辑' }),
+          h(
+            NPopconfirm,
+            { onPositiveClick: () => handleDelete(row) },
+            {
+              trigger: () =>
+                h(NButton, { size: 'small', type: 'error' }, { default: () => '删除' }),
+              default: () => `确定要删除运动「${row.name}」吗？此操作需要审批。`
+            }
+          )
+        ]
+      });
+    }
+  }
+];
+
+// Data
+const loading = ref(false);
+const items = ref<ExerciseRow[]>([]);
+
+// Modal
+const showModal = ref(false);
+const isEditing = ref(false);
+const saving = ref(false);
+const formRef = ref<FormInst | null>(null);
+
+interface ExerciseForm {
+  id: number | null;
+  name: string;
+  type: string;
+  calorieCoefficient: number | null;
+  targetMuscle: string;
+  difficulty: string;
+  videoUrl: string;
+}
+
+const form = ref<ExerciseForm>({
   id: null,
   name: '',
   type: '',
@@ -114,26 +178,33 @@ const form = ref({
   targetMuscle: '',
   difficulty: '初级',
   videoUrl: ''
-})
+});
+
+const formRules: FormRules = {
+  name: { required: true, message: '请填写运动名称', trigger: 'blur' },
+  type: { required: true, message: '请选择运动类型', trigger: 'change', type: 'string' },
+  calorieCoefficient: { required: true, message: '请填写热量系数', trigger: 'blur', type: 'number' }
+};
 
 async function loadItems() {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getAdminExerciseItems()
-    items.value = res.data || []
+    const res = await fetchGetAdminExerciseItems();
+    items.value = res.data || [];
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function handleAdd() {
-  isEditing.value = false
-  dialogVisible.value = true
+  isEditing.value = false;
+  resetForm();
+  showModal.value = true;
 }
 
-function handleEdit(row) {
-  isEditing.value = true
-  Object.assign(form.value, {
+function handleEdit(row: ExerciseRow) {
+  isEditing.value = true;
+  form.value = {
     id: row.id,
     name: row.name,
     type: row.type,
@@ -141,51 +212,136 @@ function handleEdit(row) {
     targetMuscle: row.targetMuscle || '',
     difficulty: row.difficulty || '初级',
     videoUrl: row.videoUrl || ''
-  })
-  dialogVisible.value = true
+  };
+  showModal.value = true;
 }
 
 function resetForm() {
-  form.value = { id: null, name: '', type: '', calorieCoefficient: null, targetMuscle: '', difficulty: '初级', videoUrl: '' }
+  form.value = {
+    id: null,
+    name: '',
+    type: '',
+    calorieCoefficient: null,
+    targetMuscle: '',
+    difficulty: '初级',
+    videoUrl: ''
+  };
 }
 
 async function handleSave() {
-  if (!form.value.name || !form.value.type || !form.value.calorieCoefficient) {
-    ElMessage.warning('请填写必填项')
-    return
+  if (!formRef.value) return;
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
     if (isEditing.value) {
-      await updateExerciseItem(form.value)
-      ElMessage.success('更新成功')
+      await fetchUpdateExerciseItem(form.value as Api.Admin.AdminExerciseItemRequest);
+      message.success('更新成功');
     } else {
-      await createExerciseItem(form.value)
-      ElMessage.success('创建成功')
+      await fetchCreateExerciseItem(form.value as Api.Admin.AdminExerciseItemRequest);
+      message.success('创建成功');
     }
-    dialogVisible.value = false
-    loadItems()
+    showModal.value = false;
+    loadItems();
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-async function handleDelete(id) {
-  try {
-    await deleteExerciseItem(id)
-    ElMessage.success('删除成功')
-    loadItems()
-  } catch {
-    // handled by interceptor
-  }
+function handleDelete(row: ExerciseRow) {
+  executeWithApproval(
+    'delete_exercise',
+    `删除运动: ${row.name} (ID: ${row.id})`,
+    (approvalId: string) => fetchDeleteExerciseItem(row.id, approvalId),
+    authStore.userInfo?.id
+  )
+    .then(() => {
+      message.success('删除操作已执行');
+      loadItems();
+    })
+    .catch(() => {
+      // cancelled or error handled by interceptor
+    });
 }
 
-onMounted(loadItems)
+onMounted(loadItems);
 </script>
 
-<style scoped>
-.admin-exercise-page { padding: 20px 0; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-.form-hint { font-size: 12px; color: #8b949e; margin-left: 8px; }
-</style>
+<template>
+  <div class="flex-col-stretch gap-16px overflow-auto p-16px">
+    <NCard :title="`运动字典管理 (${items.length}条)`">
+      <template #header-extra>
+        <NSpace align="center">
+          <NInput
+            v-model:value="searchKeyword"
+            placeholder="搜索运动名称"
+            clearable
+            style="width: 200px"
+          />
+          <NSelect
+            v-model:value="filterType"
+            :options="typeOptions"
+            placeholder="全部类型"
+            clearable
+            style="width: 130px"
+          />
+          <NButton type="primary" @click="handleAdd">新增运动</NButton>
+        </NSpace>
+      </template>
+      <NDataTable
+        :columns="columns"
+        :data="filteredItems"
+        :loading="loading"
+        :row-key="(row: ExerciseRow) => row.id"
+        :scroll-x="900"
+      />
+    </NCard>
+
+    <!-- Add/Edit Modal -->
+    <NModal
+      v-model:show="showModal"
+      preset="dialog"
+      :title="isEditing ? '编辑运动' : '新增运动'"
+      style="width: 540px"
+      :show-icon="false"
+    >
+      <NForm ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="100">
+        <NFormItem label="运动名称" path="name">
+          <NInput v-model:value="form.name" placeholder="如：慢跑" />
+        </NFormItem>
+        <NFormItem label="运动类型" path="type">
+          <NSelect v-model:value="form.type" :options="typeOptions" placeholder="请选择类型" />
+        </NFormItem>
+        <NFormItem label="热量系数" path="calorieCoefficient">
+          <NInputNumber v-model:value="form.calorieCoefficient" :min="0" :precision="1" style="width: 100%" />
+          <span style="font-size: 12px; color: #999; margin-left: 8px">单位: kcal/kg/h</span>
+        </NFormItem>
+        <NFormItem label="目标肌群">
+          <NSelect
+            v-model:value="form.targetMuscle"
+            :options="targetMuscleOptions"
+            clearable
+            placeholder="选填"
+          />
+        </NFormItem>
+        <NFormItem label="难度等级">
+          <NRadioGroup v-model:value="form.difficulty">
+            <NRadioButton value="初级">初级</NRadioButton>
+            <NRadioButton value="中级">中级</NRadioButton>
+            <NRadioButton value="高级">高级</NRadioButton>
+          </NRadioGroup>
+        </NFormItem>
+        <NFormItem label="视频链接">
+          <NInput v-model:value="form.videoUrl" placeholder="选填" />
+        </NFormItem>
+      </NForm>
+      <template #action>
+        <NButton @click="showModal = false">取消</NButton>
+        <NButton type="primary" :loading="saving" @click="handleSave">保存</NButton>
+      </template>
+    </NModal>
+  </div>
+</template>

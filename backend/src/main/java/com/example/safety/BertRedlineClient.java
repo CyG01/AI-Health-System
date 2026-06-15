@@ -47,7 +47,7 @@ public class BertRedlineClient {
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
         this.objectMapper = new ObjectMapper();
-        this.executor = Executors.newVirtualThreadPerTaskExecutor();
+        this.executor = Executors.newCachedThreadPool();
     }
 
     /**

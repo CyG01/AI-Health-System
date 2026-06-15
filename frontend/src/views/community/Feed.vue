@@ -1,45 +1,48 @@
 <template>
   <div class="community-page">
     <div class="page-header">
-      <h2>健康社区</h2>
-      <el-button type="primary" @click="showPostDialog = true">
-        <el-icon><Edit /></el-icon> 发布动态
-      </el-button>
+      <h2>{{ $t('community.title') || '健康社区' }}</h2>
+      <NButton type="primary" @click="showPostDialog = true">
+        <template #icon><NIcon><CreateOutline /></NIcon></template>
+        {{ $t('community.publish') || '发布动态' }}
+      </NButton>
     </div>
 
-    <el-row :gutter="20">
+    <NGrid :x-gap="20" :y-gap="0" :cols="24">
       <!-- 左侧：动态流 -->
-      <el-col :span="16">
-        <div v-loading="loading" class="post-feed">
+      <NGi :span="16">
+        <div class="post-feed" :class="{ 'is-loading': loading }">
           <div v-if="posts.length === 0 && !loading" class="empty-state">
-            <el-empty description="暂无动态，快来发布第一条吧" :image-size="100" />
+            <NEmpty :description="$t('community.empty') || '暂无动态，快来发布第一条吧'" />
           </div>
 
           <div v-for="post in posts" :key="post.id" class="post-card glass-card">
             <!-- 帖子头部 -->
             <div class="post-header">
               <div class="post-user">
-                <el-avatar :size="40" :src="post.userAvatar">
+                <NAvatar :size="40" :src="post.userAvatar" round>
                   {{ (post.userNickname || 'U')[0].toUpperCase() }}
-                </el-avatar>
+                </NAvatar>
                 <div class="user-meta">
                   <span class="username">{{ post.userNickname }}</span>
                   <span class="time">{{ post.timeAgo }}</span>
                 </div>
               </div>
-              <el-dropdown v-if="post.userId === currentUserId" trigger="click" @command="(cmd) => handlePostAction(cmd, post)">
-                <el-button text :icon="MoreFilled" />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="delete" style="color: #ff4d4f">删除</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <NDropdown
+                v-if="post.userId === currentUserId"
+                :options="postDropdownOptions"
+                @select="(key: string) => handlePostAction(key, post)"
+                trigger="click"
+              >
+                <NButton text>
+                  <template #icon><NIcon><EllipsisHorizontal /></NIcon></template>
+                </NButton>
+              </NDropdown>
             </div>
 
             <!-- 运动标签 -->
             <div v-if="post.exerciseType || post.exerciseDuration || post.caloriesBurned" class="post-exercise">
-              <el-tag v-if="post.exerciseType" type="success" size="small" effect="plain">{{ post.exerciseType }}</el-tag>
+              <NTag v-if="post.exerciseType" type="success" size="small" :bordered="true">{{ post.exerciseType }}</NTag>
               <span v-if="post.exerciseDuration">{{ post.exerciseDuration }}分钟</span>
               <span v-if="post.caloriesBurned" class="calories">{{ post.caloriesBurned }} kcal</span>
             </div>
@@ -49,31 +52,34 @@
 
             <!-- 操作栏 -->
             <div class="post-actions">
-              <el-button
+              <NButton
                 text
                 :type="post.isLiked ? 'primary' : 'default'"
-                :icon="post.isLiked ? StarFilled : Star"
                 @click="handleLike(post)"
               >
+                <template #icon>
+                  <NIcon><component :is="post.isLiked ? Star : StarOutline" /></NIcon>
+                </template>
                 {{ post.likeCount || 0 }}
-              </el-button>
-              <el-button text :icon="ChatDotRound" @click="openComments(post)">
+              </NButton>
+              <NButton text @click="openComments(post)">
+                <template #icon><NIcon><ChatbubbleEllipsesOutline /></NIcon></template>
                 {{ post.commentCount || 0 }}
-              </el-button>
+              </NButton>
             </div>
           </div>
 
           <!-- 加载更多 -->
           <div class="load-more" v-if="hasMore">
-            <el-button :loading="loading" @click="loadMore">加载更多</el-button>
+            <NButton :loading="loading" @click="loadMore">加载更多</NButton>
           </div>
         </div>
-      </el-col>
+      </NGi>
 
       <!-- 右侧：排行榜 -->
-      <el-col :span="8">
+      <NGi :span="8">
         <div class="ranking-card glass-card">
-          <h3 class="ranking-title">热量消耗榜</h3>
+          <h3 class="ranking-title">{{ $t('community.ranking') || '热量消耗榜' }}</h3>
           <div class="ranking-list">
             <div
               v-for="(item, idx) in ranking"
@@ -83,70 +89,81 @@
               <span class="rank-num" :class="'rank-' + (idx + 1)">
                 {{ idx + 1 }}
               </span>
-              <el-avatar :size="32" :src="item.avatar">
+              <NAvatar :size="32" :src="item.avatar" round>
                 {{ (item.nickname || 'U')[0].toUpperCase() }}
-              </el-avatar>
+              </NAvatar>
               <span class="rank-nickname">{{ item.nickname }}</span>
               <span class="rank-value">{{ item.calories }} kcal</span>
             </div>
           </div>
-          <el-empty v-if="ranking.length === 0" description="暂无排行数据" :image-size="60" />
+          <NEmpty v-if="ranking.length === 0" description="暂无排行数据" />
         </div>
-      </el-col>
-    </el-row>
+      </NGi>
+    </NGrid>
 
     <!-- 发布动态弹窗 -->
-    <el-dialog v-model="showPostDialog" title="发布运动动态" width="500px" destroy-on-close>
-      <el-form :model="postForm" label-width="80px">
-        <el-form-item label="内容">
-          <el-input
-            v-model="postForm.content"
+    <NModal
+      v-model:show="showPostDialog"
+      preset="card"
+      :title="$t('community.publishPost') || '发布运动动态'"
+      style="width: 500px; max-width: 90vw"
+      :mask-closable="true"
+      @after-leave="resetPostForm"
+    >
+      <NForm :model="postForm" label-placement="left" label-width="80px">
+        <NFormItem label="内容">
+          <NInput
+            v-model:value="postForm.content"
             type="textarea"
             :rows="4"
             placeholder="分享你的运动成果..."
-            maxlength="500"
-            show-word-limit
+            :maxlength="500"
+            show-count
           />
-        </el-form-item>
-        <el-form-item label="运动类型">
-          <el-select v-model="postForm.exerciseType" placeholder="选填" clearable style="width:100%">
-            <el-option label="跑步" value="跑步" />
-            <el-option label="健身" value="健身" />
-            <el-option label="游泳" value="游泳" />
-            <el-option label="骑行" value="骑行" />
-            <el-option label="瑜伽" value="瑜伽" />
-            <el-option label="篮球" value="篮球" />
-            <el-option label="跳绳" value="跳绳" />
-            <el-option label="其他" value="其他" />
-          </el-select>
-        </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="时长(分钟)">
-              <el-input-number v-model="postForm.exerciseDuration" :min="0" :max="600" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="消耗(kcal)">
-              <el-input-number v-model="postForm.caloriesBurned" :min="0" :max="9999" style="width:100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
+        </NFormItem>
+        <NFormItem label="运动类型">
+          <NSelect
+            v-model:value="postForm.exerciseType"
+            :options="exerciseTypeOptions"
+            placeholder="选填"
+            clearable
+          />
+        </NFormItem>
+        <NGrid :x-gap="16" :cols="2">
+          <NGi>
+            <NFormItem label="时长(分钟)">
+              <NInputNumber v-model:value="postForm.exerciseDuration" :min="0" :max="600" style="width:100%" />
+            </NFormItem>
+          </NGi>
+          <NGi>
+            <NFormItem label="消耗(kcal)">
+              <NInputNumber v-model:value="postForm.caloriesBurned" :min="0" :max="9999" style="width:100%" />
+            </NFormItem>
+          </NGi>
+        </NGrid>
+      </NForm>
       <template #footer>
-        <el-button @click="showPostDialog = false">取消</el-button>
-        <el-button type="primary" :loading="posting" @click="handlePublish">发布</el-button>
+        <div style="display:flex;justify-content:flex-end;gap:10px">
+          <NButton @click="showPostDialog = false">取消</NButton>
+          <NButton type="primary" :loading="posting" @click="handlePublish">发布</NButton>
+        </div>
       </template>
-    </el-dialog>
+    </NModal>
 
     <!-- 评论弹窗 -->
-    <el-dialog v-model="showCommentDialog" title="评论" width="480px" destroy-on-close>
+    <NModal
+      v-model:show="showCommentDialog"
+      preset="card"
+      title="评论"
+      style="width: 480px; max-width: 90vw"
+      :mask-closable="true"
+    >
       <div class="comment-list">
         <div v-if="currentComments.length === 0" class="no-comments">
-          <el-empty description="暂无评论，来抢沙发吧" :image-size="60" />
+          <NEmpty description="暂无评论，来抢沙发吧" />
         </div>
         <div v-for="c in currentComments" :key="c.id" class="comment-item">
-          <el-avatar :size="28" :src="c.userAvatar">{{ (c.userNickname || 'U')[0].toUpperCase() }}</el-avatar>
+          <NAvatar :size="28" :src="c.userAvatar" round>{{ (c.userNickname || 'U')[0].toUpperCase() }}</NAvatar>
           <div class="comment-body">
             <div class="comment-user">
               <span class="comment-nickname">{{ c.userNickname }}</span>
@@ -154,65 +171,136 @@
             </div>
             <div class="comment-content">{{ c.content }}</div>
           </div>
-          <el-button
+          <NButton
             v-if="c.userId === currentUserId"
             text
             size="small"
-            type="danger"
-            :icon="Delete"
+            type="error"
             @click="handleDeleteComment(c)"
-          />
+          >
+            <template #icon><NIcon><TrashOutline /></NIcon></template>
+          </NButton>
         </div>
       </div>
       <div class="comment-input">
-        <el-input
-          v-model="commentText"
+        <NInput
+          v-model:value="commentText"
           placeholder="发表评论..."
-          maxlength="200"
+          :maxlength="200"
           @keyup.enter="handleComment"
         >
-          <template #append>
-            <el-button :loading="commenting" @click="handleComment">发送</el-button>
+          <template #suffix>
+            <NButton size="small" :loading="commenting" @click="handleComment" text>发送</NButton>
           </template>
-        </el-input>
+        </NInput>
       </div>
-    </el-dialog>
+    </NModal>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, MoreFilled, StarFilled, Star, ChatDotRound, Delete } from '@element-plus/icons-vue'
-import { useUserStore } from '@/stores/user'
 import {
-  createPost, deletePost, getPostList, toggleLike,
-  createComment, deleteComment, getComments, getRanking
-} from '@/api/community'
+  NButton, NIcon, NAvatar, NTag, NEmpty, NModal, NForm, NFormItem,
+  NInput, NInputNumber, NSelect, NGrid, NGi, NDropdown,
+  useMessage, useDialog
+} from 'naive-ui'
+import {
+  CreateOutline, EllipsisHorizontal, Star, StarOutline,
+  ChatbubbleEllipsesOutline, TrashOutline
+} from '@vicons/ionicons5'
+import { useAuthStore } from '@/store/modules/auth'
+import {
+  fetchCreatePost, fetchDeletePost, fetchGetPostList, fetchToggleLike,
+  fetchCreateComment, fetchDeleteComment, fetchGetComments, fetchGetRanking
+} from '@/service/api'
 
-const userStore = useUserStore()
+interface Post {
+  id: number | string
+  userId: number | string
+  userNickname: string
+  userAvatar: string
+  timeAgo: string
+  content: string
+  exerciseType: string
+  exerciseDuration: number | null
+  caloriesBurned: number | null
+  isLiked: boolean
+  likeCount: number
+  commentCount: number
+}
+
+interface RankingItem {
+  userId: number | string
+  nickname: string
+  avatar: string
+  calories: number
+}
+
+interface Comment {
+  id: number | string
+  userId: number | string
+  userNickname: string
+  userAvatar: string
+  timeAgo: string
+  content: string
+}
+
+defineOptions({ name: 'CommunityFeed' })
+
+const message = useMessage()
+const dialog = useDialog()
+
+const userStore = useAuthStore()
 const loading = ref(false)
 const posting = ref(false)
 const commenting = ref(false)
-const posts = ref([])
-const ranking = ref([])
+const posts = ref<Post[]>([])
+const ranking = ref<RankingItem[]>([])
 const page = ref(1)
 const hasMore = ref(true)
 
 const showPostDialog = ref(false)
 const showCommentDialog = ref(false)
-const currentPost = ref(null)
-const currentComments = ref([])
+const currentPost = ref<Post | null>(null)
+const currentComments = ref<Comment[]>([])
 const commentText = ref('')
 
 const currentUserId = userStore.userInfo?.id
 
-const postForm = reactive({
+const postForm = reactive<{
+  content: string
+  exerciseType: string | null
+  exerciseDuration: number | null
+  caloriesBurned: number | null
+}>({
   content: '',
-  exerciseType: '',
+  exerciseType: null,
   exerciseDuration: null,
   caloriesBurned: null
 })
+
+const exerciseTypeOptions = [
+  { label: '跑步', value: '跑步' },
+  { label: '健身', value: '健身' },
+  { label: '游泳', value: '游泳' },
+  { label: '骑行', value: '骑行' },
+  { label: '瑜伽', value: '瑜伽' },
+  { label: '篮球', value: '篮球' },
+  { label: '跳绳', value: '跳绳' },
+  { label: '其他', value: '其他' }
+]
+
+const postDropdownOptions = [
+  { label: '删除', key: 'delete', props: { style: 'color: var(--color-danger, #e88080)' } }
+]
+
+function resetPostForm() {
+  postForm.content = ''
+  postForm.exerciseType = null
+  postForm.exerciseDuration = null
+  postForm.caloriesBurned = null
+}
 
 async function loadPosts(reset = false) {
   if (reset) {
@@ -221,8 +309,8 @@ async function loadPosts(reset = false) {
   }
   loading.value = true
   try {
-    const res = await getPostList(page.value, 10)
-    const list = res.data || []
+    const { data } = await fetchGetPostList(page.value, 10)
+    const list: Post[] = (data as any) || []
     if (reset) {
       posts.value = list
     } else {
@@ -241,84 +329,93 @@ function loadMore() {
 
 async function loadRanking() {
   try {
-    const res = await getRanking('calories', 20)
-    ranking.value = res.data || []
+    const { data } = await fetchGetRanking('calories', 20)
+    ranking.value = (data as any) || []
   } catch { /* ignore */ }
 }
 
 async function handlePublish() {
   if (!postForm.content.trim()) {
-    ElMessage.warning('请输入内容')
+    message.warning('请输入内容')
     return
   }
   posting.value = true
   try {
-    await createPost({ ...postForm })
-    ElMessage.success('发布成功')
+    await fetchCreatePost({ ...postForm } as any)
+    message.success('发布成功')
     showPostDialog.value = false
-    postForm.content = ''
-    postForm.exerciseType = ''
-    postForm.exerciseDuration = null
-    postForm.caloriesBurned = null
+    resetPostForm()
     await loadPosts(true)
   } finally {
     posting.value = false
   }
 }
 
-async function handleLike(post) {
+async function handleLike(post: Post) {
   try {
-    const res = await toggleLike(post.id)
-    post.isLiked = res.data.isLiked
-    post.likeCount = res.data.likeCount
+    const { data } = await fetchToggleLike(post.id as number)
+    post.isLiked = (data as any).isLiked
+    post.likeCount = (data as any).likeCount
   } catch { /* ignore */ }
 }
 
-function handlePostAction(cmd, post) {
+function handlePostAction(cmd: string, post: Post) {
   if (cmd === 'delete') {
-    ElMessageBox.confirm('确定删除这条动态吗？', '确认', { type: 'warning' })
-      .then(async () => {
-        await deletePost(post.id)
-        ElMessage.success('已删除')
+    dialog.warning({
+      title: '确认',
+      content: '确定删除这条动态吗？',
+      positiveText: '确定',
+      negativeText: '取消',
+      onPositiveClick: async () => {
+        await fetchDeletePost(post.id as number)
+        message.success('已删除')
         posts.value = posts.value.filter(p => p.id !== post.id)
-      }).catch(() => {})
+      }
+    })
   }
 }
 
-async function openComments(post) {
+async function openComments(post: Post) {
   currentPost.value = post
   showCommentDialog.value = true
   commentText.value = ''
   try {
-    const res = await getComments(post.id)
-    currentComments.value = res.data || []
+    const { data } = await fetchGetComments(post.id as number)
+    currentComments.value = (data as any) || []
   } catch { /* ignore */ }
 }
 
 async function handleComment() {
-  if (!commentText.value.trim()) return
+  if (!commentText.value.trim() || !currentPost.value) return
   commenting.value = true
   try {
-    await createComment({ postId: currentPost.value.id, content: commentText.value })
+    await fetchCreateComment({ postId: currentPost.value.id as number, content: commentText.value })
     commentText.value = ''
-    ElMessage.success('评论成功')
+    message.success('评论成功')
     // 刷新评论
-    const res = await getComments(currentPost.value.id)
-    currentComments.value = res.data || []
+    const { data } = await fetchGetComments(currentPost.value.id as number)
+    currentComments.value = (data as any) || []
     currentPost.value.commentCount = (currentPost.value.commentCount || 0) + 1
   } finally {
     commenting.value = false
   }
 }
 
-async function handleDeleteComment(comment) {
-  ElMessageBox.confirm('删除此评论？', '确认', { type: 'warning' })
-    .then(async () => {
-      await deleteComment(comment.id)
+async function handleDeleteComment(comment: Comment) {
+  dialog.warning({
+    title: '确认',
+    content: '删除此评论？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await fetchDeleteComment(comment.id as number)
       currentComments.value = currentComments.value.filter(c => c.id !== comment.id)
-      currentPost.value.commentCount = Math.max(0, (currentPost.value.commentCount || 1) - 1)
-      ElMessage.success('已删除')
-    }).catch(() => {})
+      if (currentPost.value) {
+        currentPost.value.commentCount = Math.max(0, (currentPost.value.commentCount || 1) - 1)
+      }
+      message.success('已删除')
+    }
+  })
 }
 
 onMounted(() => {
@@ -336,6 +433,11 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 20px;
   h2 { margin: 0; font-size: 22px; color: var(--text-primary); }
+}
+
+.post-feed {
+  position: relative;
+  &.is-loading { opacity: 0.7; pointer-events: none; }
 }
 
 .post-card {

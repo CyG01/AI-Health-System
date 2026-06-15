@@ -2,8 +2,8 @@
   <div class="chatbot-container">
     <!-- 浮动按钮 -->
     <div class="chatbot-float-btn" @click="openChat" v-if="!visible">
-      <el-icon :size="24"><ChatDotRound /></el-icon>
-      <span class="btn-text">AI咨询</span>
+      <NIcon :size="24"><ChatbubbleEllipsesOutline /></NIcon>
+      <span class="btn-text">{{ $t('chat.consult') || 'AI咨询' }}</span>
     </div>
 
     <!-- 聊天窗口 -->
@@ -12,12 +12,16 @@
         <div class="chatbot-header">
           <div class="header-left">
             <span class="header-dot"></span>
-            <span>AI健康顾问</span>
-            <el-tag v-if="streaming" size="small" type="warning" effect="dark">回复中</el-tag>
+            <span>{{ $t('chat.advisor') || 'AI健康顾问' }}</span>
+            <NTag v-if="streaming" size="small" type="warning" :bordered="false">{{ $t('chat.replying') || '回复中' }}</NTag>
           </div>
           <div class="header-right">
-            <el-button text :icon="Plus" @click="handleNewSession" title="新对话" />
-            <el-button text :icon="Close" @click="closeChat" title="关闭" />
+            <NButton text @click="handleNewSession" :title="$t('chat.newSession') || '新对话'">
+              <template #icon><NIcon><AddOutline /></NIcon></template>
+            </NButton>
+            <NButton text @click="closeChat" :title="$t('common.close') || '关闭'">
+              <template #icon><NIcon><CloseOutline /></NIcon></template>
+            </NButton>
           </div>
         </div>
 
@@ -32,9 +36,9 @@
               @click="selectSession(s.id)"
             >
               <span class="session-title">{{ s.title }}</span>
-              <el-button text size="small" type="danger" @click.stop="handleDeleteSession(s.id)">
-                <el-icon :size="14"><Delete /></el-icon>
-              </el-button>
+              <NButton text size="small" type="error" @click.stop="handleDeleteSession(s.id)">
+                <template #icon><NIcon :size="14"><TrashOutline /></NIcon></template>
+              </NButton>
             </div>
           </div>
         </transition>
@@ -42,16 +46,18 @@
         <!-- 消息列表 -->
         <div class="chatbot-messages" ref="messagesRef">
           <div v-if="messages.length === 0 && !streaming" class="welcome-tip">
-            <el-icon :size="40" color="#58a6ff"><ChatDotRound /></el-icon>
+            <NIcon :size="40" color="#58a6ff"><ChatbubbleEllipsesOutline /></NIcon>
             <p>你好！我是AI健康顾问</p>
             <p class="sub-tip">可以问我任何关于健康、运动、饮食的问题</p>
             <div class="quick-questions">
-              <el-tag
+              <NTag
                 v-for="q in quickQuestions"
                 :key="q"
                 class="quick-tag"
                 @click="sendQuick(q)"
-              >{{ q }}</el-tag>
+                round
+                size="small"
+              >{{ q }}</NTag>
             </div>
           </div>
 
@@ -70,18 +76,25 @@
               </div>
               <!-- AI 回复操作按钮 -->
               <div v-if="msg.role === 'assistant' && msg.content" class="message-actions">
-                <el-button text size="small" :icon="Refresh" @click="handleRegenerate(msg)" title="重新生成">
+                <NButton text size="small" @click="handleRegenerate(msg)" title="重新生成">
+                  <template #icon><NIcon><RefreshOutline /></NIcon></template>
                   重新生成
-                </el-button>
-                <el-button text size="small" :icon="CircleCheck" @click="handleFeedback(msg, 'useful')" title="有用">
-                  <el-icon :size="14" :color="msg.feedback === 'useful' ? '#3fb950' : ''"><CircleCheck /></el-icon>
-                </el-button>
-                <el-button text size="small" :icon="CircleClose" @click="handleFeedback(msg, 'useless')" title="没用">
-                  <el-icon :size="14" :color="msg.feedback === 'useless' ? '#f85149' : ''"><CircleClose /></el-icon>
-                </el-button>
-                <el-button text size="small" :icon="WarningFilled" @click="handleFeedback(msg, 'incorrect')" title="有误">
-                  <el-icon :size="14" :color="msg.feedback === 'incorrect' ? '#d29922' : ''"><WarningFilled /></el-icon>
-                </el-button>
+                </NButton>
+                <NButton text size="small" @click="handleFeedback(msg, 'useful')" title="有用">
+                  <template #icon>
+                    <NIcon :size="14" :color="msg.feedback === 'useful' ? '#3fb950' : ''"><CheckmarkCircleOutline /></NIcon>
+                  </template>
+                </NButton>
+                <NButton text size="small" @click="handleFeedback(msg, 'useless')" title="没用">
+                  <template #icon>
+                    <NIcon :size="14" :color="msg.feedback === 'useless' ? '#f85149' : ''"><CloseCircleOutline /></NIcon>
+                  </template>
+                </NButton>
+                <NButton text size="small" @click="handleFeedback(msg, 'incorrect')" title="有误">
+                  <template #icon>
+                    <NIcon :size="14" :color="msg.feedback === 'incorrect' ? '#d29922' : ''"><WarningOutline /></NIcon>
+                  </template>
+                </NButton>
               </div>
             </div>
           </div>
@@ -102,23 +115,24 @@
 
         <!-- 输入区 -->
         <div class="chatbot-input">
-          <el-input
-            v-model="inputText"
-            placeholder="输入健康问题..."
+          <NInput
+            v-model:value="inputText"
+            :placeholder="$t('chat.inputPlaceholder') || '输入健康问题...'"
             @keyup.enter="handleSend"
             :disabled="streaming"
             clearable
-            resize="none"
             :autosize="{ minRows: 1, maxRows: 3 }"
             type="textarea"
           />
-          <el-button
+          <NButton
             type="primary"
-            :icon="Promotion"
             :loading="streaming"
             :disabled="!inputText.trim() || streaming"
             @click="handleSend"
-          >{{ streaming ? '生成中...' : '发送' }}</el-button>
+          >
+            <template #icon><NIcon><SendOutline /></NIcon></template>
+            {{ streaming ? ($t('chat.generating') || '生成中...') : ($t('chat.send') || '发送') }}
+          </NButton>
         </div>
 
         <!-- 医疗免责声明（始终显示） -->
@@ -130,13 +144,49 @@
   </div>
 </template>
 
-<script setup>
-import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Delete, Plus, Close, Promotion, CircleCheck, CircleClose, WarningFilled, Refresh } from '@element-plus/icons-vue'
-import { createSession, getSessionList, getMessages, deleteSession, sendMessage } from '@/api/chat'
+<script setup lang="ts">
+import { ref, nextTick, onBeforeUnmount } from 'vue'
+import {
+  NButton, NIcon, NTag, NInput,
+  useMessage, useDialog
+} from 'naive-ui'
+import {
+  ChatbubbleEllipsesOutline, TrashOutline, AddOutline, CloseOutline,
+  SendOutline, CheckmarkCircleOutline, CloseCircleOutline,
+  WarningOutline, RefreshOutline
+} from '@vicons/ionicons5'
+import { fetchCreateSession, fetchGetSessionList, fetchGetMessages, fetchDeleteSession } from '@/service/api'
+import { createSSEStream } from '@/utils/sseClient'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { isOnline, getCachedChatMessages, cacheChatMessages } from '@/utils/offlineCache'
+
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  feedback?: 'useful' | 'useless' | 'incorrect' | null
+}
+
+interface Session {
+  id: string | number
+  title: string
+}
+
+interface SseAbortController {
+  abort: () => void
+}
+
+interface SseCallbacks {
+  onMessage: (delta: string) => void
+  onProgress: (chars: number) => void
+  onDone: () => void
+  onError: (err: { message?: string } | null) => void
+  onResume: (cursor: number) => void
+}
+
+defineOptions({ name: 'ChatBotPage' })
+
+const message = useMessage()
+const dialog = useDialog()
 
 const visible = ref(false)
 const showSessionList = ref(false)
@@ -144,11 +194,11 @@ const streaming = ref(false)
 const inputText = ref('')
 const streamingText = ref('')
 const progressChars = ref(0)
-let currentSseAbort = null
-const currentSessionId = ref(null)
-const sessions = ref([])
-const messages = ref([])
-const messagesRef = ref(null)
+let currentSseAbort: SseAbortController | null = null
+const currentSessionId = ref<string | number | null>(null)
+const sessions = ref<Session[]>([])
+const messages = ref<ChatMessage[]>([])
+const messagesRef = ref<HTMLElement | null>(null)
 
 const quickQuestions = [
   '减脂期应该怎么吃？',
@@ -171,8 +221,8 @@ function closeChat() {
 
 async function initChat() {
   try {
-    const res = await getSessionList()
-    sessions.value = res.data || []
+    const { data } = await fetchGetSessionList()
+    sessions.value = (data as any) || []
     if (sessions.value.length > 0) {
       currentSessionId.value = sessions.value[0].id
       await loadMessages()
@@ -186,11 +236,11 @@ async function initChat() {
 
 async function handleNewSession() {
   try {
-    const res = await createSession()
-    currentSessionId.value = res.data.id
+    const { data } = await fetchCreateSession()
+    currentSessionId.value = (data as any).id
     messages.value = []
     showSessionList.value = false
-    sessions.value.unshift(res.data)
+    sessions.value.unshift(data as any)
   } catch {
     // handled by interceptor
   }
@@ -199,8 +249,8 @@ async function handleNewSession() {
 async function loadMessages() {
   if (!currentSessionId.value) return
   try {
-    const res = await getMessages(currentSessionId.value)
-    messages.value = res.data || []
+    const { data } = await fetchGetMessages(currentSessionId.value as string)
+    messages.value = (data as any) || []
     await nextTick()
     scrollToBottom()
   } catch {
@@ -208,32 +258,39 @@ async function loadMessages() {
   }
 }
 
-function selectSession(id) {
+function selectSession(id: string | number) {
   currentSessionId.value = id
   showSessionList.value = false
   loadMessages()
 }
 
-async function handleDeleteSession(id) {
-  try {
-    await ElMessageBox.confirm('确定删除该对话吗？', '提示', { type: 'warning' })
-    await deleteSession(id)
-    sessions.value = sessions.value.filter(s => s.id !== id)
-    if (currentSessionId.value === id) {
-      if (sessions.value.length > 0) {
-        currentSessionId.value = sessions.value[0].id
-        await loadMessages()
-      } else {
-        await handleNewSession()
+async function handleDeleteSession(id: string | number) {
+  dialog.warning({
+    title: '提示',
+    content: '确定删除该对话吗？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await fetchDeleteSession(id as string)
+        sessions.value = sessions.value.filter(s => s.id !== id)
+        if (currentSessionId.value === id) {
+          if (sessions.value.length > 0) {
+            currentSessionId.value = sessions.value[0].id
+            await loadMessages()
+          } else {
+            await handleNewSession()
+          }
+        }
+        message.success('已删除')
+      } catch {
+        // cancelled
       }
     }
-    ElMessage.success('已删除')
-  } catch {
-    // cancelled
-  }
+  })
 }
 
-function sendQuick(q) {
+function sendQuick(q: string) {
   inputText.value = q
   handleSend()
 }
@@ -250,7 +307,7 @@ function handleSend() {
 
   // 添加用户消息到列表并缓存
   messages.value.push({ role: 'user', content: text })
-  cacheChatMessages(currentSessionId.value, messages.value)
+  cacheChatMessages(currentSessionId.value as string, messages.value)
   inputText.value = ''
   streaming.value = true
   streamingText.value = ''
@@ -260,10 +317,11 @@ function handleSend() {
 
   const currentSession = currentSessionId.value
 
-  const stream = sendMessage(
+  const stream = createSSEStream(
+    '/chat/send',
     { sessionId: currentSession, content: text },
     {
-      onMessage: (delta) => {
+      onMessage: (delta: string) => {
         if (delta === '[DONE]') {
           // AI回复完成
           messages.value.push({ role: 'assistant', content: streamingText.value })
@@ -271,35 +329,35 @@ function handleSend() {
           streamingText.value = ''
           progressChars.value = 0
           // 缓存完整的消息列表
-          cacheChatMessages(currentSessionId.value, messages.value)
+          cacheChatMessages(currentSessionId.value as string, messages.value)
           nextTick(() => scrollToBottom())
           // 刷新会话列表以更新标题
-          getSessionList().then(res => { sessions.value = res.data || [] })
+          fetchGetSessionList().then(({ data }) => { sessions.value = (data as any) || [] })
         } else if (delta === '[ERROR]') {
           streaming.value = false
           streamingText.value = ''
           progressChars.value = 0
-          ElMessage.error('AI回复失败')
+          message.error('AI回复失败')
         } else {
           streamingText.value += delta
           progressChars.value = (progressChars.value || 0) + (delta ? delta.length : 0)
           nextTick(() => scrollToBottom())
         }
       },
-      onProgress: (chars) => {
+      onProgress: (chars: number) => {
         progressChars.value = chars
       },
       onDone: () => {
         // done via [DONE] message
       },
-      onError: (err) => {
+      onError: (err: { message?: string } | null) => {
         streaming.value = false
         streamingText.value = ''
         progressChars.value = 0
-        ElMessage.error(err?.message || '发送失败')
+        message.error(err?.message || '发送失败')
       },
-      onResume: (cursor) => {
-        ElMessage.info(`连接恢复中...已恢复 ${cursor} 字`)
+      onResume: (cursor: number) => {
+        message.info(`连接恢复中...已恢复 ${cursor} 字`)
       }
     }
   )
@@ -307,13 +365,13 @@ function handleSend() {
   currentSseAbort = stream
 }
 
-function handleRegenerate(msg) {
+function handleRegenerate(msg: ChatMessage) {
   if (streaming.value) return
   // 找到该AI消息之前最后一条用户消息
   const idx = messages.value.indexOf(msg)
   if (idx <= 0) return
   // 找到此AI回复对应的用户问题
-  let userMsg = null
+  let userMsg: ChatMessage | null = null
   for (let i = idx - 1; i >= 0; i--) {
     if (messages.value[i].role === 'user') {
       userMsg = messages.value[i]
@@ -328,7 +386,7 @@ function handleRegenerate(msg) {
   handleSend()
 }
 
-function handleFeedback(msg, type) {
+function handleFeedback(msg: ChatMessage, type: 'useful' | 'useless' | 'incorrect') {
   // 切换反馈状态
   if (msg.feedback === type) {
     msg.feedback = null
@@ -337,10 +395,10 @@ function handleFeedback(msg, type) {
   }
   // 可扩展：发送反馈到后端
   // request({ url: '/chat/feedback', method: 'post', data: { sessionId, messageIndex, feedback: type } })
-  ElMessage.success(type === 'useful' ? '感谢反馈！' : '已记录反馈')
+  message.success(type === 'useful' ? '感谢反馈！' : '已记录反馈')
 }
 
-function formatContent(text) {
+function formatContent(text: string | undefined): string {
   if (!text) return ''
   return sanitizeHtml(text
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
@@ -352,6 +410,13 @@ function scrollToBottom() {
     messagesRef.value.scrollTop = messagesRef.value.scrollHeight
   }
 }
+
+onBeforeUnmount(() => {
+  if (currentSseAbort) {
+    currentSseAbort.abort()
+    currentSseAbort = null
+  }
+})
 </script>
 
 <style scoped>
@@ -582,16 +647,6 @@ function scrollToBottom() {
   padding-left: 4px;
 }
 
-.message-actions .el-button {
-  color: #8b949e;
-  font-size: 12px;
-  padding: 2px 6px;
-}
-
-.message-actions .el-button:hover {
-  color: #e6edf3;
-}
-
 /* 流式进度提示 */
 .streaming-progress {
   display: flex;
@@ -627,13 +682,6 @@ function scrollToBottom() {
   display: flex;
   gap: 10px;
   align-items: flex-end;
-}
-
-.chatbot-input :deep(.el-textarea__inner) {
-  background: #0d1117;
-  border-color: #30363d;
-  color: #e6edf3;
-  font-size: 13px;
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
