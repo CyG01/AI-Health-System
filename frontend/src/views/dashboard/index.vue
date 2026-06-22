@@ -197,7 +197,7 @@ async function handleTabChange(tabName: string) {
     try {
       const { data, error } = await fetchDashboardWeek();
       if (data && !error) {
-        weekData.value = data as Record<string, unknown>;
+        weekData.value = data as unknown as Record<string, unknown>;
       }
     } catch {
       tabError.value = $t('page.dashboard.dataLoadFailed');
@@ -205,7 +205,7 @@ async function handleTabChange(tabName: string) {
     try {
       const { data, error } = await fetchGetDietTrendComparison();
       if (data && !error) {
-        dietComparison.value = data as Record<string, unknown>;
+        dietComparison.value = data as unknown as Record<string, unknown>;
         await nextTick();
         initDietComparisonChart();
       }
@@ -216,7 +216,7 @@ async function handleTabChange(tabName: string) {
     try {
       const { data, error } = await fetchDashboardMonth();
       if (data && !error) {
-        monthData.value = data as Record<string, unknown>;
+        monthData.value = data as unknown as Record<string, unknown>;
       }
     } catch {
       tabError.value = $t('page.dashboard.dataLoadFailed');
@@ -253,16 +253,16 @@ onMounted(async () => {
       ]);
 
     if (healthRes.status === 'fulfilled' && healthRes.value.data && !healthRes.value.error) {
-      latestHealth.value = healthRes.value.data as Record<string, unknown>;
+      latestHealth.value = healthRes.value.data as unknown as Record<string, unknown>;
     }
     if (todayRes.status === 'fulfilled' && todayRes.value.data && !todayRes.value.error) {
-      today.value = todayRes.value.data as Record<string, unknown>;
+      today.value = todayRes.value.data as unknown as Record<string, unknown>;
     }
     if (assessmentRes.status === 'fulfilled' && assessmentRes.value.data && !assessmentRes.value.error) {
-      assessment.value = assessmentRes.value.data as Record<string, unknown>;
+      assessment.value = assessmentRes.value.data as unknown as Record<string, unknown>;
     }
     if (progressRes.status === 'fulfilled' && progressRes.value.data && !progressRes.value.error) {
-      const p = progressRes.value.data as Record<string, unknown>;
+      const p = progressRes.value.data as unknown as Record<string, unknown>;
       onProgress.value = {
         progressPercent: p.targetProgressPercent ? Number(p.targetProgressPercent) : 0,
         checkinRate: p.totalCheckinRate ? Number(p.totalCheckinRate) : 0,
@@ -274,16 +274,16 @@ onMounted(async () => {
 
     await nextTick();
     if (weightRes.status === 'fulfilled' && weightRes.value.data && !weightRes.value.error) {
-      initWeightChart(weightRes.value.data as Record<string, unknown>);
+      initWeightChart(weightRes.value.data as unknown as Record<string, unknown>);
     }
     if (checkinRes.status === 'fulfilled' && checkinRes.value.data && !checkinRes.value.error) {
-      initCheckinChart(checkinRes.value.data as Record<string, unknown>);
+      initCheckinChart(checkinRes.value.data as unknown as Record<string, unknown>);
     }
     if (recommendRes.status === 'fulfilled' && recommendRes.value.data && !recommendRes.value.error) {
-      recommends.value = recommendRes.value.data as Record<string, unknown>;
+      recommends.value = recommendRes.value.data as unknown as Record<string, unknown>;
     }
     if (greetingRes.status === 'fulfilled' && greetingRes.value.data && !greetingRes.value.error) {
-      greetingCard.value = greetingRes.value.data as Record<string, unknown>;
+      greetingCard.value = greetingRes.value.data as unknown as Record<string, unknown>;
     }
   } catch {
     // silent
@@ -673,7 +673,7 @@ onUnmounted(() => {
             <div v-if="(recommends.exercises as unknown[])?.length" class="recommend-list">
               <div
                 v-for="ex in (recommends.exercises as Array<Record<string, unknown>>).slice(0, 4)"
-                :key="ex.id"
+                :key="(ex.id as string)"
                 class="recommend-item"
               >
                 <NTag size="small" :type="ex.type === '有氧' ? 'success' : 'warning'" round>
@@ -694,7 +694,7 @@ onUnmounted(() => {
             <div v-if="(recommends.foods as unknown[])?.length" class="recommend-list">
               <div
                 v-for="f in (recommends.foods as Array<Record<string, unknown>>).slice(0, 4)"
-                :key="f.id"
+                :key="(f.id as string)"
                 class="recommend-item"
               >
                 <NTag size="small" round>{{ f.category }}</NTag>

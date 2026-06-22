@@ -41,12 +41,5 @@ declare namespace Api {
       unit: string;
     }
 
-    interface DailyFoodSummary {
-      totalCalories: number;
-      totalProtein: number;
-      totalCarbs: number;
-      totalFat: number;
-      records: FoodRecord[];
-    }
   }
 }

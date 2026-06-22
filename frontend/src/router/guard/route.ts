@@ -1,5 +1,6 @@
 import type { LocationQueryRaw, RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router';
 import { useAuthStore } from '@/store/modules/auth';
+import { clearAuthStorage } from '@/store/modules/auth/shared';
 import { useRouteStore } from '@/store/modules/route';
 import { getRouteName } from '@/router/elegant/transform';
 
@@ -10,50 +11,57 @@ import { getRouteName } from '@/router/elegant/transform';
  */
 export function createRouteGuard(router: Router) {
   router.beforeEach(async (to, from) => {
-    const location = await initRoute(to);
+    try {
+      const location = await initRoute(to);
 
-    if (location) {
-      return location;
-    }
+      if (location) {
+        return location;
+      }
 
-    const authStore = useAuthStore();
+      const authStore = useAuthStore();
 
-    const rootRoute = 'root';
-    const loginRoute = 'login';
-    const noAuthorizationRoute = '403';
+      const rootRoute = 'root';
+      const loginRoute = 'login';
+      const noAuthorizationRoute = '403';
 
-    const isLogin = authStore.isLogin;
-    const needLogin = !to.meta.constant;
-    const routeRoles = (to.meta.roles as string[]) || [];
+      const isLogin = authStore.isLogin;
+      const needLogin = !to.meta.constant;
+      const routeRoles = (to.meta.roles as string[]) || [];
 
-    const hasRole = authStore.userInfo.roles.some(role => routeRoles.includes(role));
-    const hasAuth = authStore.isStaticSuper || !routeRoles.length || hasRole;
+      const hasRole = authStore.userInfo.roles.some(role => routeRoles.includes(role));
+      const hasAuth = authStore.isStaticSuper || !routeRoles.length || hasRole;
 
-    // if it is login route when logged in, then switch to the root page
-    if (to.name === loginRoute && isLogin) {
-      return { name: rootRoute };
-    }
+      // if it is login route when logged in, then switch to the root page
+      if (to.name === loginRoute && isLogin) {
+        return { name: rootRoute };
+      }
 
-    // if the route does not need login, then it is allowed to access directly
-    if (!needLogin) {
+      // if the route does not need login, then it is allowed to access directly
+      if (!needLogin) {
+        return handleRouteSwitch(to, from);
+      }
+
+      // the route need login but the user is not logged in, then switch to the login page
+      if (!isLogin) {
+        return { name: loginRoute, query: { redirect: to.fullPath } };
+      }
+
+      // if the user is logged in but does not have authorization, then switch to the 403 page
+      if (!hasAuth) {
+        return { name: noAuthorizationRoute };
+      }
+
+      // Schedule proactive token refresh on protected page visit
+      authStore.scheduleTokenRefresh();
+
+      // switch route normally
       return handleRouteSwitch(to, from);
+    } catch (error) {
+      console.error('[RouteGuard] Unexpected error in beforeEach:', error);
+      // Safety net: always allow navigation to proceed (redirect to login if needed)
+      // This prevents the app from being stuck on a white screen
+      return { name: 'login', query: { redirect: to.fullPath } };
     }
-
-    // the route need login but the user is not logged in, then switch to the login page
-    if (!isLogin) {
-      return { name: loginRoute, query: { redirect: to.fullPath } };
-    }
-
-    // if the user is logged in but does not have authorization, then switch to the 403 page
-    if (!hasAuth) {
-      return { name: noAuthorizationRoute };
-    }
-
-    // Schedule proactive token refresh on protected page visit
-    authStore.scheduleTokenRefresh();
-
-    // switch route normally
-    return handleRouteSwitch(to, from);
   });
 }
 
@@ -71,7 +79,13 @@ async function initRoute(to: RouteLocationNormalized): Promise<RouteLocationRaw 
 
   // if the constant route is not initialized, then initialize the constant route
   if (!routeStore.isInitConstantRoute) {
-    await routeStore.initConstantRoute();
+    try {
+      await routeStore.initConstantRoute();
+    } catch (error) {
+      console.error('[RouteGuard] initConstantRoute failed:', error);
+      // Constant routes are essential — if they fail, redirect to login as a fallback
+      return { name: 'login' };
+    }
 
     // the route is captured by the "not-found" route because the constant route is not initialized
     // after the constant route is initialized, redirect to the original route
@@ -110,7 +124,23 @@ async function initRoute(to: RouteLocationNormalized): Promise<RouteLocationRaw 
 
   if (!routeStore.isInitAuthRoute) {
     // initialize the auth route (fetches user info, starts token refresh timer)
-    await routeStore.initAuthRoute();
+    try {
+      await routeStore.initAuthRoute();
+    } catch (error) {
+      console.error('[RouteGuard] initAuthRoute failed:', error);
+      // Clear token on failure so the guard will redirect to login below
+      clearAuthStorage();
+      authStore.$reset();
+      // Do NOT call toLogin() here — let the guard's own redirect logic handle it
+      // to avoid competing navigations during beforeEach execution
+    }
+
+    // Re-check login state after initAuthRoute (token may have been cleared)
+    if (!authStore.isLogin) {
+      const loginRoute = 'login';
+      const query = getRouteQueryOfLoginRoute(to, routeStore.routeHome);
+      return { name: loginRoute, query };
+    }
 
     // the route is captured by the "not-found" route because the auth route is not initialized
     // after the auth route is initialized, redirect to the original route

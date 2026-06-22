@@ -115,24 +115,37 @@
 
         <!-- 输入区 -->
         <div class="chatbot-input">
-          <NInput
-            v-model:value="inputText"
-            :placeholder="$t('chat.inputPlaceholder') || '输入健康问题...'"
-            @keyup.enter="handleSend"
-            :disabled="streaming"
-            clearable
-            :autosize="{ minRows: 1, maxRows: 3 }"
-            type="textarea"
-          />
-          <NButton
-            type="primary"
-            :loading="streaming"
-            :disabled="!inputText.trim() || streaming"
-            @click="handleSend"
-          >
-            <template #icon><NIcon><SendOutline /></NIcon></template>
-            {{ streaming ? ($t('chat.generating') || '生成中...') : ($t('chat.send') || '发送') }}
-          </NButton>
+          <div class="input-options">
+            <NCheckbox
+              v-model:checked="includeHealthContext"
+              :disabled="streaming || healthContextLoading"
+              size="small"
+            >
+              <span class="context-label">
+                {{ healthContextLoading ? '加载健康档案中...' : '包含健康档案上下文' }}
+              </span>
+            </NCheckbox>
+          </div>
+          <div class="input-row">
+            <NInput
+              v-model:value="inputText"
+              :placeholder="$t('chat.inputPlaceholder') || '输入健康问题...'"
+              @keyup.enter="handleSend"
+              :disabled="streaming || healthContextLoading"
+              clearable
+              :autosize="{ minRows: 1, maxRows: 3 }"
+              type="textarea"
+            />
+            <NButton
+              type="primary"
+              :loading="streaming || healthContextLoading"
+              :disabled="!inputText.trim() || streaming || healthContextLoading"
+              @click="handleSend"
+            >
+              <template #icon><NIcon><SendOutline /></NIcon></template>
+              {{ streaming ? ($t('chat.generating') || '生成中...') : ($t('chat.send') || '发送') }}
+            </NButton>
+          </div>
         </div>
 
         <!-- 医疗免责声明（始终显示） -->
@@ -147,7 +160,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount } from 'vue'
 import {
-  NButton, NIcon, NTag, NInput,
+  NButton, NIcon, NTag, NInput, NCheckbox,
   useMessage, useDialog
 } from 'naive-ui'
 import {
@@ -155,7 +168,8 @@ import {
   SendOutline, CheckmarkCircleOutline, CloseCircleOutline,
   WarningOutline, RefreshOutline
 } from '@vicons/ionicons5'
-import { fetchCreateSession, fetchGetSessionList, fetchGetMessages, fetchDeleteSession } from '@/service/api'
+import { fetchCreateSession, fetchGetSessionList, fetchGetMessages, fetchDeleteSession, fetchGetLatestHealth } from '@/service/api'
+import { SEND_WITH_CONTEXT_URL } from '@/service/api/chat'
 import { createSSEStream } from '@/utils/sseClient'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { isOnline, getCachedChatMessages, cacheChatMessages } from '@/utils/offlineCache'
@@ -207,6 +221,11 @@ const quickQuestions = [
   '每天需要喝多少水？',
   '运动后肌肉酸痛怎么办？'
 ]
+
+/** Whether to include health profile context when sending messages */
+const includeHealthContext = ref(false)
+/** Loading state for fetching health profile before sending */
+const healthContextLoading = ref(false)
 
 function openChat() {
   visible.value = true
@@ -295,7 +314,7 @@ function sendQuick(q: string) {
   handleSend()
 }
 
-function handleSend() {
+async function handleSend() {
   const text = inputText.value.trim()
   if (!text || streaming.value || !currentSessionId.value) return
 
@@ -317,9 +336,33 @@ function handleSend() {
 
   const currentSession = currentSessionId.value
 
+  // Determine endpoint and request body based on context toggle
+  let endpoint = '/chat/send'
+  const requestBody: Record<string, any> = { sessionId: currentSession, content: text }
+
+  if (includeHealthContext.value) {
+    healthContextLoading.value = true
+    try {
+      const { data: healthData, error } = await fetchGetLatestHealth()
+      if (!error && healthData) {
+        endpoint = SEND_WITH_CONTEXT_URL
+        requestBody.context = {
+          page: 'health',
+          entityId: null,
+          healthData
+        }
+      }
+    } catch {
+      // Failed to fetch health data — fall back to plain /chat/send
+      console.warn('[ChatBot] Failed to fetch health profile, sending without context')
+    } finally {
+      healthContextLoading.value = false
+    }
+  }
+
   const stream = createSSEStream(
-    '/chat/send',
-    { sessionId: currentSession, content: text },
+    endpoint,
+    requestBody,
     {
       onMessage: (delta: string) => {
         if (delta === '[DONE]') {
@@ -679,6 +722,22 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   border-top: 1px solid #21262d;
   background: #161b22;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-options {
+  display: flex;
+  align-items: center;
+}
+
+.context-label {
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.input-row {
   display: flex;
   gap: 10px;
   align-items: flex-end;

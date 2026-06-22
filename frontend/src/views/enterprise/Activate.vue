@@ -18,13 +18,13 @@
                 {{ config.teamSize || '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('enterprise.monthlyTokenQuota') || '月度Token额度'">
-                {{ formatQuota(config.tokenQuota) }}
+                {{ formatQuota(config.customTokenQuotaM) }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('enterprise.monthlyPrice') || '月费'">
-                ¥{{ config.monthlyPrice || '-' }}
+                ¥{{ config.customPrice || '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('enterprise.expireTime') || '到期时间'">
-                {{ config.expireTime || '-' }}
+                {{ config.endTime || '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('enterprise.status') || '状态'">
                 <NTag :type="config.status === 'active' ? 'success' : 'warning'" size="small">
@@ -95,9 +95,9 @@ const message = useMessage()
 interface EnterpriseConfig {
   tier?: string
   teamSize?: number
-  tokenQuota?: number
-  monthlyPrice?: number
-  expireTime?: string
+  customTokenQuotaM?: number
+  customPrice?: number
+  endTime?: string
   status?: string
   message?: string
 }
@@ -148,10 +148,10 @@ async function loadConfig() {
       config.value = data as any
       if (config.value) {
         form.value.teamSize = config.value.teamSize || 10
-        form.value.customTokenQuotaM = config.value.tokenQuota
-          ? Math.round(config.value.tokenQuota / 1000000)
+        form.value.customTokenQuotaM = config.value.customTokenQuotaM
+          ? config.value.customTokenQuotaM
           : 10
-        form.value.customPrice = config.value.monthlyPrice || 999
+        form.value.customPrice = config.value.customPrice || 999
       }
     }
   } catch {
@@ -168,10 +168,10 @@ async function handleActivate() {
         teamSize: form.value.teamSize,
         customTokenQuotaM: form.value.customTokenQuotaM,
         customPrice: form.value.customPrice
-      } as any)
+      })
       message.success('配置已更新')
     } else {
-      await fetchActivateEnterprisePlan(form.value as any)
+      await fetchActivateEnterprisePlan(form.value)
       message.success('企业版已激活')
     }
     loadConfig()

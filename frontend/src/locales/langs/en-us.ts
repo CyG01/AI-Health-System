@@ -241,6 +241,7 @@ const local: App.I18n.Schema = {
     404: 'Page Not Found',
     500: 'Server Error',
     dashboard: 'Dashboard',
+    'iframe-page': 'iframe Page',
     auth_register: 'Register',
     'auth_forgot-password': 'Forgot Password',
     auth_profile: 'Profile',
@@ -295,7 +296,10 @@ const local: App.I18n.Schema = {
     'admin_audit-log': 'Audit Log',
     'admin_approval-manage': 'Approval Management',
     'admin_rule-suggestion': 'Rule Suggestions',
-    'admin_ai-feedback': 'AI Feedback'
+    'admin_ai-feedback': 'AI Feedback',
+    'admin_llm-cost-monitor': 'LLM Cost Monitor',
+    'admin_llm-ops': 'LLMOps Management',
+    settings_privacy: 'Privacy'
   },
   page: {
     login: {
@@ -456,7 +460,8 @@ const local: App.I18n.Schema = {
       score: 'pts',
       items: 'items',
       percent: '%',
-      recent30Days: 'Last 30 Days'
+      recent30Days: 'Last 30 Days',
+      matchScore: 'Match {score}%'
     },
     health: {
       create: 'Create Health Profile',
@@ -754,6 +759,16 @@ const local: App.I18n.Schema = {
       community: 'Community',
       noNotifications: 'No notifications'
     }
+  },
+  stats: {
+    totalCheckinRate: 'Overall Checkin Rate',
+    exerciseCompleteRate: 'Exercise Completion Rate',
+    dietCompleteRate: 'Diet Completion Rate',
+    weightChange: 'Weight Change',
+    currentGoal: 'Current Goal',
+    exportData: 'Export Data',
+    detailedStats: 'Detailed Statistics',
+    weightTrend: 'Weight Trend'
   },
   form: {
     required: 'Cannot be empty',

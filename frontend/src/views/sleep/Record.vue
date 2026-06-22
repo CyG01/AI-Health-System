@@ -202,7 +202,7 @@ async function loadRecords() {
   pageLoading.value = true;
   try {
     const { data } = await fetchGetSleepList(30);
-    records.value = data || [];
+    records.value = (data || []) as unknown as SleepRecord[];
   } finally {
     pageLoading.value = false;
   }
@@ -211,7 +211,7 @@ async function loadRecords() {
 async function loadToday() {
   try {
     const { data } = await fetchGetTodaySleep();
-    todayRecord.value = data ?? null;
+    todayRecord.value = (data ?? null) as unknown as SleepRecord | null;
     if (todayRecord.value) {
       form.value.recordDate = todayRecord.value.recordDate;
       form.value.sleepTime = todayRecord.value.sleepTime;
@@ -234,7 +234,13 @@ async function handleSubmit() {
   }
   submitting.value = true;
   try {
-    await fetchSubmitSleep({ ...form.value, quality: form.value.quality || 3 });
+    await fetchSubmitSleep({
+      recordDate: form.value.recordDate,
+      sleepTime: form.value.sleepTime || '',
+      wakeTime: form.value.wakeTime || '',
+      quality: form.value.quality || 3,
+      dreamNotes: form.value.dreamNotes || undefined
+    });
     message.success('已记录');
     await loadToday();
     await loadRecords();

@@ -217,6 +217,8 @@ import { createSSEStream } from '@/utils/sseClient';
 import { localStg } from '@/utils/storage';
 import { fetchCreateSession, fetchGetSessionList, fetchGetMessages, fetchDeleteSession } from '@/service/api';
 import { fetchSolidifyPlan } from '@/service/api';
+import { fetchGetLatestHealth } from '@/service/api';
+import { SEND_WITH_CONTEXT_URL } from '@/service/api/chat';
 
 defineOptions({ name: 'GlobalCopilotDrawer' });
 
@@ -316,6 +318,7 @@ const sseTimedOut = ref(false);
 const sseRetryCount = ref(0);
 let sseTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let lastRequestData: any = null;
+let lastEndpoint: string = '/chat/send';
 
 // === Context awareness ===
 const contextInfo = computed<ContextInfo | null>(() => {
@@ -326,6 +329,8 @@ const contextInfo = computed<ContextInfo | null>(() => {
     return { page: 'planDetail', label: '计划详情', icon: 'DataLine', entityName: null };
   }
   if (path === '/food/record') return { page: 'foodRecord', label: '饮食记录', icon: 'Dish', entityName: null };
+  if (path.startsWith('/health')) return { page: 'health', label: '健康档案', icon: 'User', entityName: null };
+  if (path.startsWith('/exercise')) return { page: 'exercise', label: '运动记录', icon: 'Fitness', entityName: null };
   if (path === '/checkin/calendar') return { page: 'calendar', label: '打卡日历', icon: 'Calendar', entityName: null };
   if (path === '/dashboard') return { page: 'dashboard', label: '健康看板', icon: 'DataLine', entityName: null };
   return null;
@@ -335,6 +340,8 @@ function resolveContextDisplay(ctx: any): ContextInfo {
   const displays: Record<string, { label: string; icon: string }> = {
     planDetail: { label: '计划详情', icon: 'DataLine' },
     foodRecord: { label: '饮食记录', icon: 'Dish' },
+    health: { label: '健康档案', icon: 'User' },
+    exercise: { label: '运动记录', icon: 'Fitness' },
     calendar: { label: '打卡日历', icon: 'Calendar' },
     dashboard: { label: '健康看板', icon: 'DataLine' }
   };
@@ -494,7 +501,7 @@ function handleQuickAction(action: QuickAction) {
   handleSend();
 }
 
-function handleSend() {
+async function handleSend() {
   const text = inputText.value.trim();
   if (!text || streaming.value || !currentSessionId.value) return;
 
@@ -515,23 +522,78 @@ function handleSend() {
   nextTick(() => scrollToBottom());
 
   const ctx = contextInfo.value;
+  let endpoint = '/chat/send';
+  let contextPayload: Record<string, any> | null = null;
+
+  // When opened from a specific page, automatically include that page's context
+  if (ctx) {
+    contextPayload = {
+      page: ctx.page,
+      entityId: appStore.copilotContext.value?.entityId || null
+    };
+
+    // Fetch rich context data depending on the current page
+    try {
+      switch (ctx.page) {
+        case 'health':
+        case 'dashboard': {
+          const { data: healthData, error } = await fetchGetLatestHealth();
+          if (!error && healthData) {
+            contextPayload.healthData = healthData;
+          }
+          break;
+        }
+        case 'planDetail': {
+          // Include current plan summary if available
+          const plan = planStore.currentPlan.value;
+          if (plan) {
+            contextPayload.planData = {
+              planName: plan.name || plan.title,
+              planType: plan.type || plan.planType,
+              durationDays: plan.durationDays,
+              totalExercises: plan.totalExercises,
+              days: planStore.currentPlanDays.value?.slice(0, 3).map((d: any) => ({
+                dayIndex: d.dayIndex,
+                exercises: d.items?.map((i: any) => i.name || i.exerciseName).join(', ')
+              }))
+            };
+          }
+          break;
+        }
+        case 'foodRecord': {
+          // Include a note that user is on the food recording page
+          contextPayload.pageHint = '用户正在记录饮食，请根据健康档案给出营养建议';
+          break;
+        }
+        case 'calendar':
+        case 'exercise': {
+          contextPayload.pageHint = '用户正在查看运动/打卡记录';
+          break;
+        }
+      }
+    } catch {
+      // Failed to fetch context data — still send with basic page context
+      console.warn('[Copilot] Failed to fetch page context data, using basic context');
+    }
+
+    endpoint = SEND_WITH_CONTEXT_URL;
+  }
+
   const requestData = {
     sessionId: currentSessionId.value,
     content: text,
-    context: ctx ? {
-      page: ctx.page,
-      entityId: appStore.copilotContext.value?.entityId || null
-    } : null
+    context: contextPayload
   };
   lastRequestData = requestData;
-  startSseStream(requestData);
+  lastEndpoint = endpoint;
+  startSseStream(endpoint, requestData);
 }
 
-function startSseStream(requestData: any) {
+function startSseStream(endpoint: string, requestData: any) {
   clearSseTimeout();
   resetSseTimeout();
 
-  const stream = createSSEStream('/chat/send', requestData, {
+  const stream = createSSEStream(endpoint, requestData, {
     onMessage: (delta: string) => {
       resetSseTimeout();
 
@@ -624,7 +686,7 @@ function handleRetrySend() {
   streamingText.value = '';
   progressChars.value = 0;
   nextTick(() => scrollToBottom());
-  startSseStream(lastRequestData);
+  startSseStream(lastEndpoint, lastRequestData);
 }
 
 // === Tool call parsing ===

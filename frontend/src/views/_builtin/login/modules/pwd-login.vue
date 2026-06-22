@@ -48,8 +48,8 @@ async function refreshCaptcha() {
     captchaUuid.value = '';
     const { data, error } = await fetchCaptcha();
     if (data && !error) {
-      captchaBase64.value = data.captchaImage || data.base64 || '';
-      captchaUuid.value = data.captchaKey || data.uuid || '';
+      captchaBase64.value = data.base64 || '';
+      captchaUuid.value = data.uuid || '';
     }
   } catch {
     captchaBase64.value = '';

@@ -1,20 +1,27 @@
 declare namespace Api {
   namespace Billing {
-    interface Transaction {
-      id: number;
-      userId: number;
-      type: string;
-      amount: number;
-      description: string;
-      status: string;
-      createdAt: string;
-    }
-
     interface Balance {
-      credits: number;
-      totalSpent: number;
-      plan: string;
-      expiresAt?: string;
+      userId: number;
+      tier: string;
+      inputTokens: number;
+      outputTokens: number;
+      planGenCount: number;
+      foodRecogCount: number;
+      chatCount: number;
+      apiCallCount: number;
+      dailyCost: number;
+      monthlyCost: number;
+      limit?: {
+        dailyCallLimit: number;
+        dailyPlanGenLimit: number;
+        dailyFoodRecogLimit: number;
+        dailyChatLimit: number;
+        monthlyTokenLimitM: number;
+      };
+      exceeded: boolean;
+      usagePercent: number;
+      quotaLevel: string;
+      monthlyTokensUsed: number;
     }
 
     interface Invoice {
@@ -25,13 +32,25 @@ declare namespace Api {
       downloadUrl?: string;
     }
 
-    interface RefundRequest {
+    interface Subscription {
       id: number;
-      transactionId: number;
-      amount: number;
-      reason: string;
+      userId: number;
+      tier: string;
       status: string;
+      startTime: string;
+      endTime: string;
+      autoRenew: boolean;
+      orderNo: string;
+      paymentChannel: string;
+      teamSize: number;
+      customTokenQuotaM: number;
+      customPrice: number;
+      refundStatus: string;
+      refundAmount: number;
+      refundReason: string;
+      refundTime: string;
       createdAt: string;
+      updatedAt: string;
     }
 
     /** Daily usage record returned by GET /billing/history */

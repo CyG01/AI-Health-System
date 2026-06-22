@@ -10,7 +10,7 @@ export function fetchCreateGoal(data: Api.Goal.GoalCreateRequest) {
 }
 
 /** Update a goal */
-export function fetchUpdateGoal(data: { id: number; title?: string; description?: string; targetDate?: string }) {
+export function fetchUpdateGoal(data: Api.Goal.GoalUpdateRequest) {
   return request<Api.Goal.GoalItem>({
     url: '/goal/update',
     method: 'put',
@@ -43,8 +43,8 @@ export function fetchGetGoalDetail(goalId: number) {
 }
 
 /** Update goal status */
-export function fetchUpdateGoalStatus(goalId: number, status: string) {
-  return request<void>({
+export function fetchUpdateGoalStatus(goalId: number, status: number) {
+  return request<Api.Goal.GoalItem>({
     url: `/goal/${goalId}/status`,
     method: 'put',
     data: { status }

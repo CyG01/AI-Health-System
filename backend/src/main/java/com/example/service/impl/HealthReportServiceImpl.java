@@ -13,6 +13,7 @@ import com.example.vo.HealthRecordVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ public class HealthReportServiceImpl implements HealthReportService {
     private final ObjectMapper objectMapper;
     private final com.example.properties.DeepSeekProperties deepSeekProperties;
     private final WebClient webClient;
+    private final HealthReportServiceImpl self;
 
     public HealthReportServiceImpl(HealthReportMapper healthReportMapper,
                                     HealthService healthService,
@@ -53,7 +55,8 @@ public class HealthReportServiceImpl implements HealthReportService {
                                     SysUserMapper sysUserMapper,
                                     DeepSeekCostMonitor costMonitor,
                                     ObjectMapper objectMapper,
-                                    com.example.properties.DeepSeekProperties deepSeekProperties) {
+                                    com.example.properties.DeepSeekProperties deepSeekProperties,
+                                    @Lazy HealthReportServiceImpl self) {
         this.healthReportMapper = healthReportMapper;
         this.healthService = healthService;
         this.checkinMapper = checkinMapper;
@@ -68,10 +71,10 @@ public class HealthReportServiceImpl implements HealthReportService {
                 .defaultHeader("Authorization", "Bearer " + deepSeekProperties.getApiKey())
                 .defaultHeader("Content-Type", "application/json")
                 .build();
+        this.self = self;
     }
 
     @Override
-    @Transactional
     public HealthReportVO generateReport(Long userId, String reportType) {
         if (costMonitor.isGlobalCostExceeded()) {
             throw new BusinessException("今日AI调用额度已用尽，请明天再试");
@@ -149,13 +152,8 @@ public class HealthReportServiceImpl implements HealthReportService {
             // Issue 1: 校验 AI 返回的 JSON 内容格式与字段完整性
             validateAiReportContent(content);
 
-            HealthReport report = new HealthReport();
-            report.setUserId(userId);
-            report.setReportType(reportType);
-            report.setReportPeriod(period);
-            report.setAiContent(content);
-            report.setIsRead(0);
-            healthReportMapper.insert(report);
+            // DB write in short transaction (after AI call completed outside transaction)
+            HealthReport report = self.saveReportInTransaction(userId, reportType, period, content);
 
             return toVO(report);
         } catch (BusinessException e) {
@@ -181,6 +179,23 @@ public class HealthReportServiceImpl implements HealthReportService {
             log.warn("AI报告JSON解析失败 content={}", content.length() > 500 ? content.substring(0, 500) : content);
             throw new BusinessException("AI报告格式异常，请稍后重试");
         }
+    }
+
+    /**
+     * Short transactional helper: insert the health report.
+     * Called from generateReport() AFTER the AI API call completes outside any transaction.
+     */
+    @Transactional
+    public HealthReport saveReportInTransaction(Long userId, String reportType,
+                                                 String period, String aiContent) {
+        HealthReport report = new HealthReport();
+        report.setUserId(userId);
+        report.setReportType(reportType);
+        report.setReportPeriod(period);
+        report.setAiContent(aiContent);
+        report.setIsRead(0);
+        healthReportMapper.insert(report);
+        return report;
     }
 
     @Override
@@ -214,7 +229,6 @@ public class HealthReportServiceImpl implements HealthReportService {
 
     @Scheduled(cron = "0 0 8 * * MON")
     @Override
-    @Transactional
     public void autoGenerateWeeklyReports() {
         log.info("自动生成周报任务开始");
         List<SysUser> activeUsers = sysUserMapper.selectList(
@@ -238,7 +252,6 @@ public class HealthReportServiceImpl implements HealthReportService {
 
     @Scheduled(cron = "0 0 8 1 * ?")
     @Override
-    @Transactional
     public void autoGenerateMonthlyReports() {
         log.info("自动生成月报任务开始");
         List<SysUser> activeUsers = sysUserMapper.selectList(

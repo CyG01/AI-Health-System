@@ -1,30 +1,29 @@
 import { request } from '../request';
 
-/** Generate health report */
+/** Generate health report — backend returns HealthReportVO */
 export function fetchGenerateReport(reportType: string = 'weekly') {
-  return request<{ id: number; userId: number; reportType: string; content: string; score: number; suggestions: string[]; generatedAt: string }>({
+  return request<Api.HealthReport.HealthReportVO>({
     url: '/health-report/generate',
     method: 'post',
     data: { reportType }
   });
 }
 
-/** Get report list with optional filters */
+/** Get report list */
 export function fetchGetReportList(
   page: number = 1,
-  size: number = 10,
-  filters?: { reportType?: string; startDate?: string; endDate?: string }
+  size: number = 10
 ) {
-  return request<Api.Common.PageResult<{ id: number; userId: number; reportType: string; reportPeriod: string; content: string; aiContent: string; score: number; suggestions: string[]; isRead: number; generatedAt: string; createTime: string }>>({
+  return request<Api.HealthReport.HealthReportVO[]>({
     url: '/health-report/list',
     method: 'get',
-    params: { page, size, ...filters }
+    params: { page, size }
   });
 }
 
-/** Get report detail */
+/** Get report detail — backend returns HealthReportVO (auto marks as read) */
 export function fetchGetReportDetail(reportId: number) {
-  return request<{ id: number; userId: number; reportType: string; content: string; score: number; suggestions: string[]; generatedAt: string }>({
+  return request<Api.HealthReport.HealthReportVO>({
     url: `/health-report/${reportId}`,
     method: 'get'
   });

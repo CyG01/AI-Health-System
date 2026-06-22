@@ -222,9 +222,9 @@ interface Post {
   userAvatar: string
   timeAgo: string
   content: string
-  exerciseType: string
-  exerciseDuration: number | null
-  caloriesBurned: number | null
+  exerciseType?: string
+  exerciseDuration?: number | null
+  caloriesBurned?: number | null
   isLiked: boolean
   likeCount: number
   commentCount: number
@@ -310,7 +310,7 @@ async function loadPosts(reset = false) {
   loading.value = true
   try {
     const { data } = await fetchGetPostList(page.value, 10)
-    const list: Post[] = (data as any) || []
+    const list: Post[] = data || []
     if (reset) {
       posts.value = list
     } else {
@@ -354,8 +354,10 @@ async function handlePublish() {
 async function handleLike(post: Post) {
   try {
     const { data } = await fetchToggleLike(post.id as number)
-    post.isLiked = (data as any).isLiked
-    post.likeCount = (data as any).likeCount
+    if (data) {
+      post.isLiked = data.isLiked as boolean
+      post.likeCount = data.likeCount as number
+    }
   } catch { /* ignore */ }
 }
 

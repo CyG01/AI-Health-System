@@ -234,7 +234,8 @@ if "%SKIP_BACKEND%"=="0" (
          color 0A ^&^& ^
          cd /d "%BACKEND_DIR%" ^&^& ^
          set DB_PASSWORD=GCYgcygcygcy123/ ^&^& ^
-         echo [INFO] Starting Spring Boot backend on port %BACKEND_PORT%... ^&^& ^
+         set SPRING_PROFILES_ACTIVE=local ^&^& ^
+         echo [INFO] Starting Spring Boot backend on port %BACKEND_PORT% (profile: local^)... ^&^& ^
          echo. ^&^& ^
          mvn spring-boot:run"
     echo    [OK] 后端已在新窗口启动

@@ -236,6 +236,7 @@ const local: App.I18n.Schema = {
     404: '页面不存在',
     500: '服务器错误',
     dashboard: '仪表盘',
+    'iframe-page': '内嵌页面',
     auth_register: '注册',
     'auth_forgot-password': '忘记密码',
     auth_profile: '个人中心',
@@ -290,7 +291,10 @@ const local: App.I18n.Schema = {
     'admin_audit-log': '审计日志',
     'admin_approval-manage': '审批管理',
     'admin_rule-suggestion': '规则建议',
-    'admin_ai-feedback': 'AI反馈'
+    'admin_ai-feedback': 'AI反馈',
+    'admin_llm-cost-monitor': 'LLM成本监控',
+    'admin_llm-ops': 'LLMOps运维',
+    settings_privacy: '隐私设置'
   },
   page: {
     login: {
@@ -451,7 +455,8 @@ const local: App.I18n.Schema = {
       score: '分',
       items: '条',
       percent: '%',
-      recent30Days: '近30天'
+      recent30Days: '近30天',
+      matchScore: '匹配度 {score}%'
     },
     health: {
       create: '创建健康档案',
@@ -749,6 +754,16 @@ const local: App.I18n.Schema = {
       community: '社区通知',
       noNotifications: '暂无通知'
     }
+  },
+  stats: {
+    totalCheckinRate: '总完成率',
+    exerciseCompleteRate: '运动完成率',
+    dietCompleteRate: '饮食完成率',
+    weightChange: '体重变化',
+    currentGoal: '当前目标',
+    exportData: '导出数据',
+    detailedStats: '详细数据统计',
+    weightTrend: '体重变化趋势'
   },
   form: {
     required: '不能为空',

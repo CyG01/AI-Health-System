@@ -169,7 +169,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NCard, NDescriptions, NDescriptionsItem, NEmpty, NIcon, NSpin, NTag } from 'naive-ui';
 import { WarningOutline } from '@vicons/ionicons5';
@@ -375,5 +375,10 @@ watch(historyRecords, async (val) => {
 
 onMounted(() => {
   loadData();
+});
+
+onBeforeUnmount(() => {
+  bmiChartInstance?.dispose();
+  trendChartInstance?.dispose();
 });
 </script>

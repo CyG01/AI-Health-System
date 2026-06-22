@@ -382,6 +382,7 @@ declare namespace App {
         404: string;
         500: string;
         dashboard: string;
+        'iframe-page': string;
         auth_register: string;
         'auth_forgot-password': string;
         auth_profile: string;
@@ -437,6 +438,9 @@ declare namespace App {
         'admin_approval-manage': string;
         'admin_rule-suggestion': string;
         'admin_ai-feedback': string;
+        'admin_llm-cost-monitor': string;
+        'admin_llm-ops': string;
+        settings_privacy: string;
       };
       page: {
         login: {
@@ -598,6 +602,7 @@ declare namespace App {
           items: string;
           percent: string;
           recent30Days: string;
+          matchScore: string;
         };
         health: {
           create: string;
@@ -895,6 +900,16 @@ declare namespace App {
           community: string;
           noNotifications: string;
         };
+      };
+      stats: {
+        totalCheckinRate: string;
+        exerciseCompleteRate: string;
+        dietCompleteRate: string;
+        weightChange: string;
+        currentGoal: string;
+        exportData: string;
+        detailedStats: string;
+        weightTrend: string;
       };
       form: {
         required: string;

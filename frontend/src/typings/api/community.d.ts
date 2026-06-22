@@ -3,29 +3,30 @@ declare namespace Api {
     interface Post {
       id: number;
       userId: number;
-      username: string;
-      avatar: string;
+      userNickname: string;
+      userAvatar: string;
       content: string;
-      images?: string[];
-      likes: number;
-      comments: number;
-      liked: boolean;
-      createdAt: string;
+      images?: string;
+      exerciseType?: string;
+      exerciseDuration?: number | null;
+      caloriesBurned?: number | null;
+      likeCount: number;
+      commentCount: number;
+      isLiked: boolean;
+      createTime: string;
+      timeAgo: string;
     }
 
     interface Comment {
       id: number;
       postId: number;
       userId: number;
-      username: string;
-      avatar: string;
+      userNickname: string;
+      userAvatar: string;
       content: string;
-      createdAt: string;
-    }
-
-    interface CreatePostRequest {
-      content: string;
-      images?: string[];
+      replyTo?: number | null;
+      createTime: string;
+      timeAgo: string;
     }
 
     interface CreatePostParams {
@@ -33,23 +34,5 @@ declare namespace Api {
       images?: string[];
     }
 
-    interface CreateCommentRequest {
-      postId: number;
-      content: string;
-    }
-
-    interface FeedParams {
-      page?: number;
-      size?: number;
-      type?: string;
-    }
-
-    interface RankingItem {
-      userId: number;
-      username: string;
-      avatar: string;
-      value: number;
-      rank: number;
-    }
   }
 }

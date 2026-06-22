@@ -182,10 +182,17 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
    * @param captchaId Captcha ID/uuid (optional)
    * @param [redirect=true] Whether to redirect after login. Default is `true`
    */
-  async function login(userName: string, password: string, captchaCode?: string, captchaId?: string, redirect = true) {
+  async function login(
+    userName: string,
+    password: string,
+    captchaCode?: string,
+    captchaUuid?: string,
+    rememberMe?: boolean,
+    redirect = true
+  ) {
     startLoading();
 
-    const params: Api.Auth.LoginParams = { username: userName, password, captchaCode, captchaId };
+    const params: Api.Auth.LoginParams = { username: userName, password, captchaCode, captchaUuid, rememberMe };
     const { data: loginToken, error } = await fetchLogin(params);
 
     if (!error) {
@@ -225,10 +232,10 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
    * @param code Verification code
    * @param [redirect=true] Whether to redirect after login. Default is `true`
    */
-  async function loginByPhone(phone: string, code: string, redirect = true) {
+  async function loginByPhone(phone: string, code: string, rememberMe?: boolean, redirect = true) {
     startLoading();
 
-    const params: Api.Auth.LoginByPhoneParams = { phone, code };
+    const params: Api.Auth.LoginByPhoneParams = { phone, verifyCode: code, rememberMe };
     const { data: loginToken, error } = await fetchLoginByPhone(params);
 
     if (!error) {
@@ -307,7 +314,13 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
         // Start proactive token refresh after restoring session
         scheduleTokenRefresh();
       } else {
-        resetStore();
+        // Clear auth state without triggering navigation — the router guard
+        // will detect isLogin=false and redirect to login. Calling resetStore()
+        // here would trigger toLogin() during beforeEach, causing competing
+        // navigations and potential white screen.
+        cancelTokenRefresh();
+        token.value = '';
+        clearAuthStorage();
       }
     }
   }

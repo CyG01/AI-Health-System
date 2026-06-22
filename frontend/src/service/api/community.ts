@@ -17,9 +17,9 @@ export function fetchDeletePost(postId: number) {
   });
 }
 
-/** Get post list (paginated) */
+/** Get post list (backend returns plain list, not paginated) */
 export function fetchGetPostList(page: number = 1, size: number = 10) {
-  return request<Api.Common.PageResult<Api.Community.Post>>({
+  return request<Api.Community.Post[]>({
     url: '/community/posts',
     method: 'get',
     params: { page, size }
@@ -34,9 +34,9 @@ export function fetchGetPostDetail(postId: number) {
   });
 }
 
-/** Toggle like on a post */
+/** Toggle like on a post — returns { isLiked, likeCount } */
 export function fetchToggleLike(postId: number) {
-  return request<void>({
+  return request<Record<string, unknown>>({
     url: `/community/like/${postId}`,
     method: 'post'
   });
@@ -69,7 +69,7 @@ export function fetchGetComments(postId: number) {
 
 /** Get community ranking */
 export function fetchGetRanking(type: string = 'calories', limit: number = 20) {
-  return request<Array<{ userId: number; userName: string; avatar: string; value: number; rank: number }>>({
+  return request<Array<{ userId: number; nickname: string; avatar: string; calories: number }>>({
     url: '/community/ranking',
     method: 'get',
     params: { type, limit }

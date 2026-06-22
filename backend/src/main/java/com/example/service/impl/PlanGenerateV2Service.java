@@ -20,6 +20,7 @@ import com.example.vo.HealthRecordVO;
 import com.example.vo.SafetyCheckResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +50,7 @@ public class PlanGenerateV2Service {
     private final AiPlanDetailMapper aiPlanDetailMapper;
     private final DataMaskingService dataMaskingService;
     private final SafetyCheckerService safetyCheckerService;
+    private final PlanGenerateV2Service self;
 
     public PlanGenerateV2Service(HealthCoachAgent healthCoachAgent,
                                   HealthService healthService,
@@ -57,7 +59,8 @@ public class PlanGenerateV2Service {
                                   AiPlanMapper aiPlanMapper,
                                   AiPlanDetailMapper aiPlanDetailMapper,
                                   DataMaskingService dataMaskingService,
-                                  SafetyCheckerService safetyCheckerService) {
+                                  SafetyCheckerService safetyCheckerService,
+                                  @Lazy PlanGenerateV2Service self) {
         this.healthCoachAgent = healthCoachAgent;
         this.healthService = healthService;
         this.costMonitor = costMonitor;
@@ -66,13 +69,13 @@ public class PlanGenerateV2Service {
         this.aiPlanDetailMapper = aiPlanDetailMapper;
         this.dataMaskingService = dataMaskingService;
         this.safetyCheckerService = safetyCheckerService;
+        this.self = self;
     }
 
     /**
      * V2 计划生成 — 使用 LangChain4j Agent + Function Calling。
      * 返回 AiAgentResponse（SDUI 协议），旧客户端可降级为纯文本。
      */
-    @Transactional(rollbackFor = Exception.class)
     public AiAgentResponse generatePlan(PlanGenerateDTO dto, Long userId) {
         if (costMonitor.isGlobalCostExceeded()) {
             throw new BusinessException("今日AI调用额度已用尽，请明天再试");
@@ -120,8 +123,8 @@ public class PlanGenerateV2Service {
             throw new BusinessException(safetyResult.getMessage());
         }
 
-        // 解析响应中的 JSON 提取 plan days
-        AiPlan plan = savePlanFromResponse(userId, dto, aiResponse);
+        // 解析响应中的 JSON 提取 plan days (DB writes in short transaction)
+        AiPlan plan = self.savePlanFromResponse(userId, dto, aiResponse);
 
         // 构建 SDUI 响应（含 Tool 调用记录）
         return buildSduiResponse(plan, aiResponse);
@@ -186,7 +189,16 @@ public class PlanGenerateV2Service {
         return sb.toString();
     }
 
-    private AiPlan savePlanFromResponse(Long userId, PlanGenerateDTO dto, String aiResponse) {
+    /**
+     * Short transactional helper: parse JSON, insert plan + details.
+     * Called from generatePlan() AFTER the AI call completes outside any transaction.
+     * JSON is parsed BEFORE the plan is inserted, so bad AI output never creates an empty plan row.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public AiPlan savePlanFromResponse(Long userId, PlanGenerateDTO dto, String aiResponse) {
+        // 先验证 JSON 可解析，再落库（避免插入无法解析的空壳计划）
+        JsonNode root = AiResponseParser.extractJson(aiResponse);
+
         AiPlan plan = new AiPlan();
         plan.setUserId(userId);
         plan.setPlanType(dto.getPlanType());
@@ -198,9 +210,8 @@ public class PlanGenerateV2Service {
 
         aiPlanMapper.insert(plan);
 
-        // 尝试从响应中提取 JSON 并保存 detail
+        // 从已验证的 JSON 中提取 detail 并落库
         try {
-            JsonNode root = AiResponseParser.extractJson(aiResponse);
             JsonNode days = root.path("days");
             if (days.isArray()) {
                 for (JsonNode dayNode : days) {

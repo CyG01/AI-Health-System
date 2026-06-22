@@ -178,7 +178,7 @@
               />
             </NFormItem>
 
-            <NButton type="primary" attr-type="submit" :loading="submitting" block size="large">
+            <NButton type="primary" attr-type="submit" :loading="submitting" :disabled="submitting" block size="large">
               {{ $t('checkin.submit') || '提交打卡' }}
             </NButton>
           </NForm>

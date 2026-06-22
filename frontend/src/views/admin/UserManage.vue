@@ -40,7 +40,7 @@ interface UserRow {
   id: number;
   username: string;
   phone: string;
-  createTime: string;
+  createdAt: string;
   status: number;
   role: string;
 }
@@ -67,7 +67,7 @@ const columns: DataTableColumns<UserRow> = [
   { title: 'ID', key: 'id', width: 80 },
   { title: '用户名', key: 'username', minWidth: 120 },
   { title: '手机号', key: 'phone', minWidth: 140 },
-  { title: '注册时间', key: 'createTime', minWidth: 180 },
+  { title: '注册时间', key: 'createdAt', minWidth: 180 },
   {
     title: '角色',
     key: 'role',
@@ -239,8 +239,7 @@ async function handleExportUsers() {
   exporting.value = true;
   try {
     const { data } = await fetchExportUserList({
-      keyword: query.keyword || undefined,
-      role: query.role || undefined
+      keyword: query.keyword || undefined
     });
     if (data && Array.isArray(data)) {
       const header = ['ID', '用户名', '邮箱', '手机号', '角色', '状态', '注册时间', '最后登录'];
@@ -335,8 +334,8 @@ onMounted(() => {
             </NAvatar>
             <div>
               <h3 class="text-lg font-semibold m-0">{{ userDetail.username }}</h3>
-              <NTag :type="userDetail.status === 1 || userDetail.status === '1' ? 'success' : 'error'" size="small" class="mt-1">
-                {{ userDetail.status === 1 || userDetail.status === '1' ? '正常' : '禁用' }}
+              <NTag :type="String(userDetail.status) === '1' ? 'success' : 'error'" size="small" class="mt-1">
+                {{ String(userDetail.status) === '1' ? '正常' : '禁用' }}
               </NTag>
             </div>
           </div>

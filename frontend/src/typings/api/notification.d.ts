@@ -26,13 +26,6 @@ declare namespace Api {
       unreadCount: number;
     }
 
-    interface NotificationListParams {
-      page?: number;
-      size?: number;
-      read?: boolean;
-      type?: string;
-    }
-
     interface UnreadCount {
       count: number;
     }
@@ -48,14 +41,6 @@ declare namespace Api {
       emailEnabled: boolean;
       pushEnabled: boolean;
       smsEnabled: boolean;
-      quietHoursStart?: string;
-      quietHoursEnd?: string;
-    }
-
-    interface NotificationPreferenceUpdateRequest {
-      emailEnabled?: boolean;
-      pushEnabled?: boolean;
-      smsEnabled?: boolean;
       quietHoursStart?: string;
       quietHoursEnd?: string;
     }

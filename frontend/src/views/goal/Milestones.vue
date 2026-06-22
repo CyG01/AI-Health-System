@@ -325,7 +325,7 @@ function handleGoalAction(command: string, goal: Goal) {
         positiveText: '确定',
         negativeText: '取消',
         onPositiveClick: async () => {
-          await fetchUpdateGoalStatus(goal.id as number, '1')
+          await fetchUpdateGoalStatus(goal.id as number, 1)
           message.success('目标已达成！')
           await loadGoals()
         }
@@ -338,7 +338,7 @@ function handleGoalAction(command: string, goal: Goal) {
         positiveText: '确定',
         negativeText: '取消',
         onPositiveClick: async () => {
-          await fetchUpdateGoalStatus(goal.id as number, '2')
+          await fetchUpdateGoalStatus(goal.id as number, 2)
           message.success('已放弃目标')
           await loadGoals()
         }

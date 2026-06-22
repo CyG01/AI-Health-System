@@ -1,8 +1,8 @@
 import { request } from '../request';
 
 /** Get weight trend data */
-export function fetchGetWeightTrend(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Api.Statistics.TrendPoint[]>({
+export function fetchGetWeightTrend(params?: { days?: number }) {
+  return request<Api.Statistics.TrendData>({
     url: '/statistics/weight',
     method: 'get',
     params
@@ -10,8 +10,8 @@ export function fetchGetWeightTrend(params?: { days?: number; startDate?: string
 }
 
 /** Get BMI trend data */
-export function fetchGetBmiTrend(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Api.Statistics.TrendPoint[]>({
+export function fetchGetBmiTrend(params?: { days?: number }) {
+  return request<Api.Statistics.TrendData>({
     url: '/statistics/bmi',
     method: 'get',
     params
@@ -19,8 +19,8 @@ export function fetchGetBmiTrend(params?: { days?: number; startDate?: string; e
 }
 
 /** Get check-in trend data */
-export function fetchGetCheckinTrend(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Array<{ date: string; checked: boolean }>>({
+export function fetchGetCheckinTrend(params?: { days?: number }) {
+  return request<Api.Statistics.CheckinTrendData>({
     url: '/statistics/checkin',
     method: 'get',
     params
@@ -28,8 +28,8 @@ export function fetchGetCheckinTrend(params?: { days?: number; startDate?: strin
 }
 
 /** Get exercise trend data */
-export function fetchGetExerciseTrend(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Api.Statistics.TrendPoint[]>({
+export function fetchGetExerciseTrend(params?: { days?: number }) {
+  return request<Api.Statistics.ExerciseTrendData>({
     url: '/statistics/exercise',
     method: 'get',
     params
@@ -37,8 +37,8 @@ export function fetchGetExerciseTrend(params?: { days?: number; startDate?: stri
 }
 
 /** Get calorie trend data */
-export function fetchGetCalorieTrend(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Array<{ date: string; intake: number; burned: number; net: number }>>({
+export function fetchGetCalorieTrend(params?: { days?: number }) {
+  return request<Api.Statistics.CalorieTrendData>({
     url: '/statistics/calorie',
     method: 'get',
     params
@@ -47,22 +47,15 @@ export function fetchGetCalorieTrend(params?: { days?: number; startDate?: strin
 
 /** Get overall progress summary */
 export function fetchGetProgress() {
-  return request<{
-    weightChange: number;
-    bmiChange: number;
-    totalExerciseMinutes: number;
-    totalCaloriesBurned: number;
-    checkinRate: number;
-    planCompletionRate: number;
-  }>({
+  return request<Api.Statistics.ProgressData>({
     url: '/statistics/progress',
     method: 'get'
   });
 }
 
 /** Get calorie deficit data */
-export function fetchGetCalorieDeficit(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Array<{ date: string; deficit: number; cumulative: number }>>({
+export function fetchGetCalorieDeficit(params?: { days?: number }) {
+  return request<Api.Statistics.CalorieDeficitData>({
     url: '/statistics/calorie-deficit',
     method: 'get',
     params
@@ -70,8 +63,8 @@ export function fetchGetCalorieDeficit(params?: { days?: number; startDate?: str
 }
 
 /** Get nutrient ratio data */
-export function fetchGetNutrientRatio(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Array<{ protein: number; carbs: number; fat: number; date: string }>>({
+export function fetchGetNutrientRatio(params?: { days?: number }) {
+  return request<Api.Statistics.NameValueData>({
     url: '/statistics/nutrient-ratio',
     method: 'get',
     params
@@ -79,8 +72,8 @@ export function fetchGetNutrientRatio(params?: { days?: number; startDate?: stri
 }
 
 /** Get exercise distribution data */
-export function fetchGetExerciseDistribution(params?: { days?: number; startDate?: string; endDate?: string }) {
-  return request<Array<{ category: string; totalMinutes: number; percentage: number }>>({
+export function fetchGetExerciseDistribution(params?: { days?: number }) {
+  return request<Api.Statistics.NameValueData>({
     url: '/statistics/exercise-distribution',
     method: 'get',
     params
@@ -89,11 +82,7 @@ export function fetchGetExerciseDistribution(params?: { days?: number; startDate
 
 /** Get diet trend comparison (this week vs last week) */
 export function fetchGetDietTrendComparison() {
-  return request<{
-    thisWeek: Array<{ date: string; intake: number; burned: number; net: number }>;
-    lastWeek: Array<{ date: string; intake: number; burned: number; net: number }>;
-    changePercent: number;
-  }>({
+  return request<Api.Statistics.DietTrendComparisonData>({
     url: '/statistics/diet-trend-comparison',
     method: 'get'
   });

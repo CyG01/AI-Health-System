@@ -192,8 +192,7 @@ async function handleApprove(row: ApprovalItem) {
   approvingId.value = row.id;
   try {
     const approverName = authStore.userInfo?.username || 'admin';
-    const adminId = authStore.userInfo?.id ?? 0;
-    await fetchApproveRequest(row.id, { approverName }, adminId);
+    await fetchApproveRequest(row.id, { approverName });
     message.success('审批通过');
     loadItems();
   } catch {
@@ -215,11 +214,10 @@ async function handleRejectConfirm() {
   showRejectModal.value = false;
   try {
     const approverName = authStore.userInfo?.username || 'admin';
-    const adminId = authStore.userInfo?.id ?? 0;
     await fetchRejectRequest(rejectTarget.value.id, {
       approverName,
       reason: rejectForm.reason || '管理员拒绝'
-    }, adminId);
+    });
     message.success('已拒绝');
     loadItems();
   } catch {

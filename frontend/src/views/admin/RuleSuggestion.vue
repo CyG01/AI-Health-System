@@ -239,8 +239,7 @@ async function handleApprove(row: RuleSuggestionItem) {
   approvingId.value = row.id;
   try {
     const reviewerName = authStore.userInfo?.username || 'admin';
-    const adminId = authStore.userInfo?.id;
-    await fetchApproveRuleSuggestion(row.id, reviewerName, adminId);
+    await fetchApproveRuleSuggestion(row.id, reviewerName);
     message.success('规则建议已采纳');
     loadItems();
   } catch {
@@ -254,8 +253,7 @@ async function handleReject(row: RuleSuggestionItem) {
   rejectingId.value = row.id;
   try {
     const reviewerName = authStore.userInfo?.username || 'admin';
-    const adminId = authStore.userInfo?.id;
-    await fetchRejectRuleSuggestion(row.id, reviewerName, adminId);
+    await fetchRejectRuleSuggestion(row.id, reviewerName);
     message.success('已拒绝');
     loadItems();
   } catch {

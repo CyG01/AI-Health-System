@@ -278,7 +278,7 @@ async function loadPreferences() {
 async function savePreferences() {
   savingPrefs.value = true
   try {
-    await fetchUpdateNotificationPreference(prefForm)
+    await fetchUpdateNotificationPreference(prefForm as any)
     message.success('通知偏好已保存')
     showPreferenceDialog.value = false
   } catch { /* handled by interceptor */ }

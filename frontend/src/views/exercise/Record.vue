@@ -73,7 +73,7 @@
           <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">动作要领</h4>
           <ul class="flex flex-col gap-2">
             <li v-for="(step, i) in guidance.steps" :key="i" class="flex items-start gap-2.5 text-[13px] leading-relaxed">
-              <span class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#58a6ff] to-[#7c3aed] text-[11px] font-bold text-white">{{ i + 1 }}</span>
+              <span class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#58a6ff] to-[#7c3aed] text-[11px] font-bold text-white">{{ Number(i) + 1 }}</span>
               {{ step }}
             </li>
           </ul>
@@ -82,7 +82,7 @@
           <h4 class="mb-2 border-b border-[#21262d] pb-1 text-sm text-[#58a6ff]">常见错误</h4>
           <ul class="flex flex-col gap-2">
             <li v-for="(m, i) in guidance.commonMistakes" :key="i" class="flex items-start gap-2 text-[13px] leading-relaxed">
-              <NTag type="error" size="small">错误{{ i + 1 }}</NTag> {{ m }}
+              <NTag type="error" size="small">错误{{ Number(i) + 1 }}</NTag> {{ m }}
             </li>
           </ul>
         </div>
@@ -355,7 +355,7 @@ async function handleSubmit() {
       durationMinutes: form.value.durationMinutes,
       caloriesBurned,
       checkinId
-    });
+    } as any);
     if (!error) {
       message.success('记录成功');
       form.value.durationMinutes = 30;

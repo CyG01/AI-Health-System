@@ -104,8 +104,8 @@
                 {{ report.reportType === 'weekly' ? '周报' : '月报' }}
               </n-tag>
               <span class="font-semibold text-[15px]">{{ report.reportPeriod }}</span>
-              <n-tag v-if="report.score" size="small" :type="getScoreTagType(report.score)" round>
-                {{ report.score }}分
+              <n-tag v-if="getScore(report)" size="small" :type="getScoreTagType(getScore(report))" round>
+                {{ getScore(report) }}分
               </n-tag>
             </div>
             <div class="flex items-center gap-2 text-gray-400 text-[13px]">
@@ -134,7 +134,6 @@
           :page-sizes="[10, 20, 50]"
           v-model:page-size="pageSize"
           show-size-picker
-          @update:page="loadReports"
           @update:page-size="handlePageSizeChange"
         />
       </div>
@@ -213,8 +212,6 @@ interface ReportRecord {
   createTime: string;
   isRead: number;
   aiContent: string;
-  score: number;
-  suggestions: string[];
 }
 
 interface ReportData {
@@ -227,14 +224,50 @@ interface ReportData {
 
 const pageLoading = ref(false);
 const generating = ref(false);
-const reports = ref<ReportRecord[]>([]);
 const dialogVisible = ref(false);
 const detailReport = ref<ReportRecord | null>(null);
 
 // Pagination
 const currentPage = ref(1);
 const pageSize = ref(20);
-const total = ref(0);
+
+// All reports fetched from backend (unfiltered)
+const allReports = ref<ReportRecord[]>([]);
+
+// Client-side filtered and paginated reports
+const reports = computed<ReportRecord[]>(() => {
+  let filtered = allReports.value;
+  if (filterType.value) {
+    filtered = filtered.filter(r => r.reportType === filterType.value);
+  }
+  if (filterDateRange.value) {
+    const [start, end] = filterDateRange.value;
+    const startStr = new Date(start).toISOString().substring(0, 10);
+    const endStr = new Date(end).toISOString().substring(0, 10);
+    filtered = filtered.filter(r => {
+      const date = r.createTime?.substring(0, 10);
+      return date >= startStr && date <= endStr;
+    });
+  }
+  return filtered.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value);
+});
+
+const total = computed<number>(() => {
+  let filtered = allReports.value;
+  if (filterType.value) {
+    filtered = filtered.filter(r => r.reportType === filterType.value);
+  }
+  if (filterDateRange.value) {
+    const [start, end] = filterDateRange.value;
+    const startStr = new Date(start).toISOString().substring(0, 10);
+    const endStr = new Date(end).toISOString().substring(0, 10);
+    filtered = filtered.filter(r => {
+      const date = r.createTime?.substring(0, 10);
+      return date >= startStr && date <= endStr;
+    });
+  }
+  return filtered.length;
+});
 
 // Filters
 const filterType = ref<string | null>(null);
@@ -262,16 +295,27 @@ function startCooldown(): void {
   }, 1000);
 }
 
+// Helper to extract score from aiContent JSON
+function getScore(r: ReportRecord): number {
+  if (!r.aiContent) return 0;
+  try {
+    const data = JSON.parse(r.aiContent) as ReportData;
+    return data.score ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 // Score statistics
 const avgScore = computed<number>(() => {
-  const scored = reports.value.filter(r => r.score > 0);
+  const scored = reports.value.filter(r => getScore(r) > 0);
   if (scored.length === 0) return 0;
-  return Math.round(scored.reduce((sum, r) => sum + r.score, 0) / scored.length);
+  return Math.round(scored.reduce((sum, r) => sum + getScore(r), 0) / scored.length);
 });
 
 const latestScore = computed<number>(() => {
   if (reports.value.length === 0) return 0;
-  return reports.value[0]?.score || 0;
+  return getScore(reports.value[0]);
 });
 
 const avgScoreColor = computed<string>(() => {
@@ -305,31 +349,15 @@ const rawContent = computed(() => {
   }
 });
 
-function getFilterParams(): { reportType?: string; startDate?: string; endDate?: string } {
-  const params: { reportType?: string; startDate?: string; endDate?: string } = {};
-  if (filterType.value) {
-    params.reportType = filterType.value;
-  }
-  if (filterDateRange.value) {
-    const [start, end] = filterDateRange.value;
-    params.startDate = new Date(start).toISOString().substring(0, 10);
-    params.endDate = new Date(end).toISOString().substring(0, 10);
-  }
-  return params;
-}
-
 async function loadReports(): Promise<void> {
   pageLoading.value = true;
   try {
-    const filters = getFilterParams();
-    const { data, error } = await fetchGetReportList(currentPage.value, pageSize.value, filters);
+    const { data, error } = await fetchGetReportList(1, 1000);
     if (error || !data) {
-      reports.value = [];
-      total.value = 0;
+      allReports.value = [];
       return;
     }
-    reports.value = (data.records || []) as ReportRecord[];
-    total.value = data.total || 0;
+    allReports.value = data as ReportRecord[];
   } finally {
     pageLoading.value = false;
   }
@@ -337,20 +365,17 @@ async function loadReports(): Promise<void> {
 
 function handleFilterChange(): void {
   currentPage.value = 1;
-  loadReports();
 }
 
 function clearFilters(): void {
   filterType.value = null;
   filterDateRange.value = null;
   currentPage.value = 1;
-  loadReports();
 }
 
 function handlePageSizeChange(newSize: number): void {
   pageSize.value = newSize;
   currentPage.value = 1;
-  loadReports();
 }
 
 async function handleGenerate(type: string): Promise<void> {

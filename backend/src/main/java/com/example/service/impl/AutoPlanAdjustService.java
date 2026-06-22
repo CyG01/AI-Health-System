@@ -68,7 +68,6 @@ public class AutoPlanAdjustService {
      * 睡眠不足 → 自动降低当前运动计划强度。
      */
     @Async
-    @Transactional
     public void adjustForInsufficientSleep(Long userId, int sleepMinutes) {
         AiPlan activePlan = getActiveSportPlan(userId);
         if (activePlan == null) return;
@@ -97,7 +96,6 @@ public class AutoPlanAdjustService {
      * 体重变化 → 自动调整饮食计划热量目标。
      */
     @Async
-    @Transactional
     public void adjustForWeightChange(Long userId, double oldWeight, double newWeight) {
         AiPlan activePlan = getActiveDietPlan(userId);
         if (activePlan == null) {
@@ -140,7 +138,6 @@ public class AutoPlanAdjustService {
      * 用户反馈难度过高 → 自动降低强度。
      */
     @Async
-    @Transactional
     public void adjustForDifficultyFeedback(Long userId, String feedback, int satisfactionScore) {
         AiPlan activePlan = getActiveSportPlan(userId);
         if (activePlan == null) return;
@@ -180,7 +177,6 @@ public class AutoPlanAdjustService {
      * 连续低完成率 → 自动调整计划。
      */
     @Async
-    @Transactional
     public void adjustForLowCompletionRate(Long userId, double completionRate) {
         AiPlan activePlan = getActiveSportPlan(userId);
         if (activePlan == null) return;
@@ -215,7 +211,6 @@ public class AutoPlanAdjustService {
      * 热量超标 → 自动调整饮食计划。
      */
     @Async
-    @Transactional
     public void adjustForCalorieOverflow(Long userId, int totalCalories) {
         AiPlan activePlan = getActiveDietPlan(userId);
         if (activePlan == null) return;

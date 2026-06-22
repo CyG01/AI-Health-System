@@ -1,32 +1,25 @@
 declare namespace Api {
   namespace Water {
+    /** Matches backend WaterRecordVO */
     interface WaterRecord {
       id: number;
-      userId: number;
-      amount: number;
-      unit: string;
-      time: string;
-      date: string;
-      createdAt: string;
+      recordDate: string;
+      amountMl: number;
+      createTime: string;
     }
 
+    /** Matches backend WaterRecordSubmitDTO */
     interface CreateWaterParams {
-      amount: number;
-      unit?: string;
-      time?: string;
-      date: string;
+      amountMl: number;
+      recordDate: string;
     }
 
     interface DailyWaterSummary {
-      totalAmount: number;
-      goal: number;
-      records: WaterRecord[];
+      id: number;
+      recordDate: string;
+      amountMl: number;
+      createTime: string;
     }
 
-    /** Response from GET /water/total?date= */
-    interface WaterDailyTotal {
-      date: string;
-      totalMl: number;
-    }
   }
 }

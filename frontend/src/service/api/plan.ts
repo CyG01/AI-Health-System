@@ -53,9 +53,9 @@ export function fetchDeletePlan(id: number) {
   });
 }
 
-/** Adjust plan with AI */
+/** Adjust plan with AI (returns SDUI AiAgentResponse) */
 export function fetchAdjustPlan(data: { originalPlanId: number; feedback: string }) {
-  return request<Api.Plan.Plan>({
+  return request<Record<string, unknown>>({
     url: '/ai-plan/adjust',
     method: 'post',
     data

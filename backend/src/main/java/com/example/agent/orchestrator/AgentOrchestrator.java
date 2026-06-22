@@ -679,10 +679,10 @@ public class AgentOrchestrator {
         }
 
         if (ctx.length() > 0) {
-            ctx.append("\n---\n【用户问题】").append(userInput);
+            ctx.append("\n---\n【用户问题】\n<user_message>\n").append(userInput).append("\n</user_message>");
             return ctx.toString();
         }
-        return userInput;
+        return "<user_message>\n" + userInput + "\n</user_message>";
     }
 
     /**

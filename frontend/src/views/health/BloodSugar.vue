@@ -287,7 +287,7 @@ async function handleSubmit(): Promise<void> {
     };
     const { data, error } = await fetchSubmitBloodSugar(payload);
     if (!error) {
-      window.$message.success('血糖记录成功');
+      window.$message?.success('血糖记录成功');
       form.value.note = '';
       form.value.glucoseValue = 5.5;
       loadRecords();
@@ -420,8 +420,8 @@ async function handleDelete(id: number | string): Promise<void> {
   if (!confirmed) return;
 
   try {
-    await fetchDeleteBloodSugar(id);
-    window.$message.success('删除成功');
+    await fetchDeleteBloodSugar(Number(id));
+    window.$message?.success('删除成功');
     loadRecords();
     loadTrend();
   } catch { /* handled by interceptor */ }

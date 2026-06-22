@@ -8,21 +8,41 @@ declare namespace Api {
       maxUsers: number;
     }
 
+    /** Matches backend Subscription entity returned by enterprise endpoints */
     interface Subscription {
       id: number;
-      planId: number;
-      planName: string;
+      userId: number;
+      tier: string;
       status: string;
-      startDate: string;
-      endDate: string;
-      seats: number;
-      usedSeats: number;
+      startTime: string;
+      endTime: string;
+      autoRenew: boolean;
+      orderNo: string;
+      paymentChannel: string;
+      teamSize: number;
+      customTokenQuotaM: number;
+      customPrice: number;
+      refundStatus: string;
+      refundAmount: number;
+      refundReason: string;
+      refundTime: string;
+      createdAt: string;
+      updatedAt: string;
     }
 
     interface ActivateParams {
-      planId: number;
-      seats: number;
-      paymentMethod: string;
+      teamSize: number;
+      customTokenQuotaM: number;
+      customPrice: number;
+      months: number;
+      orderNo: string;
+      channel: string;
+    }
+
+    interface UpdateConfigParams {
+      teamSize?: number;
+      customTokenQuotaM?: number;
+      customPrice?: number;
     }
   }
 }

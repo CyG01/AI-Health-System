@@ -21,6 +21,7 @@ import com.example.vo.ChatSessionVO;
 import com.example.dto.AiTaskMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +54,7 @@ public class ChatServiceImpl implements ChatService {
     private final MemoryService memoryService;
     private final IntentRouter intentRouter;
     private final AgentOrchestrator agentOrchestrator;
+    private final ChatServiceImpl self;
 
     public ChatServiceImpl(ChatSessionMapper chatSessionMapper,
                            ChatMessageMapper chatMessageMapper,
@@ -65,7 +67,8 @@ public class ChatServiceImpl implements ChatService {
                            KnowledgeService knowledgeService,
                            MemoryService memoryService,
                            IntentRouter intentRouter,
-                           AgentOrchestrator agentOrchestrator) {
+                           AgentOrchestrator agentOrchestrator,
+                           @Lazy ChatServiceImpl self) {
         this.chatSessionMapper = chatSessionMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.healthService = healthService;
@@ -78,6 +81,7 @@ public class ChatServiceImpl implements ChatService {
         this.memoryService = memoryService;
         this.intentRouter = intentRouter;
         this.agentOrchestrator = agentOrchestrator;
+        this.self = self;
     }
 
     @Override
@@ -132,7 +136,6 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    @Transactional
     public void chat(Long sessionId, Long userId, String content,
                      Consumer<String> onMessage, Runnable onComplete, Consumer<String> onError) {
         long startTime = System.currentTimeMillis();
@@ -142,12 +145,21 @@ public class ChatServiceImpl implements ChatService {
         auditLog.setCreatedAt(LocalDateTime.now());
 
         try {
-            // 额度检查
+            // 额度检查 — 全局日预算
             if (costMonitor.isGlobalCostExceeded()) {
                 auditLog.setSuccess(false);
                 auditLog.setErrorMessage("今日AI调用额度已用尽");
                 auditLogMapper.insert(auditLog);
                 onError.accept("今日AI调用额度已用尽，请明天再试");
+                return;
+            }
+
+            // 额度检查 — 单用户日预算
+            if (costMonitor.isUserCostExceeded(userId)) {
+                auditLog.setSuccess(false);
+                auditLog.setErrorMessage("用户日预算超限 userId=" + userId);
+                auditLogMapper.insert(auditLog);
+                onError.accept("您今日的AI使用额度已用完，请明天再来~");
                 return;
             }
 
@@ -162,25 +174,10 @@ public class ChatServiceImpl implements ChatService {
                 return;
             }
 
-            // 保存用户消息
-            ChatMessage userMsg = new ChatMessage();
-            userMsg.setUserId(userId);
-            userMsg.setSessionId(sessionId);
-            userMsg.setRole("user");
-            userMsg.setContent(sanitizedContent);
-            chatMessageMapper.insert(userMsg);
+            // Pre-flight DB write: save user message + update session title (short transaction)
+            self.saveUserMessageAndSession(sessionId, userId, sanitizedContent, session);
 
-            // 首次对话自动设置标题
-            boolean isFirstMessage = isSessionFirstMessage(sessionId);
-            if (isFirstMessage && sanitizedContent.length() > 20) {
-                session.setTitle(sanitizedContent.substring(0, 20) + "...");
-            } else if (isFirstMessage) {
-                session.setTitle(sanitizedContent);
-            }
-            session.setUpdateTime(LocalDateTime.now());
-            chatSessionMapper.updateById(session);
-
-            // Step 1: 意图路由 — 决定调用哪些专家 Agent
+            // Step 1: 意图路由 — 决定调用哪些专家 Agent (AI call, outside transaction)
             RoutingDecision decision = intentRouter.route(sanitizedContent);
             log.info("意图路由 userId={} intent={} agents={} parallel={} confidence={}",
                     userId, decision.getIntent(), decision.getTargetAgents(),
@@ -191,7 +188,7 @@ public class ChatServiceImpl implements ChatService {
             String enrichedInput = enrichWithContext(userId, sessionId, sanitizedContent, decision);
             auditLog.setPromptUsed("intent=" + decision.getIntent() + " emotion=" + decision.getEmotionLabel());
 
-            // Step 3: 调用 AgentOrchestrator 执行多 Agent 工作流
+            // Step 3: 调用 AgentOrchestrator 执行多 Agent 工作流 (AI call, outside transaction)
             AiAgentResponse agentResponse = agentOrchestrator.execute(decision, userId, enrichedInput);
 
             // Step 4: 提取最终文本
@@ -206,19 +203,17 @@ public class ChatServiceImpl implements ChatService {
             // Step 5: 模拟流式输出（将完整响应分块发送，兼容 SSE 协议）
             simulateStreaming(responseWithDisclaimer, onMessage, onComplete);
 
-            // 保存助手消息
+            // Post-flight DB write: save assistant message + update session + audit log (short transaction)
             if (!responseWithDisclaimer.isEmpty()) {
-                ChatMessage assistantMsg = new ChatMessage();
-                assistantMsg.setUserId(userId);
-                assistantMsg.setSessionId(sessionId);
-                assistantMsg.setRole("assistant");
-                assistantMsg.setContent(responseWithDisclaimer);
-                chatMessageMapper.insert(assistantMsg);
+                auditLog.setAiRawResponse(responseText.length() > 4000
+                        ? responseText.substring(0, 4000) : responseText);
+                auditLog.setLatencyMs((int) (System.currentTimeMillis() - startTime));
+                auditLog.setSuccess(true);
+                self.saveAssistantMessageAndSession(sessionId, userId,
+                        responseWithDisclaimer, session, auditLog);
             }
-            session.setUpdateTime(LocalDateTime.now());
-            chatSessionMapper.updateById(session);
 
-            // 自动采集记忆
+            // 自动采集记忆 (non-transactional, best-effort)
             if (isConversationWorthy(sanitizedContent)) {
                 try {
                     memoryService.autoCollect(userId, sanitizedContent, "USER_INPUT");
@@ -233,13 +228,6 @@ public class ChatServiceImpl implements ChatService {
                     log.warn("自动采集AI记忆失败 userId={}", userId, e);
                 }
             }
-
-            // 审计日志
-            auditLog.setAiRawResponse(responseText.length() > 4000
-                    ? responseText.substring(0, 4000) : responseText);
-            auditLog.setLatencyMs((int) (System.currentTimeMillis() - startTime));
-            auditLog.setSuccess(true);
-            auditLogMapper.insert(auditLog);
 
         } catch (Exception e) {
             log.error("Multi-Agent聊天处理异常 userId={}", userId, e);
@@ -332,6 +320,51 @@ public class ChatServiceImpl implements ChatService {
                 onComplete.run();
             }
         }, "chat-stream-simulator").start();
+    }
+
+    /**
+     * Short transactional helper: save user message + update session title.
+     * Called from chat() BEFORE the long-running AI processing.
+     */
+    @Transactional
+    public void saveUserMessageAndSession(Long sessionId, Long userId,
+                                          String sanitizedContent, ChatSession session) {
+        ChatMessage userMsg = new ChatMessage();
+        userMsg.setUserId(userId);
+        userMsg.setSessionId(sessionId);
+        userMsg.setRole("user");
+        userMsg.setContent(sanitizedContent);
+        chatMessageMapper.insert(userMsg);
+
+        boolean isFirstMessage = isSessionFirstMessage(sessionId);
+        if (isFirstMessage && sanitizedContent.length() > 20) {
+            session.setTitle(sanitizedContent.substring(0, 20) + "...");
+        } else if (isFirstMessage) {
+            session.setTitle(sanitizedContent);
+        }
+        session.setUpdateTime(LocalDateTime.now());
+        chatSessionMapper.updateById(session);
+    }
+
+    /**
+     * Short transactional helper: save assistant message + update session + insert success audit log.
+     * Called from chat() AFTER the AI processing completes outside any transaction.
+     */
+    @Transactional
+    public void saveAssistantMessageAndSession(Long sessionId, Long userId,
+                                                String responseWithDisclaimer,
+                                                ChatSession session, AiCallAuditLog auditLog) {
+        ChatMessage assistantMsg = new ChatMessage();
+        assistantMsg.setUserId(userId);
+        assistantMsg.setSessionId(sessionId);
+        assistantMsg.setRole("assistant");
+        assistantMsg.setContent(responseWithDisclaimer);
+        chatMessageMapper.insert(assistantMsg);
+
+        session.setUpdateTime(LocalDateTime.now());
+        chatSessionMapper.updateById(session);
+
+        auditLogMapper.insert(auditLog);
     }
 
     private boolean isSessionFirstMessage(Long sessionId) {

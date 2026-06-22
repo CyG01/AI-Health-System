@@ -26,9 +26,9 @@ export function fetchGetSleepList(days: number = 30) {
   });
 }
 
-/** Analyze sleep patterns */
+/** Analyze sleep patterns (returns {analysis: string}) */
 export function fetchAnalyzeSleep() {
-  return request<Api.Sleep.SleepStats>({
+  return request<Record<string, string>>({
     url: '/sleep/analyze',
     method: 'get'
   });

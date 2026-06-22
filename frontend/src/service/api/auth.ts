@@ -12,7 +12,7 @@ export function fetchLoginByPhone(params: Api.Auth.LoginByPhoneParams) {
 
 /** Register */
 export function fetchRegister(params: Api.Auth.RegisterRequest) {
-  return request<void>({ url: '/auth/register', method: 'post', data: params });
+  return request<Api.Auth.LoginToken>({ url: '/auth/register', method: 'post', data: params });
 }
 
 /** Get captcha */

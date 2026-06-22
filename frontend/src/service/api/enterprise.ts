@@ -1,26 +1,26 @@
 import { request } from '../request';
 
 /** Activate enterprise plan */
-export function fetchActivateEnterprisePlan(data: Api.Enterprise.ActivateParams) {
+export function fetchActivateEnterprisePlan(params: Api.Enterprise.ActivateParams) {
   return request<Api.Enterprise.Subscription>({
     url: '/enterprise/activate',
     method: 'post',
-    data
+    params
   });
 }
 
 /** Update enterprise config */
-export function fetchUpdateEnterpriseConfig(data: Partial<{ companyName: string; maxUsers: number; features: string[] }>) {
-  return request<{ id: number; companyName: string; plan: string; maxUsers: number; currentUsers: number; features: string[]; expiresAt: string; status: string }>({
+export function fetchUpdateEnterpriseConfig(params: Api.Enterprise.UpdateConfigParams) {
+  return request<Api.Enterprise.Subscription>({
     url: '/enterprise/config',
     method: 'put',
-    data
+    params
   });
 }
 
 /** Get enterprise config */
 export function fetchGetEnterpriseConfig() {
-  return request<{ id: number; companyName: string; plan: string; maxUsers: number; currentUsers: number; features: string[]; expiresAt: string; status: string }>({
+  return request<Api.Enterprise.Subscription>({
     url: '/enterprise/config',
     method: 'get'
   });

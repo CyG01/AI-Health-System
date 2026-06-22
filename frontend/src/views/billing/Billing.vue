@@ -9,19 +9,19 @@
     <NGrid :x-gap="16" :y-gap="16" :cols="4" class="mb-5" item-responsive responsive="screen">
       <NGi span="4 m:1">
         <NCard size="small" class="text-center">
-          <NStatistic :label="$t('billing.todayToken') || '今日Token消耗'" :value="summary?.tokenUsed || 0" />
+          <NStatistic :label="$t('billing.todayToken') || '今日Token消耗'" :value="(summary?.inputTokens || 0) + (summary?.outputTokens || 0)" />
         </NCard>
       </NGi>
       <NGi span="4 m:1">
         <NCard size="small" class="text-center">
-          <NStatistic :label="$t('billing.todayApi') || '今日API调用'" :value="summary?.apiCalls || 0">
+          <NStatistic :label="$t('billing.todayApi') || '今日API调用'" :value="summary?.apiCallCount || 0">
             <template #suffix>{{ $t('billing.times') || '次' }}</template>
           </NStatistic>
         </NCard>
       </NGi>
       <NGi span="4 m:1">
         <NCard size="small" class="text-center">
-          <NStatistic :label="$t('billing.todayCost') || '今日费用'" :value="summary?.cost || 0">
+          <NStatistic :label="$t('billing.todayCost') || '今日费用'" :value="summary?.dailyCost || 0">
             <template #prefix>&#165;</template>
           </NStatistic>
         </NCard>
@@ -50,16 +50,16 @@
             </NTag>
           </NDescriptionsItem>
           <NDescriptionsItem :label="$t('billing.expireTime') || '到期时间'">
-            {{ subscription.expireTime || '长期有效' }}
+            {{ subscription.endTime || '长期有效' }}
           </NDescriptionsItem>
           <NDescriptionsItem :label="$t('billing.autoRenew') || '自动续费'">
             {{ subscription.autoRenew ? '是' : '否' }}
           </NDescriptionsItem>
           <NDescriptionsItem :label="$t('billing.monthlyTokenQuota') || '月度Token额度'">
-            {{ formatTokenQuota(subscription.tokenQuota) }}
+            {{ formatTokenQuota(subscription.customTokenQuotaM) }}
           </NDescriptionsItem>
           <NDescriptionsItem :label="$t('billing.monthlyPrice') || '月费'">
-            {{ subscription.monthlyPrice ? '¥' + subscription.monthlyPrice : '-' }}
+            {{ subscription.customPrice ? '¥' + subscription.customPrice : '-' }}
           </NDescriptionsItem>
         </NDescriptions>
         <NEmpty v-else :description="$t('billing.noSubscription') || '暂无订阅信息'" />
@@ -132,15 +132,24 @@ interface BillingSummary {
   tokenUsed: number
   apiCalls: number
   cost: number
+  tier?: string
+  inputTokens?: number
+  outputTokens?: number
+  apiCallCount?: number
+  dailyCost?: number
+  monthlyCost?: number
+  usagePercent?: number
+  quotaLevel?: string
+  exceeded?: boolean
 }
 
 interface Subscription {
   tier: string
   status: string
-  expireTime?: string
+  endTime?: string
   autoRenew: boolean
-  tokenQuota: number
-  monthlyPrice?: number
+  customTokenQuotaM: number
+  customPrice?: number
 }
 
 interface QuotaWarning {
@@ -150,10 +159,14 @@ interface QuotaWarning {
 }
 
 interface MonthlySummary {
-  totalTokens: number
-  totalCost: number
-  quotaLimit: number
-  remainingQuota: number
+  monthlyTokens: number
+  monthlyCost: number
+  monthlyTokenLimitM: number
+  monthlyTokenLimitBytes: number
+  monthlyLimitExceeded: boolean
+  month?: number
+  year?: number
+  daysUntilExpiry?: number
 }
 
 interface UsageRecord {
@@ -192,10 +205,10 @@ const tierTagType = computed<'default' | 'info' | 'success' | 'warning' | 'error
 const monthlyItems = computed(() => {
   if (!monthlySummary.value) return []
   return [
-    { label: 'Token总量', value: formatTokenQuota(monthlySummary.value.totalTokens) },
-    { label: '累计费用', value: '¥' + (monthlySummary.value.totalCost || 0).toFixed(2) },
-    { label: '套餐限额', value: formatTokenQuota(monthlySummary.value.quotaLimit) },
-    { label: '剩余额度', value: formatTokenQuota(monthlySummary.value.remainingQuota) }
+    { label: 'Token总量', value: formatTokenQuota(monthlySummary.value.monthlyTokens) },
+    { label: '累计费用', value: '¥' + (monthlySummary.value.monthlyCost || 0).toFixed(2) },
+    { label: '套餐限额', value: formatTokenQuota(monthlySummary.value.monthlyTokenLimitM) },
+    { label: '是否超额', value: monthlySummary.value.monthlyLimitExceeded ? '已超额' : '未超额' }
   ]
 })
 

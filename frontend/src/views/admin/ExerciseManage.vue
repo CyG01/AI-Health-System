@@ -36,11 +36,12 @@ interface ExerciseRow {
   id: number;
   name: string;
   type: string;
-  calorieCoefficient: number | null;
-  targetMuscle: string;
-  difficulty: string;
-  videoUrl: string;
-  status: number;
+  caloriesPerMinute: number;
+  calorieCoefficient?: number | null;
+  targetMuscle?: string;
+  difficulty?: string;
+  videoUrl?: string;
+  status?: number;
 }
 
 const typeOptions: SelectOption[] = [
@@ -208,7 +209,7 @@ function handleEdit(row: ExerciseRow) {
     id: row.id,
     name: row.name,
     type: row.type,
-    calorieCoefficient: row.calorieCoefficient,
+    calorieCoefficient: row.calorieCoefficient ?? null,
     targetMuscle: row.targetMuscle || '',
     difficulty: row.difficulty || '初级',
     videoUrl: row.videoUrl || ''
@@ -238,10 +239,10 @@ async function handleSave() {
   saving.value = true;
   try {
     if (isEditing.value) {
-      await fetchUpdateExerciseItem(form.value as Api.Admin.AdminExerciseItemRequest);
+      await fetchUpdateExerciseItem(form.value as any);
       message.success('更新成功');
     } else {
-      await fetchCreateExerciseItem(form.value as Api.Admin.AdminExerciseItemRequest);
+      await fetchCreateExerciseItem(form.value as any);
       message.success('创建成功');
     }
     showModal.value = false;

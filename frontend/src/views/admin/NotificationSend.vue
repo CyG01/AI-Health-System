@@ -83,14 +83,12 @@ async function handleSend() {
           type: form.value.type
         };
         if (!broadcastMode.value && form.value.userId) {
-          data.targetUserIds = [form.value.userId];
-        } else {
-          data.targetAll = true;
+          data.userIds = [form.value.userId];
         }
         await executeWithApproval(
           'send_notification',
           `发送通知: ${form.value.title} -> ${targetDesc}`,
-          (approvalId: string) => fetchSendAdminNotification(data, approvalId),
+          (approvalId: string) => fetchSendAdminNotification(data as Api.Notification.SendParams, approvalId),
           authStore.userInfo?.id
         );
         message.success('通知发送成功');

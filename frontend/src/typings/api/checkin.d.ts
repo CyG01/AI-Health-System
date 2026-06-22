@@ -24,21 +24,12 @@ declare namespace Api {
     }
 
     interface CalendarData {
-      records: CheckinRecord[];
-      streakDays: number;
-      totalDays: number;
       consecutiveDays: number;
+      totalDays: number;
       currentWeekDays: number;
       currentMonthDays: number;
       exerciseCompleteRate: number;
       dietCompleteRate: number;
-      monthlyData: MonthlyDay[];
-    }
-
-    interface MonthlyDay {
-      date: string;
-      checkedIn: boolean;
-      mood?: string;
     }
 
     interface CheckinParams {

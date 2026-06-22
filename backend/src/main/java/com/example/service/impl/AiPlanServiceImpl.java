@@ -112,7 +112,6 @@ public class AiPlanServiceImpl implements AiPlanService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public AiPlanDetailVO generatePlan(PlanGenerateDTO dto, Long userId) {
         if (deepSeekCostMonitor.isGlobalCostExceeded()) {
             throw new BusinessException("今日AI调用额度已用尽，请明天再试");
@@ -129,8 +128,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         if (cachedContent != null) {
             log.info("命中L2全局缓存 featureHash={}", featureHash);
             AiPlan cloned = clonePlanForUser(userId, dto, cachedContent.toString());
-            aiPlanMapper.insert(cloned);
-            cachePlan(cloned);
+            self.savePlanInTransaction(cloned, cachedContent.toString(), dto.getPlanType());
             return aiPlanConvert.toAiPlanDetailVO(cloned);
         }
 
@@ -172,6 +170,7 @@ public class AiPlanServiceImpl implements AiPlanService {
             }
         }
 
+        // AI call completed outside transaction — now persist the results
         AiPlan plan = new AiPlan();
         plan.setUserId(userId);
         plan.setPlanType(dto.getPlanType());
@@ -181,14 +180,10 @@ public class AiPlanServiceImpl implements AiPlanService {
         plan.setStartDate(LocalDate.now());
         plan.setStatus(0);
 
-        aiPlanMapper.insert(plan);
+        self.savePlanInTransaction(plan, aiContent, dto.getPlanType());
         log.info("AI计划生成成功 userId={} planId={} model={}", userId, plan.getId(), model);
 
-        // 解析并保存 detail
-        savePlanDetails(plan.getId(), aiContent, dto.getPlanType());
-
         redisTemplate.opsForValue().set(globalCacheKey, aiContent, GLOBAL_CACHE_TTL, TimeUnit.DAYS);
-        cachePlan(plan);
 
         return aiPlanConvert.toAiPlanDetailVO(plan);
     }
@@ -431,6 +426,17 @@ public class AiPlanServiceImpl implements AiPlanService {
         } catch (Exception e) {
             log.error("解析AI计划detail失败 planId={}", planId, e);
         }
+    }
+
+    /**
+     * Short transactional helper: only DB writes (plan insert + detail save + cache).
+     * Called from generatePlan() AFTER the long-running AI call completes outside any transaction.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void savePlanInTransaction(AiPlan plan, String aiContent, String planType) {
+        aiPlanMapper.insert(plan);
+        savePlanDetails(plan.getId(), aiContent, planType);
+        cachePlan(plan);
     }
 
     @Transactional(rollbackFor = Exception.class)

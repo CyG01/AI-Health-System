@@ -16,6 +16,7 @@ export * from './goal';
 export * from './health';
 export * from './healthReport';
 export * from './llmCost';
+export * from './llmOps';
 export * from './notification';
 export * from './plan';
 export * from './privacy';

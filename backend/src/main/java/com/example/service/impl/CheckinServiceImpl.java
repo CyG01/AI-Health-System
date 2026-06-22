@@ -136,6 +136,7 @@ public class CheckinServiceImpl implements CheckinService {
 
         LambdaQueryWrapper<DailyCheckin> allWrapper = new LambdaQueryWrapper<DailyCheckin>()
                 .eq(DailyCheckin::getUserId, userId)
+                .ge(DailyCheckin::getCheckDate, today.minusMonths(12))
                 .orderByDesc(DailyCheckin::getCheckDate);
         List<DailyCheckin> allRecords = dailyCheckinMapper.selectList(allWrapper);
 

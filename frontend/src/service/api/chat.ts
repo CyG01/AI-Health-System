@@ -41,7 +41,39 @@ export function fetchDeleteSession(sessionId: string) {
 // =============================================================================
 // Sends a chat message with page context for AI awareness.
 // Accepts the same ChatSendDTO as /chat/send, plus a `context` field:
-//   { sessionId, content, context: { page: string, entityId?: string | number } }
-// The backend prepends "[用户当前在「{page}」页面，实体ID={entityId}]" to the content.
+//   { sessionId, content, context: { page: string, entityId?: string | number, healthData?: any } }
+// The backend prepends "[用户当前在「{page}」页面，实体ID={entityId}]" to the content
+// and uses the health/profile data to give more personalised AI responses.
 // Returns SSE stream — use with sseClient (createSSEStream / createTypewriterStream).
+//
+// Usage:
+//   import { createSSEStream } from '@/utils/sseClient';
+//   createSSEStream('/chat/send-with-context', {
+//     sessionId, content, context: { page, entityId, healthData }
+//   }, callbacks);
 // =============================================================================
+
+/**
+ * Send message with page context (SSE stream)
+ * Use createSSEStream('/chat/send-with-context', { sessionId, content, context }) instead of this function.
+ *
+ * @example
+ * ```ts
+ * import { createSSEStream } from '@/utils/sseClient';
+ *
+ * const stream = createSSEStream('/chat/send-with-context', {
+ *   sessionId: currentSessionId,
+ *   content: userMessage,
+ *   context: {
+ *     page: 'health',
+ *     entityId: null,
+ *     healthData: latestHealthRecord
+ *   }
+ * }, {
+ *   onMessage: (delta) => { ... },
+ *   onDone: () => { ... },
+ *   onError: (err) => { ... }
+ * });
+ * ```
+ */
+export const SEND_WITH_CONTEXT_URL = '/chat/send-with-context';

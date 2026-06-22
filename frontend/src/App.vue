@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, darkTheme } from 'naive-ui'
 import type { WatermarkProps } from 'naive-ui'
 import { useAppStore } from './store/modules/app'
@@ -12,8 +13,15 @@ defineOptions({
   name: 'App'
 })
 
+const route = useRoute()
 const appStore = useAppStore()
 const themeStore = useThemeStore()
+
+// Hide Copilot on auth/error pages where it's not relevant
+const showCopilot = computed(() => {
+  const hiddenRoutes = ['login', '403', '404', '500']
+  return !hiddenRoutes.includes(route.name as string)
+})
 
 const naiveDarkTheme = computed(() => (themeStore.darkMode ? darkTheme : undefined))
 
@@ -55,8 +63,8 @@ const watermarkProps = computed<WatermarkProps>(() => {
         <NNotificationProvider>
           <ErrorBoundary>
             <RouterView />
+            <GlobalCopilotDrawer v-if="showCopilot" />
           </ErrorBoundary>
-          <GlobalCopilotDrawer />
         </NNotificationProvider>
       </NDialogProvider>
     </NMessageProvider>

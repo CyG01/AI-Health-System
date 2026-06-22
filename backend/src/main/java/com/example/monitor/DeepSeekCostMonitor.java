@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class DeepSeekCostMonitor {
@@ -20,10 +22,14 @@ public class DeepSeekCostMonitor {
     private static final Logger log = LoggerFactory.getLogger(DeepSeekCostMonitor.class);
 
     private static final String COST_KEY_PREFIX = "deepseek:cost:daily:";
+    private static final String REDIS_USER_COST_PREFIX = "deepseek:cost:user:";
 
     private static final BigDecimal INPUT_PRICE_PER_M = new BigDecimal("1");
     private static final BigDecimal OUTPUT_PRICE_PER_M = new BigDecimal("2");
     private static final BigDecimal DAILY_BUDGET = new BigDecimal("10.00");
+
+    @Value("${cost.budget.daily-per-user:1.0}")
+    private BigDecimal dailyPerUserBudget;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
@@ -38,18 +44,38 @@ public class DeepSeekCostMonitor {
     @Scheduled(cron = "0 0 0 * * ?")
     public void resetDailyCost() {
         redisTemplate.delete(buildYesterdayKey());
+        // 清理用户级成本key
+        String yesterdayUserPrefix = REDIS_USER_COST_PREFIX + LocalDate.now().minusDays(1) + ":";
+        Set<String> userKeys = redisTemplate.keys(yesterdayUserPrefix + "*");
+        if (userKeys != null && !userKeys.isEmpty()) {
+            redisTemplate.delete(userKeys);
+        }
         currentKey = buildKey();
         log.info("DeepSeek每日消耗统计已重置");
     }
 
     public void recordCall(int inputTokens, int outputTokens) {
-        recordCall(inputTokens, outputTokens, null);
+        recordCall(inputTokens, outputTokens, null, null);
+    }
+
+    /**
+     * 记录调用并同时追踪用户级成本。
+     */
+    public void recordCall(int inputTokens, int outputTokens, Long userId) {
+        recordCall(inputTokens, outputTokens, null, userId);
     }
 
     /**
      * 按模型层级记录调用消耗。
      */
     public void recordCall(int inputTokens, int outputTokens, ModelTier tier) {
+        recordCall(inputTokens, outputTokens, tier, null);
+    }
+
+    /**
+     * 按模型层级记录调用消耗，同时追踪用户级成本。
+     */
+    public void recordCall(int inputTokens, int outputTokens, ModelTier tier, Long userId) {
         BigDecimal inputCost = INPUT_PRICE_PER_M.multiply(
                 new BigDecimal(inputTokens).divide(new BigDecimal("1000000"), 6, RoundingMode.HALF_UP));
         BigDecimal outputCost = OUTPUT_PRICE_PER_M.multiply(
@@ -70,8 +96,15 @@ public class DeepSeekCostMonitor {
             redisTemplate.opsForHash().increment(tierKey, costField, callCost.doubleValue());
         }
 
+        // 按用户记录成本
+        if (userId != null) {
+            String userKey = REDIS_USER_COST_PREFIX + LocalDate.now() + ":" + userId;
+            redisTemplate.opsForHash().increment(userKey, costField, callCost.doubleValue());
+            redisTemplate.opsForHash().increment(userKey, "callCount", 1);
+        }
+
         BigDecimal totalCost = getCurrentDailyCost();
-        log.info("DeepSeek API调用 cost={} tier={} totalDailyCost={}", callCost, tier, totalCost);
+        log.info("DeepSeek API调用 cost={} tier={} userId={} totalDailyCost={}", callCost, tier, userId, totalCost);
 
         // 按模型层级分别检查预算告警
         checkBudgetAlert(totalCost);
@@ -79,6 +112,24 @@ public class DeepSeekCostMonitor {
 
     public boolean isGlobalCostExceeded() {
         return getCurrentDailyCost().compareTo(DAILY_BUDGET) >= 0;
+    }
+
+    /**
+     * 检查单用户日预算是否超限。
+     */
+    public boolean isUserCostExceeded(Long userId) {
+        if (userId == null) return false;
+        return getUserDailyCost(userId).compareTo(dailyPerUserBudget) >= 0;
+    }
+
+    /**
+     * 获取用户当日消耗。
+     */
+    public BigDecimal getUserDailyCost(Long userId) {
+        if (userId == null) return BigDecimal.ZERO;
+        String userKey = REDIS_USER_COST_PREFIX + LocalDate.now() + ":" + userId;
+        Object costObj = redisTemplate.opsForHash().get(userKey, "totalCost");
+        return costObj != null ? new BigDecimal(costObj.toString()) : BigDecimal.ZERO;
     }
 
     /**

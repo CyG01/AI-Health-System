@@ -240,9 +240,9 @@
             <NCard :title="$t('page.dashboard.dietComparisonWeek') || '饮食热量周对比'" class="chart-card">
               <template #header-extra>
                 <span v-if="dietComparison" class="text-xs text-[#8b949e]">
-                  {{ (dietComparison as Record<string, unknown>).currentTotalCalories }}kcal vs {{ (dietComparison as Record<string, unknown>).previousTotalCalories }}kcal
-                  <NTag :type="((dietComparison as Record<string, unknown>).calorieChangePercent as number) > 0 ? 'warning' : 'success'" size="small" style="margin-left:8px">
-                    {{ ((dietComparison as Record<string, unknown>).calorieChangePercent as number) > 0 ? '+' : '' }}{{ (dietComparison as Record<string, unknown>).calorieChangePercent }}%
+                  {{ (dietComparison as unknown as Record<string, unknown>).currentTotalCalories }}kcal vs {{ (dietComparison as unknown as Record<string, unknown>).previousTotalCalories }}kcal
+                  <NTag :type="((dietComparison as unknown as Record<string, unknown>).calorieChangePercent as number) > 0 ? 'warning' : 'success'" size="small" style="margin-left:8px">
+                    {{ ((dietComparison as unknown as Record<string, unknown>).calorieChangePercent as number) > 0 ? '+' : '' }}{{ (dietComparison as unknown as Record<string, unknown>).calorieChangePercent }}%
                   </NTag>
                 </span>
               </template>
@@ -495,7 +495,7 @@
             <div v-if="(recommends.exercises as unknown[])?.length" class="recommend-list">
               <div
                 v-for="ex in (recommends.exercises as Array<Record<string, unknown>>).slice(0, 4)"
-                :key="ex.id"
+                :key="(ex.id as string)"
                 class="recommend-item"
               >
                 <NTag size="small" :type="ex.type === '有氧' ? 'success' : 'warning'" round>
@@ -517,7 +517,7 @@
             <div v-if="(recommends.foods as unknown[])?.length" class="recommend-list">
               <div
                 v-for="f in (recommends.foods as Array<Record<string, unknown>>).slice(0, 4)"
-                :key="f.id"
+                :key="(f.id as string)"
                 class="recommend-item"
               >
                 <NTag size="small" round>{{ f.category || f.reason || '推荐' }}</NTag>
@@ -918,56 +918,56 @@ async function loadStatisticsCharts() {
 
   // Weight trend
   if (wR.status === 'fulfilled' && wR.value.data) {
-    const w = wR.value.data as Record<string, unknown>;
+    const w = wR.value.data as unknown as Record<string, unknown>;
     if (!((w.xAxis as string[]) || []).length) statEmpty.weight = true;
     else buildLineChart(weightChartRef.value, w.xAxis as string[], (w.yAxis as number[]) || [], '体重 (kg)', CC.green);
   } else statErrors.weight = true;
 
   // BMI trend
   if (bR.status === 'fulfilled' && bR.value.data) {
-    const b = bR.value.data as Record<string, unknown>;
+    const b = bR.value.data as unknown as Record<string, unknown>;
     if (!((b.xAxis as string[]) || []).length) statEmpty.bmi = true;
     else buildLineChart(bmiChartRef.value, b.xAxis as string[], (b.yAxis as number[]) || [], 'BMI', CC.blue);
   } else statErrors.bmi = true;
 
   // Checkin trend
   if (cR.status === 'fulfilled' && cR.value.data) {
-    const c = cR.value.data as Record<string, unknown>;
+    const c = cR.value.data as unknown as Record<string, unknown>;
     if (!((c.xAxis as string[]) || []).length) statEmpty.checkin = true;
     else buildBarChart(checkinChartRef.value, c.xAxis as string[], ((c.completeRate as number[]) || []).map((v: number) => v), '完成率 (%)', CC.green);
   } else statErrors.checkin = true;
 
   // Exercise trend
   if (eR.status === 'fulfilled' && eR.value.data) {
-    const e = eR.value.data as Record<string, unknown>;
+    const e = eR.value.data as unknown as Record<string, unknown>;
     if (!((e.xAxis as string[]) || []).length) statEmpty.exercise = true;
     else buildLineChart(exerciseChartRef.value, e.xAxis as string[], (e.minutesPerDay as number[]) || [], '分钟/天', CC.green);
   } else statErrors.exercise = true;
 
   // Calorie trend
   if (calR.status === 'fulfilled' && calR.value.data) {
-    const cl = calR.value.data as Record<string, unknown>;
+    const cl = calR.value.data as unknown as Record<string, unknown>;
     if (!((cl.xAxis as string[]) || []).length) statEmpty.calorie = true;
     else buildLineChart(calorieChartRef.value, cl.xAxis as string[], (cl.dailyCalories as number[]) || [], '千卡/天', CC.amber);
   } else statErrors.calorie = true;
 
   // Calorie deficit
   if (dR.status === 'fulfilled' && dR.value.data) {
-    const df = dR.value.data as Record<string, unknown>;
+    const df = dR.value.data as unknown as Record<string, unknown>;
     if (!((df.xAxis as string[]) || []).length) statEmpty.deficit = true;
     else buildDeficitChart(deficitChartRef.value, df.xAxis as string[], (df.consumed as number[]) || [], (df.burned as number[]) || [], (df.net as number[]) || []);
   } else statErrors.deficit = true;
 
   // Nutrient ratio
   if (nR.status === 'fulfilled' && nR.value.data) {
-    const nr = nR.value.data as Record<string, unknown>;
+    const nr = nR.value.data as unknown as Record<string, unknown>;
     if (!((nr.names as string[]) || []).length) statEmpty.nutrient = true;
     else buildPieChart(nutrientChartRef.value, nr.names as string[], (nr.values as number[]) || [], '营养素占比 (g)');
   } else statErrors.nutrient = true;
 
   // Exercise distribution
   if (edR.status === 'fulfilled' && edR.value.data) {
-    const ed = edR.value.data as Record<string, unknown>;
+    const ed = edR.value.data as unknown as Record<string, unknown>;
     if (!((ed.names as string[]) || []).length) statEmpty.exDist = true;
     else buildPieChart(exDistChartRef.value, ed.names as string[], ((ed.values as number[]) || []).map((v: unknown) => Number(v)), '运动次数');
   } else statErrors.exDist = true;
@@ -983,7 +983,7 @@ async function handleTabChange(tabName: string) {
     try {
       const { data, error } = await fetchDashboardWeek();
       if (data && !error) {
-        weekData.value = data as Record<string, unknown>;
+        weekData.value = data as unknown as Record<string, unknown>;
       }
     } catch {
       tabError.value = $t('page.dashboard.dataLoadFailed') || '数据加载失败';
@@ -991,7 +991,7 @@ async function handleTabChange(tabName: string) {
     try {
       const { data, error } = await fetchGetDietTrendComparison();
       if (data && !error) {
-        dietComparison.value = data as Record<string, unknown>;
+        dietComparison.value = data as unknown as Record<string, unknown>;
         await nextTick();
         initDietComparisonChart();
       }
@@ -1002,7 +1002,7 @@ async function handleTabChange(tabName: string) {
     try {
       const { data, error } = await fetchDashboardMonth();
       if (data && !error) {
-        monthData.value = data as Record<string, unknown>;
+        monthData.value = data as unknown as Record<string, unknown>;
       }
     } catch {
       tabError.value = $t('page.dashboard.dataLoadFailed') || '数据加载失败';
@@ -1063,19 +1063,19 @@ onMounted(async () => {
 
     // Health record
     if (healthRes.status === 'fulfilled' && healthRes.value.data && !healthRes.value.error) {
-      latestHealth.value = healthRes.value.data as Record<string, unknown>;
+      latestHealth.value = healthRes.value.data as unknown as Record<string, unknown>;
     }
     // Today stats
     if (todayRes.status === 'fulfilled' && todayRes.value.data && !todayRes.value.error) {
-      today.value = todayRes.value.data as Record<string, unknown>;
+      today.value = todayRes.value.data as unknown as Record<string, unknown>;
     }
     // Assessment
     if (assessmentRes.status === 'fulfilled' && assessmentRes.value.data && !assessmentRes.value.error) {
-      assessment.value = assessmentRes.value.data as Record<string, unknown>;
+      assessment.value = assessmentRes.value.data as unknown as Record<string, unknown>;
     }
     // Progress (used by both dashboard progress section and summary bar)
     if (progressRes.status === 'fulfilled' && progressRes.value.data && !progressRes.value.error) {
-      const p = progressRes.value.data as Record<string, unknown>;
+      const p = progressRes.value.data as unknown as Record<string, unknown>;
       // Dashboard progress section
       onProgress.value = {
         progressPercent: p.targetProgressPercent ? Number(p.targetProgressPercent) : 0,
@@ -1098,18 +1098,18 @@ onMounted(async () => {
 
     // Today tab charts
     if (weightRes.status === 'fulfilled' && weightRes.value.data && !weightRes.value.error) {
-      initTodayWeightChart(weightRes.value.data as Record<string, unknown>);
+      initTodayWeightChart(weightRes.value.data as unknown as Record<string, unknown>);
     }
     if (checkinRes.status === 'fulfilled' && checkinRes.value.data && !checkinRes.value.error) {
-      initTodayCheckinChart(checkinRes.value.data as Record<string, unknown>);
+      initTodayCheckinChart(checkinRes.value.data as unknown as Record<string, unknown>);
     }
     // Recommendations
     if (recommendRes.status === 'fulfilled' && recommendRes.value.data && !recommendRes.value.error) {
-      recommends.value = recommendRes.value.data as Record<string, unknown>;
+      recommends.value = recommendRes.value.data as unknown as Record<string, unknown>;
     }
     // Greeting
     if (greetingRes.status === 'fulfilled' && greetingRes.value.data && !greetingRes.value.error) {
-      greetingCard.value = greetingRes.value.data as Record<string, unknown>;
+      greetingCard.value = greetingRes.value.data as unknown as Record<string, unknown>;
     }
   } catch {
     // silent

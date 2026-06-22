@@ -34,8 +34,9 @@ interface AnnouncementRow {
   id: number;
   title: string;
   content: string;
-  status: number;
-  publishTime: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AnnouncementQuery {
@@ -65,12 +66,12 @@ const columns: DataTableColumns<AnnouncementRow> = [
     render(row) {
       return h(
         NTag,
-        { type: row.status === 1 ? 'success' : 'info', size: 'small', bordered: false },
-        { default: () => (row.status === 1 ? '已发布' : '草稿') }
+        { type: row.status === '1' ? 'success' : 'info', size: 'small', bordered: false },
+        { default: () => (row.status === '1' ? '已发布' : '草稿') }
       );
     }
   },
-  { title: '发布时间', key: 'publishTime', minWidth: 180 },
+  { title: '发布时间', key: 'createdAt', minWidth: 180 },
   {
     title: '操作',
     key: 'actions',
@@ -84,7 +85,7 @@ const columns: DataTableColumns<AnnouncementRow> = [
           { default: () => '编辑' }
         )
       ];
-      if (row.status !== 1) {
+      if (row.status !== '1') {
         buttons.push(
           h(
             NButton,

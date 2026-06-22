@@ -131,8 +131,22 @@ public class FoodRecognitionServiceImpl implements FoodRecognitionService {
                     throw new BusinessException("AI返回内容为空");
                 }
 
-                // 使用 AiResponseParser 防御性解析 JSON
-                JsonNode contentJson = AiResponseParser.extractJson(content);
+                // 使用 AiResponseParser 防御性解析 JSON（含失败重试）
+                JsonNode contentJson;
+                try {
+                    contentJson = AiResponseParser.extractJson(content);
+                } catch (BusinessException parseEx) {
+                    log.warn("食物识别JSON解析失败，尝试纠正重试 error={}", parseEx.getMessage());
+                    try {
+                        String retryContent = retryLlmWithJsonCorrection(requestBody, content);
+                        contentJson = AiResponseParser.extractJson(retryContent);
+                    } catch (BusinessException retryEx) {
+                        auditLog.setSuccess(false);
+                        auditLog.setErrorMessage("JSON解析重试仍失败: " + retryEx.getMessage());
+                        auditLogMapper.insert(auditLog);
+                        throw new BusinessException("食物识别结果解析失败，请重试");
+                    }
+                }
 
                 auditLog.setAiRawResponse(content.length() > 4000 ? content.substring(0, 4000) : content);
                 auditLog.setInputTokens(inputTokens);
@@ -184,6 +198,59 @@ public class FoodRecognitionServiceImpl implements FoodRecognitionService {
             auditLog.setErrorMessage("食物识别失败: " + e.getMessage());
             auditLogMapper.insert(auditLog);
             throw new BusinessException("食物识别失败，请重试");
+        }
+    }
+
+    /**
+     * JSON 解析失败时，追加纠正消息重新调用 LLM，要求输出有效 JSON。
+     * 最多重试 1 次。
+     */
+    private String retryLlmWithJsonCorrection(Map<String, Object> originalRequestBody,
+                                               String failedContent) {
+        // 构建纠正请求：在原始 messages 基础上追加 assistant 失败回复 + user 纠正指令
+        List<Map<String, Object>> correctedMessages = new java.util.ArrayList<>();
+        Object origMessages = originalRequestBody.get("messages");
+        if (origMessages instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> msgs = (List<Map<String, Object>>) origMessages;
+            correctedMessages.addAll(msgs);
+        }
+        // 模拟 assistant 的失败回复
+        correctedMessages.add(Map.of("role", "assistant", "content", failedContent));
+        // 追加纠正指令
+        correctedMessages.add(Map.of("role", "user", "content",
+                "Your previous response was not valid JSON. Please output ONLY valid JSON, no other text."));
+
+        Map<String, Object> retryBody = new HashMap<>(originalRequestBody);
+        retryBody.put("messages", correctedMessages);
+
+        try {
+            String response = webClient.post()
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(retryBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            if (response != null) {
+                JsonNode root = objectMapper.readTree(response);
+                int inputTokens = root.path("usage").path("prompt_tokens").asInt();
+                int outputTokens = root.path("usage").path("completion_tokens").asInt();
+                costMonitor.recordCall(inputTokens, outputTokens);
+
+                String content = root.path("choices").get(0).path("message").path("content").asText();
+                if (content != null && !content.isBlank()) {
+                    log.info("食物识别JSON纠正重试成功 contentLength={}", content.length());
+                    return content;
+                }
+            }
+            throw new BusinessException("纠正重试返回内容为空");
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("食物识别纠正重试调用失败", e);
+            throw new BusinessException("纠正重试调用失败: " + e.getMessage());
         }
     }
 
@@ -293,7 +360,22 @@ public class FoodRecognitionServiceImpl implements FoodRecognitionService {
                     throw new BusinessException("AI返回内容为空");
                 }
 
-                JsonNode contentJson = AiResponseParser.extractJson(content);
+                // JSON 解析（含失败重试）
+                JsonNode contentJson;
+                try {
+                    contentJson = AiResponseParser.extractJson(content);
+                } catch (BusinessException parseEx) {
+                    log.warn("文字食物识别JSON解析失败，尝试纠正重试 error={}", parseEx.getMessage());
+                    try {
+                        String retryContent = retryLlmWithJsonCorrection(requestBody, content);
+                        contentJson = AiResponseParser.extractJson(retryContent);
+                    } catch (BusinessException retryEx) {
+                        auditLog.setSuccess(false);
+                        auditLog.setErrorMessage("JSON解析重试仍失败: " + retryEx.getMessage());
+                        auditLogMapper.insert(auditLog);
+                        throw new BusinessException("食物识别结果解析失败，请重试");
+                    }
+                }
                 JsonNode itemsNode = contentJson.path("items");
 
                 List<FoodTextRecognizeVO.FoodItem> items = new java.util.ArrayList<>();

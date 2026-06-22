@@ -30,10 +30,5 @@ declare namespace Api {
       caloriesPerMinute: number;
     }
 
-    interface DailyExerciseSummary {
-      totalCaloriesBurned: number;
-      totalDuration: number;
-      records: ExerciseRecord[];
-    }
   }
 }

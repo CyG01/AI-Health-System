@@ -4,7 +4,7 @@ import { request } from '../request';
 
 /** Get unread notification count */
 export function fetchGetUnreadCount() {
-  return request<{ count: number }>({
+  return request<number>({
     url: '/notification/unread-count',
     method: 'get'
   });

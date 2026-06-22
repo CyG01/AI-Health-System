@@ -20,6 +20,7 @@ import com.example.vo.HealthRecordVO;
 import com.example.vo.SafetyCheckResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +46,7 @@ public class PlanAdjustServiceImpl implements PlanAdjustService {
     private final ModelRouter modelRouter;
     private final FallbackService fallbackService;
     private final AiCallQueueService aiCallQueueService;
+    private final PlanAdjustServiceImpl self;
 
     public PlanAdjustServiceImpl(AiPlanMapper aiPlanMapper,
                                   AiPlanDetailMapper aiPlanDetailMapper,
@@ -57,7 +59,8 @@ public class PlanAdjustServiceImpl implements PlanAdjustService {
                                   SafetyCheckerService safetyCheckerService,
                                   ModelRouter modelRouter,
                                   FallbackService fallbackService,
-                                  AiCallQueueService aiCallQueueService) {
+                                  AiCallQueueService aiCallQueueService,
+                                  @Lazy PlanAdjustServiceImpl self) {
         this.aiPlanMapper = aiPlanMapper;
         this.aiPlanDetailMapper = aiPlanDetailMapper;
         this.dailyCheckinMapper = dailyCheckinMapper;
@@ -70,10 +73,10 @@ public class PlanAdjustServiceImpl implements PlanAdjustService {
         this.modelRouter = modelRouter;
         this.fallbackService = fallbackService;
         this.aiCallQueueService = aiCallQueueService;
+        this.self = self;
     }
 
     @Override
-    @Transactional
     public AiAgentResponse adjustPlan(Long originalPlanId, Long userId, String feedback) {
         if (costMonitor.isGlobalCostExceeded()) {
             throw new BusinessException("今日AI调用额度已用尽，请明天再试");
@@ -167,14 +170,8 @@ public class PlanAdjustServiceImpl implements PlanAdjustService {
         newPlan.setStartDate(LocalDate.now());
         newPlan.setStatus(1);
 
-        // 将旧计划的生效状态取消
-        originalPlan.setStatus(2);
-        aiPlanMapper.updateById(originalPlan);
-
-        aiPlanMapper.insert(newPlan);
-
-        // 解析并保存detail
-        saveDetails(newPlan.getId(), adjustedContent, newPlan.getPlanType());
+        // DB writes in short transaction (after AI call completed outside transaction)
+        self.saveAdjustedPlanInTransaction(originalPlan, newPlan, adjustedContent);
 
         log.info("AI动态调整计划成功 originalPlanId={} newPlanId={} isFallback={}",
                 originalPlanId, newPlan.getId(), isFallback);
@@ -271,6 +268,20 @@ public class PlanAdjustServiceImpl implements PlanAdjustService {
         } catch (Exception e) {
             return "{}";
         }
+    }
+
+    /**
+     * Short transactional helper: deactivate old plan + insert new plan + save details.
+     * Called from adjustPlan() AFTER the AI call completes outside any transaction.
+     */
+    @Transactional
+    public void saveAdjustedPlanInTransaction(AiPlan originalPlan, AiPlan newPlan, String adjustedContent) {
+        originalPlan.setStatus(2);
+        aiPlanMapper.updateById(originalPlan);
+
+        aiPlanMapper.insert(newPlan);
+
+        saveDetails(newPlan.getId(), adjustedContent, newPlan.getPlanType());
     }
 
     private void saveDetails(Long planId, String aiContent, String planType) {

@@ -39,7 +39,7 @@ public class AdminApprovalController {
     @PostMapping("/{id}/approve")
     public Result<AdminApproval> approve(@PathVariable Long id,
                                           @RequestBody Map<String, String> body,
-                                          @RequestHeader("X-Admin-Id") Long adminId) {
+                                          @RequestAttribute("userId") Long adminId) {
         String approverName = body.get("approverName");
         String reason = body.getOrDefault("reason", "");
         AdminApproval approval = approvalService.approve(id, adminId, approverName, reason);
@@ -57,7 +57,7 @@ public class AdminApprovalController {
     @PostMapping("/{id}/reject")
     public Result<AdminApproval> reject(@PathVariable Long id,
                                          @RequestBody Map<String, String> body,
-                                         @RequestHeader("X-Admin-Id") Long adminId) {
+                                         @RequestAttribute("userId") Long adminId) {
         String approverName = body.get("approverName");
         String reason = body.getOrDefault("reason", "");
         AdminApproval approval = approvalService.reject(id, adminId, approverName, reason);
@@ -74,7 +74,7 @@ public class AdminApprovalController {
      */
     @PostMapping("/request")
     public Result<Map<String, Object>> requestApproval(@RequestBody Map<String, String> body,
-                                                        @RequestHeader("X-Admin-Id") Long adminId) {
+                                                        @RequestAttribute("userId") Long adminId) {
         String operatorName = body.getOrDefault("operatorName", "admin#" + adminId);
         String actionType = body.get("actionType");
         String targetDescription = body.get("targetDescription");

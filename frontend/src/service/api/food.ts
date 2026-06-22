@@ -19,8 +19,8 @@ export function fetchSubmitFoodRecord(data: Api.Food.CreateFoodParams) {
 }
 
 /** Get food records by user ID */
-export function fetchGetFoodRecordsByUserId(params?: { page?: number; size?: number; startDate?: string; endDate?: string }) {
-  return request<Api.Common.PageResult<Api.Food.FoodRecord>>({
+export function fetchGetFoodRecordsByUserId(params?: { limit?: number }) {
+  return request<Api.Food.FoodRecord[]>({
     url: '/food/record/user',
     method: 'get',
     params

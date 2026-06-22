@@ -2,25 +2,38 @@ declare namespace Api {
   namespace Goal {
     interface GoalItem {
       id: number;
-      userId: number;
-      title: string;
-      description: string;
+      goalType: string;
+      goalTypeLabel: string;
+      goalName: string;
+      targetValue: number;
+      currentValue: number;
+      unit: string;
+      progressPercent: number;
+      startDate: string;
       targetDate: string;
-      completedDate?: string;
-      status: string;
-      progress: number;
-      createdAt: string;
+      remainingDays: number;
+      status: number;
+      statusLabel: string;
+      completedDate: string;
+      createTime: string;
     }
 
     interface GoalCreateRequest {
-      title: string;
-      description?: string;
-      targetDate: string;
+      goalType: string;
+      goalName: string;
+      targetValue: number;
+      unit?: string;
+      startDate?: string;
+      targetDate?: string;
     }
 
     interface GoalUpdateRequest {
-      title?: string;
-      description?: string;
+      id: number;
+      goalType: string;
+      goalName: string;
+      targetValue: number;
+      unit?: string;
+      startDate?: string;
       targetDate?: string;
     }
   }

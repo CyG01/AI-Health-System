@@ -33,12 +33,17 @@ const authStore = useAuthStore();
 interface FoodRow {
   id: number;
   name: string;
-  category: string;
-  caloriePer100g: number | null;
-  proteinPer100g: number | null;
-  fatPer100g: number | null;
-  carbsPer100g: number | null;
-  status: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  unit: string;
+  category?: string;
+  caloriePer100g?: number | null;
+  proteinPer100g?: number | null;
+  fatPer100g?: number | null;
+  carbsPer100g?: number | null;
+  status?: number;
 }
 
 const categoryOptions: SelectOption[] = [
@@ -176,7 +181,15 @@ function handleAdd() {
 
 function handleEdit(row: FoodRow) {
   isEditing.value = true;
-  form.value = { ...row };
+  form.value = {
+    id: row.id,
+    name: row.name,
+    category: row.category || '',
+    caloriePer100g: row.caloriePer100g ?? null,
+    proteinPer100g: row.proteinPer100g ?? null,
+    fatPer100g: row.fatPer100g ?? null,
+    carbsPer100g: row.carbsPer100g ?? null
+  };
   showModal.value = true;
 }
 
@@ -202,10 +215,10 @@ async function handleSave() {
   saving.value = true;
   try {
     if (isEditing.value) {
-      await fetchUpdateFoodItem(form.value as Api.Admin.AdminFoodItemRequest);
+      await fetchUpdateFoodItem(form.value as any);
       message.success('更新成功');
     } else {
-      await fetchCreateFoodItem(form.value as Api.Admin.AdminFoodItemRequest);
+      await fetchCreateFoodItem(form.value as any);
       message.success('创建成功');
     }
     showModal.value = false;

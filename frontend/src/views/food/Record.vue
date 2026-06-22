@@ -479,7 +479,7 @@ async function handleNlpRecord() {
   nlpResult.value = null;
   try {
     const { data } = await fetchRecognizeByText({ text });
-    if (data?.items?.length > 0) {
+    if (data?.items && data.items.length > 0) {
       nlpResult.value = data;
       message.success(`已识别 ${data.items.length} 种食物`);
     } else {
@@ -521,7 +521,7 @@ async function confirmNlpRecord() {
         await fetchSubmitFoodRecord({
           itemId: matched.id, weightGrams: weightG, caloriesConsumed, checkinId,
           mealType: guessMealType(), foodName: matched.name, category: matched.category || ''
-        });
+        } as any);
         successCount++;
       }
     }

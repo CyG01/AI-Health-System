@@ -5,34 +5,34 @@ declare namespace Api {
       username: string;
       password: string;
       captchaCode?: string;
-      captchaId?: string;
+      captchaUuid?: string;
+      rememberMe?: boolean;
     }
 
     interface LoginByPhoneParams {
       phone: string;
-      code: string;
+      verifyCode: string;
+      rememberMe?: boolean;
     }
 
     interface RegisterRequest {
       username: string;
       password: string;
-      confirmPassword?: string;
-      email?: string;
-      phone?: string;
-      code?: string;
+      confirmPassword: string;
+      phone: string;
+      verifyCode: string;
+      disclaimerAccepted: boolean;
     }
 
     interface SendCodeParams {
-      phone?: string;
-      email?: string;
-      type: string;
+      phone: string;
     }
 
     interface ResetPasswordRequest {
-      phone?: string;
-      email?: string;
-      code: string;
+      phone: string;
+      verifyCode: string;
       newPassword: string;
+      confirmPassword: string;
     }
 
     interface LoginToken {
@@ -63,8 +63,8 @@ declare namespace Api {
     }
 
     interface CaptchaResponse {
-      captchaId: string;
-      captchaImage: string;
+      base64: string;
+      uuid: string;
     }
 
     /** Alias used by soybean-admin auth store */

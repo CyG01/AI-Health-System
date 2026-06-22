@@ -51,7 +51,7 @@ export function fetchExportUserList(params?: { keyword?: string; status?: number
 
 /** Create announcement (admin) */
 export function fetchCreateAnnouncement(data: Api.Admin.AnnouncementParams) {
-  return request<Api.Admin.Announcement>({
+  return request<void>({
     url: '/admin/announcement',
     method: 'post',
     data
@@ -60,7 +60,7 @@ export function fetchCreateAnnouncement(data: Api.Admin.AnnouncementParams) {
 
 /** Update announcement (admin) */
 export function fetchUpdateAnnouncement(data: Api.Admin.AnnouncementParams & { id: number }) {
-  return request<Api.Admin.Announcement>({
+  return request<void>({
     url: '/admin/announcement',
     method: 'put',
     data
@@ -104,7 +104,7 @@ export function fetchGetAdminFoodItems() {
 
 /** Create food item (admin) */
 export function fetchCreateFoodItem(data: Partial<Api.Food.FoodItem>) {
-  return request<Api.Food.FoodItem>({
+  return request<void>({
     url: '/admin/food/item',
     method: 'post',
     data
@@ -113,7 +113,7 @@ export function fetchCreateFoodItem(data: Partial<Api.Food.FoodItem>) {
 
 /** Update food item (admin) */
 export function fetchUpdateFoodItem(data: Partial<Api.Food.FoodItem> & { id: number }) {
-  return request<Api.Food.FoodItem>({
+  return request<void>({
     url: '/admin/food/item',
     method: 'put',
     data
@@ -141,7 +141,7 @@ export function fetchGetAdminExerciseItems() {
 
 /** Create exercise item (admin) */
 export function fetchCreateExerciseItem(data: Partial<Api.Exercise.ExerciseItem>) {
-  return request<Api.Exercise.ExerciseItem>({
+  return request<void>({
     url: '/admin/exercise/item',
     method: 'post',
     data
@@ -150,7 +150,7 @@ export function fetchCreateExerciseItem(data: Partial<Api.Exercise.ExerciseItem>
 
 /** Update exercise item (admin) */
 export function fetchUpdateExerciseItem(data: Partial<Api.Exercise.ExerciseItem> & { id: number }) {
-  return request<Api.Exercise.ExerciseItem>({
+  return request<void>({
     url: '/admin/exercise/item',
     method: 'put',
     data
@@ -227,22 +227,20 @@ export function fetchGetPendingApprovals() {
 }
 
 /** Approve a request (admin) */
-export function fetchApproveRequest(id: number, data: Api.Admin.ApprovalActionParams, adminId: number) {
+export function fetchApproveRequest(id: number, data: Api.Admin.ApprovalActionParams) {
   return request<void>({
     url: `/admin/approvals/${id}/approve`,
     method: 'post',
-    data,
-    headers: { 'X-Admin-Id': String(adminId) }
+    data
   });
 }
 
 /** Reject a request (admin) */
-export function fetchRejectRequest(id: number, data: Api.Admin.ApprovalActionParams, adminId: number) {
+export function fetchRejectRequest(id: number, data: Api.Admin.ApprovalActionParams) {
   return request<void>({
     url: `/admin/approvals/${id}/reject`,
     method: 'post',
-    data,
-    headers: { 'X-Admin-Id': String(adminId) }
+    data
   });
 }
 
@@ -251,8 +249,7 @@ export function fetchSubmitApprovalRequest(data: { actionType: string; targetDes
   return request<{ approvalId: number }>({
     url: '/admin/approvals/request',
     method: 'post',
-    data,
-    headers: { 'X-Admin-Id': String(data.operatorId) }
+    data
   });
 }
 
@@ -267,22 +264,20 @@ export function fetchGetPendingRuleSuggestions() {
 }
 
 /** Approve rule suggestion (admin) */
-export function fetchApproveRuleSuggestion(id: number, reviewerName: string, adminId: number) {
+export function fetchApproveRuleSuggestion(id: number, reviewerName: string) {
   return request<void>({
     url: `/admin/rule-suggestions/${id}/approve`,
     method: 'post',
-    data: { reviewerName },
-    headers: { 'X-Admin-Id': String(adminId) }
+    data: { reviewerName }
   });
 }
 
 /** Reject rule suggestion (admin) */
-export function fetchRejectRuleSuggestion(id: number, reviewerName: string, adminId: number) {
+export function fetchRejectRuleSuggestion(id: number, reviewerName: string) {
   return request<void>({
     url: `/admin/rule-suggestions/${id}/reject`,
     method: 'post',
-    data: { reviewerName },
-    headers: { 'X-Admin-Id': String(adminId) }
+    data: { reviewerName }
   });
 }
 
@@ -290,7 +285,7 @@ export function fetchRejectRuleSuggestion(id: number, reviewerName: string, admi
 
 /** Submit AI feedback */
 export function fetchSubmitAiFeedback(data: { userId: number; aiResponseId: string; rating: string; comment: string }) {
-  return request<Api.Admin.AiFeedback>({
+  return request<void>({
     url: '/ai/feedback',
     method: 'post',
     data

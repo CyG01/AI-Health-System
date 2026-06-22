@@ -171,7 +171,7 @@
             type="primary"
             size="small"
             :loading="adjusting"
-            :disabled="!adjustFeedback.trim()"
+            :disabled="adjusting || !adjustFeedback.trim()"
             @click="handleAdjustPlan"
           >
             分析打卡数据并调整计划
@@ -319,7 +319,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   NButton, NCard, NCheckbox, NEmpty, NForm, NFormItem, NIcon, NInput, NProgress,
@@ -648,6 +648,8 @@ li::before{content:'✓';color:#3fb950;flex-shrink:0}
   URL.revokeObjectURL(url);
 }
 
+let adjustStreamControl: any = null;
+
 /** Handle plan adjustment with feedback parameter */
 async function handleAdjustPlan(): Promise<void> {
   if (!plan.value || !adjustFeedback.value.trim()) return;
@@ -661,7 +663,7 @@ async function handleAdjustPlan(): Promise<void> {
 
   // Try SSE streaming adjustment first, fall back to regular API
   try {
-    const streamControl = createSSEStream('/ai-plan/adjust-stream', {
+    adjustStreamControl = createSSEStream('/ai-plan/adjust-stream', {
       originalPlanId: plan.value.id as number,
       feedback
     }, {
@@ -704,7 +706,7 @@ async function handleAdjustPlan(): Promise<void> {
 
     // Wait for the stream to complete or timeout
     await Promise.race([
-      streamControl.promise,
+      adjustStreamControl.promise,
       new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000))
     ]);
   } catch {
@@ -867,5 +869,10 @@ onMounted(async () => {
   } finally {
     pageLoading.value = false;
   }
+});
+
+onBeforeUnmount(() => {
+  adjustStreamControl?.abort();
+  adjustStreamControl = null;
 });
 </script>

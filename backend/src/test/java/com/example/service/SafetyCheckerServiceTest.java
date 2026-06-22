@@ -63,7 +63,7 @@ class SafetyCheckerServiceTest extends BaseTest {
         when(userProfileMapper.selectById(USER_ID)).thenReturn(null);
         when(safetyRuleMapper.matchByConditions(anyString())).thenReturn(Collections.emptyList());
         when(complianceRuleMapper.matchByText(anyString())).thenReturn(Collections.emptyList());
-        when(safetyReviewLogMapper.insert(any())).thenReturn(1);
+        when(safetyReviewLogMapper.insert(any(SafetyReviewLog.class))).thenReturn(1);
     }
 
     // ==================== checkPlan 测试 ====================

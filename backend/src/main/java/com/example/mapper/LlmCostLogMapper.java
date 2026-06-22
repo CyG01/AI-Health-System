@@ -25,38 +25,38 @@ public interface LlmCostLogMapper {
     int insert(LlmCostLog log);
 
     /** 获取当日全局总成本 */
-    @Select("SELECT COALESCE(SUM(cost), 0) FROM llm_cost_log WHERE DATE(created_at) = CURDATE()")
+    @Select("SELECT COALESCE(SUM(cost), 0) FROM llm_cost_log WHERE created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY")
     BigDecimal getGlobalDailyCost();
 
     /** 获取当日某用户总成本 */
-    @Select("SELECT COALESCE(SUM(cost), 0) FROM llm_cost_log WHERE user_id = #{userId} AND DATE(created_at) = CURDATE()")
+    @Select("SELECT COALESCE(SUM(cost), 0) FROM llm_cost_log WHERE user_id = #{userId} AND created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY")
     BigDecimal getUserDailyCost(@Param("userId") Long userId);
 
     /** 按意图统计当日某用户成本 */
     @Select("SELECT intent, COALESCE(SUM(cost), 0) AS cost, COUNT(*) AS call_count "
-            + "FROM llm_cost_log WHERE user_id = #{userId} AND DATE(created_at) = CURDATE() "
+            + "FROM llm_cost_log WHERE user_id = #{userId} AND created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY "
             + "GROUP BY intent ORDER BY cost DESC")
     List<Map<String, Object>> getUserDailyCostByIntent(@Param("userId") Long userId);
 
     /** 按模型统计当日某用户成本 */
     @Select("SELECT model_name, model_tier, COALESCE(SUM(cost), 0) AS cost, COUNT(*) AS call_count "
-            + "FROM llm_cost_log WHERE user_id = #{userId} AND DATE(created_at) = CURDATE() "
+            + "FROM llm_cost_log WHERE user_id = #{userId} AND created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY "
             + "GROUP BY model_name, model_tier ORDER BY cost DESC")
     List<Map<String, Object>> getUserDailyCostByModel(@Param("userId") Long userId);
 
     /** 按 Tier 统计当日全局成本 */
     @Select("SELECT model_tier, COALESCE(SUM(cost), 0) AS cost, COUNT(*) AS call_count "
-            + "FROM llm_cost_log WHERE DATE(created_at) = CURDATE() GROUP BY model_tier")
+            + "FROM llm_cost_log WHERE created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY GROUP BY model_tier")
     List<Map<String, Object>> getGlobalDailyCostByTier();
 
     /** 获取当日超预算用户（>1元） */
     @Select("SELECT user_id, COALESCE(SUM(cost), 0) AS total_cost, COUNT(*) AS call_count "
-            + "FROM llm_cost_log WHERE DATE(created_at) = CURDATE() "
+            + "FROM llm_cost_log WHERE created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY "
             + "GROUP BY user_id HAVING SUM(cost) > #{threshold}")
     List<Map<String, Object>> getOverBudgetUsers(@Param("threshold") BigDecimal threshold);
 
     /** 获取当日活跃用户数 */
-    @Select("SELECT COUNT(DISTINCT user_id) FROM llm_cost_log WHERE DATE(created_at) = CURDATE()")
+    @Select("SELECT COUNT(DISTINCT user_id) FROM llm_cost_log WHERE created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY")
     long countActiveUsersToday();
 
     /** 清理过期日志 */

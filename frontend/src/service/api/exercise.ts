@@ -19,8 +19,8 @@ export function fetchSubmitExerciseRecord(data: Api.Exercise.CreateExerciseParam
 }
 
 /** Get exercise records by user ID */
-export function fetchGetExerciseRecordsByUserId(params?: { page?: number; size?: number; startDate?: string; endDate?: string }) {
-  return request<Api.Common.PageResult<Api.Exercise.ExerciseRecord>>({
+export function fetchGetExerciseRecordsByUserId(params?: { limit?: number }) {
+  return request<Api.Exercise.ExerciseRecord[]>({
     url: '/exercise/record/user',
     method: 'get',
     params

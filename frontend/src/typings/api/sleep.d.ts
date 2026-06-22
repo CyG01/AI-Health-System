@@ -2,28 +2,34 @@ declare namespace Api {
   namespace Sleep {
     interface SleepRecord {
       id: number;
-      userId: number;
+      userId?: number;
+      recordDate: string;
       sleepTime: string;
       wakeTime: string;
-      duration: number;
-      quality: string;
+      durationMin: number;
+      duration?: number;
+      quality: number | string;
       note?: string;
-      date: string;
-      createdAt: string;
+      dreamNotes?: string;
+      date?: string;
+      createdAt?: string;
     }
 
     interface CreateSleepParams {
+      recordDate?: string;
       sleepTime: string;
       wakeTime: string;
-      quality: string;
+      quality: number | string;
       note?: string;
-      date: string;
+      dreamNotes?: string;
+      date?: string;
     }
 
     interface SleepStats {
       avgDuration: number;
       avgQuality: number;
       recentRecords: SleepRecord[];
+      analysis?: string;
     }
   }
 }

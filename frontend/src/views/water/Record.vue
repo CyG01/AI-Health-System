@@ -63,6 +63,7 @@
           size="large"
           @click="quickAdd(opt.value)"
           :loading="submitting"
+          :disabled="submitting"
         >
           {{ opt.label }}
         </NButton>
@@ -74,7 +75,7 @@
           <span class="ml-2">ml</span>
         </NFormItem>
         <NFormItem>
-          <NButton type="primary" attr-type="submit" :loading="submitting">记录</NButton>
+          <NButton type="primary" attr-type="submit" :loading="submitting" :disabled="submitting">记录</NButton>
         </NFormItem>
       </NForm>
     </NCard>

@@ -27,7 +27,7 @@ export function fetchGetBillingHistory(params?: { days?: number }) {
 
 /** Get current subscription */
 export function fetchGetSubscription() {
-  return request<{ id: number; userId: number; plan: string; status: string; startDate: string; endDate: string; autoRenew: boolean; price: number }>({
+  return request<Api.Billing.Subscription>({
     url: '/billing/subscription',
     method: 'get'
   });
@@ -43,7 +43,7 @@ export function fetchGetQuotaWarning() {
 
 /** Apply for a refund */
 export function fetchApplyRefund(reason: string) {
-  return request<Api.Billing.RefundRequest>({
+  return request<Api.Billing.Subscription>({
     url: '/billing/refund/apply',
     method: 'post',
     data: { reason }
@@ -52,7 +52,7 @@ export function fetchApplyRefund(reason: string) {
 
 /** Get refund status */
 export function fetchGetRefundStatus() {
-  return request<Api.Billing.RefundRequest>({
+  return request<Api.Billing.Subscription>({
     url: '/billing/refund/status',
     method: 'get'
   });

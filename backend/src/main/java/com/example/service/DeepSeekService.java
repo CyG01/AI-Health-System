@@ -173,15 +173,26 @@ public class DeepSeekService {
                 throw new BusinessException("AI返回内容为空");
             }
 
-            // 验证 JSON 可解析（防御性加固）
+            // 验证 JSON 可解析（防御性加固 + 失败重试）
             try {
                 AiResponseParser.extractJson(content);
-            } catch (BusinessException e) {
-                auditLog.setAiRawResponse(content);
-                auditLog.setSuccess(false);
-                auditLog.setErrorMessage("JSON解析失败: " + e.getMessage());
-                auditLogMapper.insert(auditLog);
-                throw e;
+            } catch (BusinessException parseEx) {
+                log.warn("JSON解析失败，尝试纠正重试 originalError={}", parseEx.getMessage());
+                // 重试: 追加纠正指令让模型重新输出
+                try {
+                    String correctionPrompt = "Your previous response was not valid JSON. "
+                            + "Please output ONLY valid JSON, no other text. "
+                            + "Original request: " + prompt;
+                    String retryContent = callLlmForJsonCorrection(correctionPrompt, model);
+                    AiResponseParser.extractJson(retryContent); // 最终验证
+                    content = retryContent; // 用修正后的内容替换
+                } catch (BusinessException retryEx) {
+                    auditLog.setAiRawResponse(content);
+                    auditLog.setSuccess(false);
+                    auditLog.setErrorMessage("JSON解析重试仍失败: " + retryEx.getMessage());
+                    auditLogMapper.insert(auditLog);
+                    throw retryEx;
+                }
             }
 
             // 审计日志记录
@@ -409,6 +420,50 @@ public class DeepSeekService {
     private String chatFallback(String userPrompt, Throwable t) {
         log.error("AI聊天降级 prompt={}", userPrompt, t);
         throw new BusinessException("AI服务暂不可用，请稍后再试");
+    }
+
+    /**
+     * JSON 解析失败时，发送纠正 prompt 让 LLM 重新输出有效 JSON。
+     * 最多重试 1 次，不做 Resilience4j 注解包装（内部调用）。
+     */
+    private String callLlmForJsonCorrection(String correctionPrompt, String model) {
+        Map<String, Object> requestBody = Map.of(
+                "model", model != null ? model : properties.getModel(),
+                "messages", List.of(
+                        Map.of("role", "system", "content",
+                                "You are a JSON-only responder. Output ONLY valid JSON, no markdown, no explanation."),
+                        Map.of("role", "user", "content", correctionPrompt)
+                ),
+                "response_format", Map.of("type", "json_object")
+        );
+
+        try {
+            String response = webClient.post()
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofMillis(properties.getTimeout()))
+                    .block();
+
+            JsonNode root = objectMapper.readTree(response);
+            int inputTokens = root.path("usage").path("prompt_tokens").asInt();
+            int outputTokens = root.path("usage").path("completion_tokens").asInt();
+            costMonitor.recordCall(inputTokens, outputTokens);
+
+            String content = root.path("choices").get(0).path("message").path("content").asText();
+            if (content == null || content.isBlank()) {
+                throw new BusinessException("纠正重试AI返回内容为空");
+            }
+            log.info("JSON纠正重试成功 contentLength={}", content.length());
+            return content;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("JSON纠正重试调用失败", e);
+            throw new BusinessException("JSON纠正重试调用失败: " + e.getMessage());
+        }
     }
 
     /**

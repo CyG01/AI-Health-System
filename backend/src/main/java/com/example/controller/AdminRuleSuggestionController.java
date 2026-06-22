@@ -39,7 +39,7 @@ public class AdminRuleSuggestionController {
     @PostMapping("/{id}/approve")
     public Result<String> approveSuggestion(@PathVariable Long id,
                                              @RequestBody Map<String, String> body,
-                                             @RequestHeader("X-Admin-Id") Long adminId) {
+                                             @RequestAttribute("userId") Long adminId) {
         String reviewerName = body.get("reviewerName");
         String msg = iterationService.approveSuggestion(id, reviewerName);
         auditLogService.log(adminId, reviewerName, "APPROVE_RULE_SUGGESTION",
@@ -53,7 +53,7 @@ public class AdminRuleSuggestionController {
     @PostMapping("/{id}/reject")
     public Result<String> rejectSuggestion(@PathVariable Long id,
                                             @RequestBody Map<String, String> body,
-                                            @RequestHeader("X-Admin-Id") Long adminId) {
+                                            @RequestAttribute("userId") Long adminId) {
         String reviewerName = body.get("reviewerName");
         String msg = iterationService.rejectSuggestion(id, reviewerName);
         auditLogService.log(adminId, reviewerName, "REJECT_RULE_SUGGESTION",
