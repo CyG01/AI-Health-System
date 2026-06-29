@@ -1,0 +1,27 @@
+package com.example.controller;
+
+import com.example.annotation.RequiresSubscription;
+import com.example.common.Result;
+import com.example.service.RecommendationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@Tag(name = "个性化智能推荐")
+@RestController
+@RequestMapping("/api/recommend")
+@RequiredArgsConstructor
+public class RecommendationController {
+
+    private final RecommendationService recommendationService;
+
+    @RequiresSubscription(value = "pro", feature = "个性化智能推荐")
+    @Operation(summary = "获取个性化推荐")
+    @GetMapping("/personalized")
+    public Result<Map<String, Object>> personalized(@RequestAttribute("userId") Long userId) {
+        return Result.success(recommendationService.getRecommendations(userId));
+    }
+}

@@ -1,0 +1,18 @@
+/* ============================================================
+   AI Health System — Global SCSS
+   Legacy file: kept for SCSS mixin imports only.
+   All design tokens are in styles/css/global.css (single source of truth).
+   Element Plus (.el-*) selectors have been removed — project uses NaiveUI.
+   ============================================================ */
+
+/* ---- will-change hints for animated elements ---- */
+.animate-on-scroll,
+.glass-card {
+  will-change: transform;
+}
+
+html,
+body,
+#app {
+  scroll-behavior: smooth;
+}

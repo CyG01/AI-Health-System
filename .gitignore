@@ -1,0 +1,40 @@
+# 后端忽略
+backend/target/
+backend/.idea/
+backend/*.iml
+backend/HELP.md
+backend/mvnw
+backend/mvnw.cmd
+backend/.mvn/
+
+# 前端忽略
+frontend/dist/
+frontend/.idea/
+frontend/*.iml
+frontend/.vscode/
+frontend/.DS_Store
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# 所有 node_modules（覆盖 pnpm monorepo 嵌套结构）
+**/node_modules/
+
+# 通用忽略
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+*.suo
+*.user
+
+# 敏感配置文件（绝对不能传！）
+**/application-dev.yml
+**/application-prod.yml
+**/.env
+**/.env.local

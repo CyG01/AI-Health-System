@@ -1,0 +1,554 @@
+package com.example.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.entity.DailyCheckin;
+import com.example.entity.DietRecord;
+import com.example.entity.ExerciseRecord;
+import com.example.entity.HealthRecord;
+import com.example.mapper.DailyCheckinMapper;
+import com.example.mapper.DietRecordMapper;
+import com.example.mapper.ExerciseRecordMapper;
+import com.example.mapper.HealthRecordMapper;
+import com.example.service.StatisticsService;
+import com.example.vo.BmiTrendVO;
+import com.example.vo.CalorieDeficitVO;
+import com.example.vo.CalorieTrendVO;
+import com.example.vo.CheckinTrendVO;
+import com.example.vo.DietTrendComparisonVO;
+import com.example.vo.ExerciseDistributionVO;
+import com.example.vo.ExerciseTrendVO;
+import com.example.vo.NutrientRatioVO;
+import com.example.vo.ProgressVO;
+import com.example.vo.WeightTrendVO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class StatisticsServiceImpl implements StatisticsService {
+
+    private static final Logger log = LoggerFactory.getLogger(StatisticsServiceImpl.class);
+
+    private static final String STATS_CACHE_PREFIX = "stats:";
+    private static final long STATS_CACHE_TTL_HOURS = 1;
+
+    private final HealthRecordMapper healthRecordMapper;
+
+    private final DailyCheckinMapper dailyCheckinMapper;
+
+    private final ExerciseRecordMapper exerciseRecordMapper;
+
+    private final DietRecordMapper dietRecordMapper;
+
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    @Override
+    public WeightTrendVO getWeightTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "weight:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (WeightTrendVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+
+        // 从 health_record 读取体重 — 这是权威数据源
+        LambdaQueryWrapper<HealthRecord> wrapper = new LambdaQueryWrapper<HealthRecord>()
+                .eq(HealthRecord::getUserId, userId)
+                .ge(HealthRecord::getCreateTime, startDate.atStartOfDay())
+                .isNotNull(HealthRecord::getWeight)
+                .orderByAsc(HealthRecord::getCreateTime);
+        List<HealthRecord> records = healthRecordMapper.selectList(wrapper);
+
+        Map<LocalDate, Integer> weightMap = records.stream()
+                .collect(Collectors.toMap(
+                        r -> r.getCreateTime().toLocalDate(),
+                        HealthRecord::getWeight,
+                        (existing, replacement) -> replacement));
+
+        List<String> xAxis = new ArrayList<>();
+        List<Integer> yAxis = new ArrayList<>();
+
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            yAxis.add(weightMap.getOrDefault(d, null));
+        }
+
+        WeightTrendVO vo = new WeightTrendVO();
+        vo.setXAxis(xAxis);
+        vo.setYAxis(yAxis);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public BmiTrendVO getBmiTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "bmi:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (BmiTrendVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+
+        LambdaQueryWrapper<HealthRecord> wrapper = new LambdaQueryWrapper<HealthRecord>()
+                .eq(HealthRecord::getUserId, userId)
+                .ge(HealthRecord::getCreateTime, startDate.atStartOfDay())
+                .orderByAsc(HealthRecord::getCreateTime);
+        List<HealthRecord> records = healthRecordMapper.selectList(wrapper);
+
+        List<String> xAxis = new ArrayList<>();
+        List<BigDecimal> yAxis = new ArrayList<>();
+
+        for (HealthRecord record : records) {
+            xAxis.add(record.getCreateTime().toLocalDate().toString());
+            yAxis.add(record.getBmi());
+        }
+
+        BmiTrendVO vo = new BmiTrendVO();
+        vo.setXAxis(xAxis);
+        vo.setYAxis(yAxis);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public CheckinTrendVO getCheckinTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "checkin:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (CheckinTrendVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+
+        LambdaQueryWrapper<DailyCheckin> wrapper = new LambdaQueryWrapper<DailyCheckin>()
+                .eq(DailyCheckin::getUserId, userId)
+                .ge(DailyCheckin::getCheckDate, startDate)
+                .orderByAsc(DailyCheckin::getCheckDate);
+        List<DailyCheckin> records = dailyCheckinMapper.selectList(wrapper);
+
+        Map<LocalDate, List<DailyCheckin>> grouped = records.stream()
+                .collect(Collectors.groupingBy(DailyCheckin::getCheckDate));
+
+        List<String> xAxis = new ArrayList<>();
+        List<BigDecimal> completeRate = new ArrayList<>();
+        List<Integer> totalDays = new ArrayList<>();
+
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            List<DailyCheckin> dayRecords = grouped.getOrDefault(d, List.of());
+            totalDays.add(dayRecords.size());
+
+            if (dayRecords.isEmpty()) {
+                completeRate.add(BigDecimal.ZERO);
+            } else {
+                long fullCount = dayRecords.stream()
+                        .filter(r -> r.getExerciseStatus() != null && r.getExerciseStatus() == 2
+                                && r.getDietStatus() != null && r.getDietStatus() == 2)
+                        .count();
+                BigDecimal rate = BigDecimal.valueOf(fullCount)
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(BigDecimal.valueOf(dayRecords.size()), 1, RoundingMode.HALF_UP);
+                completeRate.add(rate);
+            }
+        }
+
+        CheckinTrendVO vo = new CheckinTrendVO();
+        vo.setXAxis(xAxis);
+        vo.setCompleteRate(completeRate);
+        vo.setTotalDays(totalDays);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public ExerciseTrendVO getExerciseTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "exercise:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (ExerciseTrendVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        // 从 exercise_record 读取实际运动数据
+        LambdaQueryWrapper<ExerciseRecord> wrapper = new LambdaQueryWrapper<ExerciseRecord>()
+                .eq(ExerciseRecord::getUserId, userId)
+                .between(ExerciseRecord::getCreateTime, start, end)
+                .orderByAsc(ExerciseRecord::getCreateTime);
+        List<ExerciseRecord> records = exerciseRecordMapper.selectList(wrapper);
+
+        Map<LocalDate, List<ExerciseRecord>> grouped = records.stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate()));
+
+        List<String> xAxis = new ArrayList<>();
+        List<Integer> minutesPerDay = new ArrayList<>();
+
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            List<ExerciseRecord> dayRecords = grouped.getOrDefault(d, List.of());
+            int totalMinutes = dayRecords.stream()
+                    .mapToInt(r -> r.getDurationMinutes() != null ? r.getDurationMinutes() : 0)
+                    .sum();
+            minutesPerDay.add(totalMinutes);
+        }
+
+        ExerciseTrendVO vo = new ExerciseTrendVO();
+        vo.setXAxis(xAxis);
+        vo.setMinutesPerDay(minutesPerDay);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public CalorieTrendVO getCalorieTrend(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "calorie:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (CalorieTrendVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        // 从 diet_record 读取实际饮食热量数据
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .between(DietRecord::getCreateTime, start, end)
+                .orderByAsc(DietRecord::getCreateTime);
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        Map<LocalDate, List<DietRecord>> grouped = records.stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate()));
+
+        List<String> xAxis = new ArrayList<>();
+        List<Integer> dailyCalories = new ArrayList<>();
+
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            List<DietRecord> dayRecords = grouped.getOrDefault(d, List.of());
+            int totalCal = dayRecords.stream()
+                    .mapToInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)
+                    .sum();
+            dailyCalories.add(totalCal);
+        }
+
+        CalorieTrendVO vo = new CalorieTrendVO();
+        vo.setXAxis(xAxis);
+        vo.setDailyCalories(dailyCalories);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public ProgressVO getProgress(Long userId) {
+        BigDecimal totalCheckinRate = BigDecimal.ZERO;
+        BigDecimal exerciseCompleteRate = BigDecimal.ZERO;
+        BigDecimal dietCompleteRate = BigDecimal.ZERO;
+        BigDecimal weightChange = BigDecimal.ZERO;
+        BigDecimal targetProgressPercent = BigDecimal.ZERO;
+        String goal = null;
+
+        LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
+
+        LambdaQueryWrapper<DailyCheckin> checkinWrapper = new LambdaQueryWrapper<DailyCheckin>()
+                .eq(DailyCheckin::getUserId, userId)
+                .ge(DailyCheckin::getCheckDate, thirtyDaysAgo);
+        List<DailyCheckin> checkinRecords = dailyCheckinMapper.selectList(checkinWrapper);
+
+        int totalCheckins = checkinRecords.size();
+        if (totalCheckins > 0) {
+            long exerciseComplete = checkinRecords.stream()
+                    .filter(r -> r.getExerciseStatus() != null && r.getExerciseStatus() == 2)
+                    .count();
+            long dietComplete = checkinRecords.stream()
+                    .filter(r -> r.getDietStatus() != null && r.getDietStatus() == 2)
+                    .count();
+            long fullComplete = checkinRecords.stream()
+                    .filter(r -> r.getExerciseStatus() != null && r.getExerciseStatus() == 2
+                            && r.getDietStatus() != null && r.getDietStatus() == 2)
+                    .count();
+
+            exerciseCompleteRate = BigDecimal.valueOf(exerciseComplete)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalCheckins), 1, RoundingMode.HALF_UP);
+            dietCompleteRate = BigDecimal.valueOf(dietComplete)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalCheckins), 1, RoundingMode.HALF_UP);
+            totalCheckinRate = BigDecimal.valueOf(fullComplete)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalCheckins), 1, RoundingMode.HALF_UP);
+        }
+
+        LambdaQueryWrapper<HealthRecord> healthWrapper = new LambdaQueryWrapper<HealthRecord>()
+                .eq(HealthRecord::getUserId, userId)
+                .ge(HealthRecord::getCreateTime, thirtyDaysAgo.atStartOfDay())
+                .orderByAsc(HealthRecord::getCreateTime);
+        List<HealthRecord> healthRecords = healthRecordMapper.selectList(healthWrapper);
+
+        if (!healthRecords.isEmpty()) {
+            HealthRecord latest = healthRecords.get(healthRecords.size() - 1);
+            goal = latest.getGoal();
+
+            if (healthRecords.size() >= 2) {
+                Integer startWeight = healthRecords.get(0).getWeight();
+                Integer latestWeight = latest.getWeight();
+                if (startWeight != null && latestWeight != null) {
+                    weightChange = BigDecimal.valueOf(latestWeight - startWeight).setScale(1, RoundingMode.HALF_UP);
+                }
+            }
+
+            if (latest.getWeight() != null && latest.getGoal() != null
+                    && latest.getGoal().contains("减重") && latest.getBmi() != null
+                    && healthRecords.size() >= 2) {
+                BigDecimal targetBmi = new BigDecimal("24.0");
+                BigDecimal currentBmi = latest.getBmi();
+                BigDecimal startBmi = healthRecords.get(0).getBmi();
+                if (startBmi != null && startBmi.compareTo(currentBmi) > 0) {
+                    BigDecimal totalDiff = startBmi.subtract(targetBmi);
+                    BigDecimal progress = startBmi.subtract(currentBmi);
+                    if (totalDiff.compareTo(BigDecimal.ZERO) > 0) {
+                        targetProgressPercent = progress.multiply(BigDecimal.valueOf(100))
+                                .divide(totalDiff, 1, RoundingMode.HALF_UP);
+                    }
+                }
+            }
+        }
+
+        ProgressVO vo = new ProgressVO();
+        vo.setTotalCheckinRate(totalCheckinRate);
+        vo.setExerciseCompleteRate(exerciseCompleteRate);
+        vo.setDietCompleteRate(dietCompleteRate);
+        vo.setWeightChange(weightChange);
+        vo.setTargetProgressPercent(targetProgressPercent);
+        vo.setGoal(goal);
+        return vo;
+    }
+
+    @Override
+    public CalorieDeficitVO getCalorieDeficit(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "deficit:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (CalorieDeficitVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        // 饮食摄入
+        LambdaQueryWrapper<DietRecord> dietWrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .between(DietRecord::getCreateTime, start, end);
+        Map<LocalDate, Integer> dietMap = dietRecordMapper.selectList(dietWrapper).stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate(),
+                        Collectors.summingInt(r -> r.getCaloriesConsumed() != null ? r.getCaloriesConsumed() : 0)));
+
+        // 运动消耗
+        LambdaQueryWrapper<ExerciseRecord> exWrapper = new LambdaQueryWrapper<ExerciseRecord>()
+                .eq(ExerciseRecord::getUserId, userId)
+                .between(ExerciseRecord::getCreateTime, start, end);
+        Map<LocalDate, Integer> exerciseMap = exerciseRecordMapper.selectList(exWrapper).stream()
+                .collect(Collectors.groupingBy(r -> r.getCreateTime().toLocalDate(),
+                        Collectors.summingInt(r -> r.getCaloriesBurned() != null ? r.getCaloriesBurned() : 0)));
+
+        List<String> xAxis = new ArrayList<>();
+        List<Integer> consumed = new ArrayList<>();
+        List<Integer> burned = new ArrayList<>();
+        List<Integer> net = new ArrayList<>();
+
+        for (LocalDate d = startDate; !d.isAfter(LocalDate.now()); d = d.plusDays(1)) {
+            xAxis.add(d.toString());
+            int c = dietMap.getOrDefault(d, 0);
+            int b = exerciseMap.getOrDefault(d, 0);
+            consumed.add(c);
+            burned.add(b);
+            net.add(c - b);
+        }
+
+        CalorieDeficitVO vo = new CalorieDeficitVO();
+        vo.setXAxis(xAxis);
+        vo.setConsumed(consumed);
+        vo.setBurned(burned);
+        vo.setNet(net);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public NutrientRatioVO getNutrientRatio(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "nutrient:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (NutrientRatioVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDateTime start = LocalDate.now().minusDays(range - 1).atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .between(DietRecord::getCreateTime, start, end);
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        double totalProtein = records.stream().mapToDouble(r -> r.getProtein() != null ? r.getProtein().doubleValue() : 0).sum();
+        double totalFat = records.stream().mapToDouble(r -> r.getFat() != null ? r.getFat().doubleValue() : 0).sum();
+        double totalCarbs = records.stream().mapToDouble(r -> r.getCarbs() != null ? r.getCarbs().doubleValue() : 0).sum();
+
+        NutrientRatioVO vo = new NutrientRatioVO();
+        vo.setNames(List.of("蛋白质", "脂肪", "碳水"));
+        vo.setValues(List.of(round2(totalProtein), round2(totalFat), round2(totalCarbs)));
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public ExerciseDistributionVO getExerciseDistribution(Long userId, Integer days) {
+        String cacheKey = STATS_CACHE_PREFIX + "exDist:" + userId + ":" + days;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return (ExerciseDistributionVO) cached;
+        }
+
+        int range = resolveDays(days);
+        LocalDateTime start = LocalDate.now().minusDays(range - 1).atStartOfDay();
+        LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
+
+        LambdaQueryWrapper<ExerciseRecord> wrapper = new LambdaQueryWrapper<ExerciseRecord>()
+                .eq(ExerciseRecord::getUserId, userId)
+                .between(ExerciseRecord::getCreateTime, start, end);
+        List<ExerciseRecord> records = exerciseRecordMapper.selectList(wrapper);
+
+        Map<String, Long> typeCount = records.stream()
+                .collect(Collectors.groupingBy(
+                        r -> r.getExerciseType() != null ? r.getExerciseType() : "其他",
+                        Collectors.counting()));
+
+        List<String> names = new ArrayList<>(typeCount.keySet());
+        List<Long> values = new ArrayList<>(typeCount.values());
+
+        ExerciseDistributionVO vo = new ExerciseDistributionVO();
+        vo.setNames(names);
+        vo.setValues(values);
+
+        redisTemplate.opsForValue().set(cacheKey, vo, STATS_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return vo;
+    }
+
+    @Override
+    public DietTrendComparisonVO getDietTrendComparison(Long userId) {
+        LocalDate today = LocalDate.now();
+        LocalDate thisWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate thisWeekEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        LocalDate lastWeekStart = thisWeekStart.minusWeeks(1);
+        LocalDate lastWeekEnd = thisWeekStart.minusDays(1);
+
+        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("M/d");
+        DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("M/d");
+
+        // 查询本周每日热量
+        Map<LocalDate, Integer> currentMap = queryDailyCalories(userId, thisWeekStart, thisWeekEnd);
+        // 查询上周每日热量
+        Map<LocalDate, Integer> previousMap = queryDailyCalories(userId, lastWeekStart, lastWeekEnd);
+
+        List<DietTrendComparisonVO.DailyCal> currentDaily = new ArrayList<>();
+        int currentTotal = 0;
+        for (LocalDate d = thisWeekStart; !d.isAfter(thisWeekEnd) && !d.isAfter(today); d = d.plusDays(1)) {
+            int cal = currentMap.getOrDefault(d, 0);
+            currentTotal += cal;
+            String dayLabel = d.getDayOfWeek().toString();
+            dayLabel = dayLabel.substring(0, 1) + dayLabel.substring(1, 3).toLowerCase(); // "Mon", "Tue"...
+            currentDaily.add(new DietTrendComparisonVO.DailyCal(
+                    d.format(dayFmt), cal, dayLabel));
+        }
+
+        List<DietTrendComparisonVO.DailyCal> previousDaily = new ArrayList<>();
+        int previousTotal = 0;
+        for (LocalDate d = lastWeekStart; !d.isAfter(lastWeekEnd); d = d.plusDays(1)) {
+            int cal = previousMap.getOrDefault(d, 0);
+            previousTotal += cal;
+            String dayLabel = d.getDayOfWeek().toString();
+            dayLabel = dayLabel.substring(0, 1) + dayLabel.substring(1, 3).toLowerCase();
+            previousDaily.add(new DietTrendComparisonVO.DailyCal(
+                    d.format(dayFmt), cal, dayLabel));
+        }
+
+        double changePercent = previousTotal > 0
+                ? round2((currentTotal - previousTotal) * 100.0 / previousTotal)
+                : 0;
+
+        DietTrendComparisonVO vo = new DietTrendComparisonVO();
+        vo.setCurrentTotalCalories(currentTotal);
+        vo.setPreviousTotalCalories(previousTotal);
+        vo.setCalorieChangePercent(changePercent);
+        vo.setCurrentPeriodLabel(thisWeekStart.format(labelFmt) + "-" + thisWeekEnd.format(labelFmt));
+        vo.setPreviousPeriodLabel(lastWeekStart.format(labelFmt) + "-" + lastWeekEnd.format(labelFmt));
+        vo.setCurrentDaily(currentDaily);
+        vo.setPreviousDaily(previousDaily);
+        return vo;
+    }
+
+    private Map<LocalDate, Integer> queryDailyCalories(Long userId, LocalDate start, LocalDate end) {
+        LambdaQueryWrapper<DietRecord> wrapper = new LambdaQueryWrapper<DietRecord>()
+                .eq(DietRecord::getUserId, userId)
+                .ge(DietRecord::getCreateTime, start.atStartOfDay())
+                .le(DietRecord::getCreateTime, end.atTime(LocalTime.MAX));
+        List<DietRecord> records = dietRecordMapper.selectList(wrapper);
+
+        Map<LocalDate, Integer> map = new LinkedHashMap<>();
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            map.put(d, 0);
+        }
+        for (DietRecord record : records) {
+            LocalDate date = record.getCreateTime().toLocalDate();
+            map.merge(date, record.getCaloriesConsumed() != null ? record.getCaloriesConsumed() : 0, Integer::sum);
+        }
+        return map;
+    }
+
+    private double round2(double v) { return Math.round(v * 100.0) / 100.0; }
+
+    private int resolveDays(Integer days) {
+        if (days == null || days <= 0) {
+            return 30;
+        }
+        return Math.min(days, 365);
+    }
+}

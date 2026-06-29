@@ -1,0 +1,391 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: ai-health-system
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ai_health_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=false}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+      leak-detection-threshold: 60000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+  # ShardingSphere 读写分离与分片（Phase 4，生产环境启用）
+  shardingsphere:
+    enabled: ${SHARDING_ENABLED:false}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 10
+          max-wait: 3000ms
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+  task:
+    execution:
+      pool:
+        core-size: 10
+        max-size: 20
+        queue-capacity: 100
+        thread-name-prefix: ai-task-
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.example.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# ⚠️ JWT_SECRET 必须在启动前设置（至少256位强密钥）
+#    开发环境可复制 .env.example 到 .env 后设置
+#    生成强密钥示例: openssl rand -base64 32
+jwt:
+  secret: ${JWT_SECRET:ai-health-system-dev-jwt-secret-key-change-in-production}
+  access-token-expire: 7200000
+  refresh-token-expire: 604800000
+  header: Authorization
+  token-prefix: Bearer
+
+app:
+  upload:
+    avatar-dir: uploads/avatars
+
+sms:
+  dev-mode: ${SMS_DEV_MODE:true}
+
+# 字段级加密密钥（Base64 编码的 32 字节 AES-256 密钥）
+# 开发环境可复制 .env.example 到 .env 后设置
+# 生成密钥示例: openssl rand -base64 32
+aes:
+  encryption:
+    key: ${AES_ENCRYPTION_KEY:9V8/3HjFfOk0tVWrOx4fuSPx0ZWyxzAFBtb93QZ/VhM=}
+    legacy-key: ${AES_ENCRYPTION_LEGACY_KEY:}
+
+deepseek:
+  base-url: https://api.deepseek.com/v1
+  api-key: ${DEEPSEEK_API_KEY:}
+  model: deepseek-chat
+  timeout: 30000
+
+resilience4j:
+  retry:
+    instances:
+      deepseek:
+        max-attempts: 3
+        wait-duration: 2s
+        retry-exceptions:
+          - java.lang.RuntimeException
+          - java.io.IOException
+        ignore-exceptions:
+          - com.example.common.BusinessException
+      qwen:
+        max-attempts: 2
+        wait-duration: 3s
+      glm:
+        max-attempts: 2
+        wait-duration: 3s
+      moonshot:
+        max-attempts: 2
+        wait-duration: 3s
+  circuitbreaker:
+    instances:
+      deepseek:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 3
+      qwen:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 2
+      glm:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 2
+      moonshot:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 2
+      # Tier 级熔断器（Phase 2b）
+      tier-low:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+      tier-medium:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+      tier-high:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 40
+        wait-duration-in-open-state: 120s
+        permitted-number-of-calls-in-half-open-state: 3
+      tier-critical:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 5
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 1
+  ratelimiter:
+    instances:
+      ai-api:
+        limit-for-period: 10
+        limit-refresh-period: 1s
+        timeout-duration: 5s
+  bulkhead:
+    instances:
+      ai-api:
+        max-concurrent-calls: 5
+        max-wait-duration: 10s
+
+# 多模型容灾配置 + 本地模型（Phase 4）
+resilience:
+  # 通义千问（备选模型1）
+  qwen:
+    api-key: ${QWEN_API_KEY:}
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model-name: qwen-max
+  # 智谱 GLM-4（备选模型2）
+  glm:
+    api-key: ${GLM_API_KEY:}
+    base-url: https://open.bigmodel.cn/api/paas/v4
+    model-name: glm-4
+  # 月之暗面 Moonshot（备选模型3）
+  moonshot:
+    api-key: ${MOONSHOT_API_KEY:}
+    base-url: https://api.moonshot.cn/v1
+    model-name: moonshot-v1-8k
+  # 本地 Ollama 模型（Phase 4，LOW Tier 兜底，替代30%云端调用）
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:qwen2:7b}
+    backup-model: ${OLLAMA_BACKUP_MODEL:llama3:8b}
+    enabled: ${OLLAMA_ENABLED:false}
+    timeout: 30000
+    max-concurrent: 4
+
+# 成本预算配置（Phase 4）
+cost:
+  budget:
+    daily-per-user: ${COST_DAILY_PER_USER:1.0}
+    alert-webhook: ${COST_ALERT_WEBHOOK:}
+    auto-pause-threshold: ${COST_AUTO_PAUSE:1.0}
+
+# 安全熔断器配置
+safety:
+  circuit:
+    safety-threshold: 9.0
+    meltdown-threshold: 7.5
+    consecutive-fails-to-open: 5
+    sliding-window-minutes: 30
+    half-open-test-interval: 10
+    half-open-test-count: 3
+  # BERT 医疗红线判别服务（Layer2）
+  bert:
+    enabled: true
+    service-url: ${BERT_SERVICE_URL:http://localhost:5001}
+    timeout-ms: 2000
+
+# LLMOps 运维配置
+llmops:
+  alert:
+    daily-budget: 10.00
+    cost-warning-threshold: 0.80
+    cost-critical-threshold: 0.95
+    safety-warning-threshold: 9.0
+    safety-critical-threshold: 7.5
+  webhook:
+    # Webhook 告警通知地址
+    url: ${LLMOPS_WEBHOOK_URL:}
+
+# CORS 配置 — 生产环境通过 ALLOWED_ORIGINS 覆盖（逗号分隔多个域名）
+cors:
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+  max-age: 3600
+
+# ========================================
+# TDengine 时序数据库配置（Phase 2a）
+# ========================================
+tdengine:
+  # 总开关：开发/生产环境按需开启
+  # 第 1 周：仅开发环境 enabled=true
+  # 第 2 周：生产环境 enabled=true，查询仍走 MySQL
+  # 第 3 周：灰度放开查询走 TDengine
+  enabled: ${TDENGINE_ENABLED:false}
+
+  # Master 节点（写操作）
+  master:
+    url: ${TDENGINE_MASTER_URL:jdbc:TAOS://localhost:6030/ai_health}
+    username: ${TDENGINE_USERNAME:root}
+    password: ${TDENGINE_PASSWORD:taosdata}
+
+  # Slave1 节点（读操作，可选）
+  slave1:
+    url: ${TDENGINE_SLAVE1_URL:}
+    username: ${TDENGINE_SLAVE1_USERNAME:root}
+    password: ${TDENGINE_SLAVE1_PASSWORD:taosdata}
+
+  # Slave2 节点（读操作，可选）
+  slave2:
+    url: ${TDENGINE_SLAVE2_URL:}
+    username: ${TDENGINE_SLAVE2_USERNAME:root}
+    password: ${TDENGINE_SLAVE2_PASSWORD:taosdata}
+
+  # 连接池配置
+  pool:
+    max-write-connections: ${TDENGINE_POOL_WRITE_MAX:5}
+    max-read-connections-per-node: ${TDENGINE_POOL_READ_MAX:5}
+    heartbeat-interval-seconds: ${TDENGINE_HEARTBEAT_INTERVAL:30}
+    connection-timeout-millis: ${TDENGINE_CONN_TIMEOUT:5000}
+
+  # 数据一致性校验配置
+  consistency:
+    cron: ${TDENGINE_CONSISTENCY_CRON:0 0 2 * * ?}
+    sample-size: ${TDENGINE_CONSISTENCY_SAMPLE:100}
+    tolerance: ${TDENGINE_CONSISTENCY_TOLERANCE:0.1}
+
+  # 存量数据迁移配置（命令行参数启用）
+  migration:
+    enabled: ${TDENGINE_MIGRATION_ENABLED:false}
+    batch-size: ${TDENGINE_MIGRATION_BATCH:5000}
+    verify-months: ${TDENGINE_MIGRATION_VERIFY_MONTHS:1}
+
+logging:
+  level:
+    root: ERROR
+    com.example: ${LOG_LEVEL:INFO}
+    org.springframework.web: WARN
+
+# ========================================
+# Qdrant 向量数据库配置（Phase 2b）
+# ========================================
+qdrant:
+  # Qdrant Cloud 托管版（推荐）或自建节点
+  host: ${QDRANT_HOST:localhost}
+  port: ${QDRANT_PORT:6334}
+  api-key: ${QDRANT_API_KEY:}
+  use-tls: ${QDRANT_USE_TLS:true}
+  # 集合名称
+  collection:
+    knowledge-doc: knowledge_doc
+  # 向量维度（DeepSeek Embedding = 1536）
+  vector-dim: 1536
+  # 稀疏向量（BM25）开关
+  sparse-vector:
+    enabled: ${QDRANT_SPARSE_ENABLED:true}
+  # 混合检索
+  hybrid:
+    # 向量检索 Top-N
+    vector-top: 50
+    # BM25 检索 Top-N
+    bm25-top: 50
+    # RRF 融合参数 k（默认 60）
+    rrf-k: 60
+    # 最终返回 Top-N
+    final-top: 5
+  # 灰度切换
+  traffic:
+    # 灰度比例：0.0~1.0，1.0=全量走 Qdrant，0.0=全量走 MySQL
+    ratio: ${QDRANT_TRAFFIC_RATIO:0.0}
+    # 灰度开关：true=启用灰度，false=直接全量
+    enabled: ${QDRANT_TRAFFIC_ENABLED:false}
+  # 降级重试
+  retry:
+    max-attempts: 3
+    initial-delay-ms: 1000
+    max-delay-ms: 8000
+
+# Cohere Rerank 配置
+cohere:
+  api-key: ${COHERE_API_KEY:}
+  rerank-model: rerank-v3.5
+  # 本地 BGE-Reranker 替代方案（Phase 2b 后期）
+  local-rerank:
+    enabled: ${LOCAL_RERANK_ENABLED:false}
+
+# RocketMQ 配置
+rocketmq:
+  enabled: false
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: ai-health-producer-group
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 2
+    retry-times-when-send-async-failed: 2
+  consumer:
+    # 消费者线程池配置
+    pull-batch-size: 32
+
+# AI 任务异步化配置
+ai-task:
+  mq:
+    enabled: ${AI_TASK_MQ_ENABLED:true}
+    # 灰度比例：0.0~1.0，1.0=全量走MQ，0.0=全量走内存队列
+    traffic-ratio: ${AI_TASK_MQ_RATIO:1.0}
+  retry:
+    max-attempts: 5
+    initial-delay-ms: 1000
+    max-delay-ms: 16000
+    multiplier: 2.0
+  result:
+    ttl-hours: 24
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: never
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ai-health-system

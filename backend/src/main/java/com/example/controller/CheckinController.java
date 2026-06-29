@@ -1,0 +1,80 @@
+package com.example.controller;
+
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
+import com.example.common.Result;
+import com.example.dto.CheckinSubmitDTO;
+import com.example.dto.CheckinSupplementDTO;
+import com.example.service.CheckinService;
+import com.example.vo.CheckinStatsVO;
+import com.example.vo.CheckinVO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+
+import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "每日健康打卡")
+@RestController
+@RequestMapping("/api/checkin")
+@RequiredArgsConstructor
+public class CheckinController {
+
+    private final CheckinService checkinService;
+
+    @RateLimit(time = 60, count = 1)
+    @NoRepeatSubmit
+    @Operation(summary = "提交今日打卡")
+    @PostMapping("/submit")
+    public Result<CheckinVO> submit(@Validated @RequestBody CheckinSubmitDTO dto,
+                                    @RequestAttribute("userId") Long userId) {
+        return Result.success(checkinService.submitCheckin(userId, dto));
+    }
+
+    @Operation(summary = "查询打卡记录列表")
+    @GetMapping("/list")
+    public Result<List<CheckinVO>> list(@RequestAttribute("userId") Long userId) {
+        return Result.success(checkinService.getCheckinList(userId));
+    }
+
+    @Operation(summary = "分页查询打卡记录")
+    @GetMapping("/page")
+    public Result<Page<CheckinVO>> page(
+            @RequestAttribute("userId") Long userId,
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size) {
+        return Result.success(checkinService.getCheckinPage(userId, page, size));
+    }
+
+    @RateLimit(time = 60, count = 3)
+    @NoRepeatSubmit
+    @Operation(summary = "补卡")
+    @PostMapping("/supplement")
+    public Result<CheckinVO> supplement(@Validated @RequestBody CheckinSupplementDTO dto,
+                                        @RequestAttribute("userId") Long userId) {
+        return Result.success(checkinService.supplementCheckin(userId, dto));
+    }
+
+    @Operation(summary = "打卡统计")
+    @GetMapping("/stats")
+    public Result<CheckinStatsVO> stats(@RequestAttribute("userId") Long userId) {
+        return Result.success(checkinService.getStats(userId));
+    }
+
+    @Operation(summary = "查询今日打卡状态")
+    @GetMapping("/today")
+    public Result<CheckinVO> today(@RequestAttribute("userId") Long userId) {
+        CheckinVO vo = checkinService.getTodayCheckin(userId);
+        return Result.success(vo);
+    }
+}

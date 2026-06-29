@@ -1,0 +1,88 @@
+package com.example.controller;
+
+import com.example.annotation.NoRepeatSubmit;
+import com.example.annotation.RateLimit;
+import com.example.common.Result;
+import com.example.dto.GoalMilestoneDTO;
+import com.example.service.GoalMilestoneService;
+import com.example.vo.GoalMilestoneVO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@Tag(name = "目标里程碑")
+@RestController
+@RequestMapping("/api/goal")
+@RequiredArgsConstructor
+public class GoalMilestoneController {
+
+    private final GoalMilestoneService goalMilestoneService;
+
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
+    @Operation(summary = "创建目标")
+    @PostMapping("/create")
+    public Result<GoalMilestoneVO> create(@Validated @RequestBody GoalMilestoneDTO dto,
+                                           @RequestAttribute("userId") Long userId) {
+        return Result.success(goalMilestoneService.create(userId, dto));
+    }
+
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
+    @Operation(summary = "更新目标")
+    @PutMapping("/update")
+    public Result<GoalMilestoneVO> update(@Validated @RequestBody GoalMilestoneDTO dto,
+                                           @RequestAttribute("userId") Long userId) {
+        return Result.success(goalMilestoneService.update(userId, dto));
+    }
+
+    @RateLimit(time = 60, count = 5)
+    @NoRepeatSubmit
+    @Operation(summary = "删除目标")
+    @DeleteMapping("/{goalId}")
+    public Result<Void> delete(@PathVariable Long goalId,
+                                @RequestAttribute("userId") Long userId) {
+        goalMilestoneService.delete(userId, goalId);
+        return Result.success();
+    }
+
+    @Operation(summary = "获取目标列表")
+    @GetMapping("/list")
+    public Result<List<GoalMilestoneVO>> list(@RequestAttribute("userId") Long userId) {
+        return Result.success(goalMilestoneService.list(userId));
+    }
+
+    @Operation(summary = "获取目标详情")
+    @GetMapping("/{goalId}")
+    public Result<GoalMilestoneVO> getById(@PathVariable Long goalId,
+                                            @RequestAttribute("userId") Long userId) {
+        return Result.success(goalMilestoneService.getById(userId, goalId));
+    }
+
+    @RateLimit(time = 60, count = 5)
+    @Operation(summary = "更新目标状态 (完成/放弃)")
+    @PutMapping("/{goalId}/status")
+    public Result<GoalMilestoneVO> updateStatus(@PathVariable Long goalId,
+                                                 @RequestBody Map<String, String> body,
+                                                 @RequestAttribute("userId") Long userId) {
+        String statusStr = body.get("status");
+        if (statusStr == null || statusStr.trim().isEmpty()) {
+            return Result.error(400, "status 不能为空");
+        }
+        int status;
+        try {
+            status = Integer.parseInt(statusStr);
+        } catch (NumberFormatException e) {
+            return Result.error(400, "status 必须为有效整数");
+        }
+        if (status < 0 || status > 5) {
+            return Result.error(400, "status 必须在 0-5 之间");
+        }
+        return Result.success(goalMilestoneService.updateStatus(userId, goalId, status));
+    }
+}

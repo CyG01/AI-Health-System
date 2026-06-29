@@ -1,0 +1,59 @@
+{
+  "skill": "audit",
+  "generated_at": "2026-06-12T16:30:00+08:00",
+  "project_name": "AI健康管理系统",
+  "target": {
+    "type": "code",
+    "reference": "E:\\pc-java\\AI-Health-System\\frontend",
+    "pages_audited": ["Dashboard", "Food Record", "Exercise Record", "Checkin Calendar", "Blood Sugar", "Sleep Record", "Water Record", "Statistics", "Plan List/Detail/Generate", "Login/Register", "Admin Pages", "MainLayout", "Global CSS"]
+  },
+  "audit_framework": ["Nielsen-10", "responsive", "performance"],
+  "findings": [
+    {"id":"audit-1","heuristic":"visibility","severity":"major","description":"Dashboard首页无加载状态，8个并发API请求无任何loading/skeleton反馈","evidence":"views/Dashboard.vue — Promise.allSettled发起8个请求，无v-loading或SkeletonScreen","suggestion":"使用已有SkeletonScreen组件做骨架屏，按卡片粒度渐进加载","effort":"medium"},
+    {"id":"audit-2","heuristic":"visibility","severity":"major","description":"记录类页面数据表无空状态引导","evidence":"views/food/Record.vue, exercise/Record.vue, health/BloodSugar.vue, water/Record.vue — 新用户看到空表格","suggestion":"封装EmptyState共享组件，带操作引导文案","effort":"medium"},
+    {"id":"audit-3","heuristic":"visibility","severity":"minor","description":"全局进度条为二元状态，无法区分加载阶段","evidence":"App.vue + stores/app.js — pageLoading只有true/false","suggestion":"对Dashboard等重量级页面使用骨架屏替代二元loading","effort":"quick-win"},
+    {"id":"audit-4","heuristic":"visibility","severity":"major","description":"饮水记录图表数据不刷新","evidence":"views/water/Record.vue — initChart()仅在onMounted调用一次","suggestion":"将initChart()加入watch或在数据变更后调用chart.setOption()","effort":"quick-win"},
+    {"id":"audit-5","heuristic":"real-world-match","severity":"minor","description":"导出PDF实际导出HTML","evidence":"views/plan/Detail.vue — 按钮文案'导出PDF'但生成HTML blob","suggestion":"接入jsPDF或修改按钮文案为'打印预览'","effort":"medium"},
+    {"id":"audit-6","heuristic":"user-control","severity":"minor","description":"表单离开无未保存提醒","evidence":"所有数据录入页面 — 误操作关闭页面时数据静默丢失","suggestion":"实现dirty-state检测 + beforeRouteLeave守卫","effort":"medium"},
+    {"id":"audit-7","heuristic":"consistency","severity":"blocker","description":"三套色彩体系共存","evidence":"global.scss定义--color-primary:#58a6ff; Dashboard.vue使用#1890ff(Ant Design); 错误页面使用#409eff(Element Plus)","suggestion":"统一为design tokens，全局替换所有硬编码色值","effort":"major-rework"},
+    {"id":"audit-8","heuristic":"consistency","severity":"major","description":"无间距比例系统","evidence":"global.scss — 16px/20px/24px混用无统一规范","suggestion":"定义spacing tokens并全站替换","effort":"medium"},
+    {"id":"audit-9","heuristic":"consistency","severity":"major","description":"无字体阶梯系统","evidence":"global.scss — 仅2个text token，无h1-h6/body/caption字号","suggestion":"定义type scale tokens","effort":"medium"},
+    {"id":"audit-10","heuristic":"consistency","severity":"major","description":"表单验证模式不一致","evidence":"Auth页面用el-form :rules(blur验证); 数据录入页面用手动if检查(仅提交时验证)","suggestion":"所有表单统一使用el-form :rules + trigger:'blur'","effort":"medium"},
+    {"id":"audit-11","heuristic":"consistency","severity":"minor","description":"管理后台表单验证模式也不一致","evidence":"admin/FoodManage.vue等使用ElMessage.warning手动检查","suggestion":"统一到el-form :rules模式","effort":"quick-win"},
+    {"id":"audit-12","heuristic":"error-prevention","severity":"major","description":"数据录入表单无inline校验","evidence":"food/exercise/bloodSugar/sleep/water页面 — 提交后才知道必填项缺失","suggestion":"为每个表单添加:rules定义，trigger设为blur","effort":"medium"},
+    {"id":"audit-13","heuristic":"error-prevention","severity":"minor","description":"补卡日期无可视提示","evidence":"views/checkin/Calendar.vue — 过去7天可补卡但无视觉标记","suggestion":"添加虚线边框或'补'字角标","effort":"quick-win"},
+    {"id":"audit-14","heuristic":"error-prevention","severity":"minor","description":"血糖趋势图markPoints死代码","evidence":"views/health/BloodSugar.vue — 计算了markPoints但未传入chart","suggestion":"传入ECharts series.markPoint配置","effort":"quick-win"},
+    {"id":"audit-15","heuristic":"recognition","severity":"minor","description":"无面包屑导航","evidence":"全站 — 二级页面(/plan/:id等)无路径回溯","suggestion":"在MainLayout header添加Breadcrumb组件","effort":"quick-win"},
+    {"id":"audit-16","heuristic":"flexibility","severity":"minor","description":"无键盘快捷键","evidence":"全站 — 无全局快捷键","suggestion":"实现Command Palette(Cmd+K)","effort":"medium"},
+    {"id":"audit-17","heuristic":"flexibility","severity":"minor","description":"亮色主题未实现","evidence":"utils/theme.js — 有切换逻辑但亮色tokens未定义","suggestion":"补齐html:not(.dark)下的所有CSS变量","effort":"medium"},
+    {"id":"audit-18","heuristic":"aesthetic","severity":"major","description":"Dashboard信息密度过高","evidence":"views/Dashboard.vue 707行，首屏5+视觉焦点","suggestion":"拆分为3-4个组件，推荐区懒加载","effort":"major-rework"},
+    {"id":"audit-19","heuristic":"aesthetic","severity":"minor","description":"GlobalCopilotDrawer单文件1253行","evidence":"components/GlobalCopilotDrawer.vue — 混合SSE/UI/会话管理","suggestion":"拆分为CopilotChat/Session/Streaming子组件","effort":"medium"},
+    {"id":"audit-20","heuristic":"aesthetic","severity":"minor","description":"Dashboard图表未复用BaseChart组件","evidence":"views/Dashboard.vue — 直接echarts.init()，重复resize/dispose","suggestion":"替换为BaseChart组件","effort":"quick-win"},
+    {"id":"audit-21","heuristic":"error-recovery","severity":"blocker","description":"ErrorBoundary组件未部署","evidence":"components/ErrorBoundary.vue已实现完整但零引用","suggestion":"在App.vue中包裹<router-view>","effort":"quick-win"},
+    {"id":"audit-22","heuristic":"error-recovery","severity":"major","description":"Statistics页面用Promise.all而非allSettled","evidence":"views/statistics/Dashboard.vue — 9个API任一失败全部崩溃","suggestion":"改用Promise.allSettled，每个图表独立处理","effort":"quick-win"},
+    {"id":"audit-23","heuristic":"error-recovery","severity":"major","description":"大量catch块为空(静默吞错误)","evidence":"Dashboard.vue 'catch{/*静默处理*/}', 多个页面loadData的catch","suggestion":"统一catch策略 — 显示inline error + retry按钮","effort":"medium"},
+    {"id":"audit-24","heuristic":"error-recovery","severity":"minor","description":"无请求重试机制","evidence":"utils/request.js — SSE有重试但常规API无重试","suggestion":"对GET请求添加1-2次自动重试","effort":"quick-win"},
+    {"id":"audit-25","heuristic":"help-docs","severity":"major","description":"无新手引导Onboarding","evidence":"全站 — 新用户注册后直接进入空白Dashboard","suggestion":"实现3-5步引导流程","effort":"major-rework"},
+    {"id":"audit-26","heuristic":"help-docs","severity":"minor","description":"复杂功能缺少inline帮助","evidence":"血糖测量类型说明、运动指导、AI计划调整","suggestion":"添加tooltip或popover说明","effort":"quick-win"},
+    {"id":"audit-27","heuristic":"responsive","severity":"blocker","description":"body min-width:1366px阻断移动端","evidence":"styles/global.scss:55 — 强制最小视口1366px","suggestion":"删除min-width约束，逐页适配移动端","effort":"major-rework"},
+    {"id":"audit-28","heuristic":"responsive","severity":"major","description":"页面级组件无响应式布局","evidence":"所有views/ — 固定el-col span，无:xs/:sm断点；Calendar侧边栏硬编码340px","suggestion":"为所有el-row/el-col添加响应式断点","effort":"major-rework"},
+    {"id":"audit-29","heuristic":"responsive","severity":"major","description":"移动端侧边栏无遮罩层","evidence":"layout/MainLayout.vue — 无backdrop overlay，无click-outside关闭","suggestion":"添加遮罩层+click-outside行为","effort":"quick-win"},
+    {"id":"audit-30","heuristic":"performance","severity":"minor","description":"SkeletonScreen组件已构建但未使用","evidence":"components/SkeletonScreen.vue — 有shimmer动画但零引用","suggestion":"部署到Dashboard/Statistics/列表页","effort":"quick-win"},
+    {"id":"audit-31","heuristic":"performance","severity":"minor","description":"Checkin Calendar heatmap未正确销毁","evidence":"views/checkin/Calendar.vue — 每次loadData重新init但不dispose","suggestion":"使用BaseChart组件或手动dispose","effort":"quick-win"}
+  ],
+  "opportunities": [
+    {"title":"建立统一设计系统（Design Tokens + 组件库）","addresses_findings":["audit-7","audit-8","audit-9","audit-10","audit-17"],"priority":"high","rationale":"三套色彩体系共存，无间距/字体比例，无共享基础组件。这是所有视觉不一致的根因，影响全站每一个页面。"},
+    {"title":"修复移动端可用性（从完全不可用到基本可用）","addresses_findings":["audit-27","audit-28","audit-29"],"priority":"high","rationale":"min-width:1366px直接让所有移动端适配成为死代码。健康管理类产品移动端使用占比通常60%+，Blocker级问题。"},
+    {"title":"重做Dashboard首页体验","addresses_findings":["audit-1","audit-2","audit-18","audit-21","audit-23"],"priority":"high","rationale":"Dashboard是登录后第一个页面，8个API无加载反馈，错误全部静默。作为产品门面需要骨架屏+渐进加载+空状态引导。"},
+    {"title":"统一数据录入表单体验","addresses_findings":["audit-10","audit-12","audit-2","audit-13","audit-14"],"priority":"medium","rationale":"饮食/运动/血糖/睡眠/饮水5个核心录入页面的表单验证、空状态、错误提示各不相同，且全部缺少inline validation。"},
+    {"title":"建立错误处理与恢复机制","addresses_findings":["audit-21","audit-22","audit-23","audit-24"],"priority":"medium","rationale":"ErrorBoundary未部署，大量空catch块，Statistics用Promise.all导致一败全崩。用户遇到错误时无法重试。"},
+    {"title":"补齐无障碍基础（ARIA + 键盘导航）","addresses_findings":["audit-27","audit-28","audit-29"],"priority":"medium","rationale":"全站零aria-label，零alt text。健康类产品老年用户多，WCAG合规是法规风险。"},
+    {"title":"完善新手引导与帮助体系","addresses_findings":["audit-25","audit-26"],"priority":"low","rationale":"无onboarding流程、无inline帮助。健康类产品用户认知门槛高。"}
+  ],
+  "summary": {
+    "total_findings": 31,
+    "by_severity": {"blocker": 3, "major": 16, "minor": 12},
+    "by_heuristic": {"visibility": 4, "real-world-match": 1, "user-control": 1, "consistency": 5, "error-prevention": 3, "recognition": 1, "flexibility": 2, "aesthetic": 3, "error-recovery": 4, "help-docs": 2, "responsive": 3, "performance": 2},
+    "top_opportunities": ["建立统一设计系统", "修复移动端可用性", "重做Dashboard首页体验"]
+  }
+}
