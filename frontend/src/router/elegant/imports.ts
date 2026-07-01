@@ -54,6 +54,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   plan_detail: () => import("@/views/plan/detail/index.vue"),
   plan_generate: () => import("@/views/plan/generate/index.vue"),
   plan_list: () => import("@/views/plan/list/index.vue"),
+  settings_accessibility: () => import("@/views/settings/accessibility/index.vue"),
   "settings_notification-preference": () => import("@/views/settings/notification-preference/index.vue"),
   settings_privacy: () => import("@/views/settings/privacy/index.vue"),
   sleep_record: () => import("@/views/sleep/record/index.vue"),

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>离线模式 - AI 健康系统</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 24px;
+    }
+    .offline-icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 24px;
+      opacity: 0.6;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #58a6ff;
+    }
+    p {
+      font-size: 15px;
+      color: #8b949e;
+      text-align: center;
+      max-width: 400px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .retry-btn {
+      padding: 10px 28px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      background: #21262d;
+      color: #58a6ff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .retry-btn:hover {
+      background: #30363d;
+      border-color: #58a6ff;
+    }
+    .status {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #8b949e;
+    }
+    .status.online { color: #3fb950; }
+  </style>
+</head>
+<body>
+  <svg class="offline-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #8b949e">
+    <path d="M24 8.31c-2.47-3.41-6.41-5.66-10.86-6.19V0h-2.28v2.13C6.41 2.66 2.47 4.91 0 8.31l1.67 1.22C3.98 6.33 7.73 4.28 12 4.28s8.02 2.05 10.33 5.25L24 8.31zM12 19.72c-3.31 0-6.23-1.6-8.08-4.08l-1.67 1.22C4.56 19.95 8.06 22 12 22s7.44-2.05 9.75-5.14l-1.67-1.22c-1.85 2.48-4.77 4.08-8.08 4.08zm0-8.44c-2.17 0-4.08 1.09-5.19 2.76l1.67 1.22c.77-1.04 2.01-1.72 3.41-1.72s2.64.68 3.41 1.72l1.67-1.22c-1.11-1.67-3.02-2.76-5.19-2.76z"/>
+  </svg>
+  <h1>当前处于离线模式</h1>
+  <p>网络连接已断开。部分功能可能无法使用，但您仍可查看已缓存的健康数据和最近的 AI 对话记录。</p>
+  <button class="retry-btn" onclick="location.reload()">重新连接</button>
+  <div class="status" id="status">检测网络状态中...</div>
+
+  <script>
+    // 实时检测网络恢复
+    function updateStatus() {
+      const el = document.getElementById('status');
+      if (navigator.onLine) {
+        el.textContent = '网络已恢复，正在刷新...';
+        el.classList.add('online');
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        el.textContent = '等待网络连接...';
+        el.classList.remove('online');
+      }
+    }
+
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+  </script>
+</body>
+</html>

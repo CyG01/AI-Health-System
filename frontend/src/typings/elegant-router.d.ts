@@ -71,6 +71,7 @@ declare module "@elegant-router/types" {
     "plan_generate": "/plan/generate";
     "plan_list": "/plan/list";
     "settings": "/settings";
+    "settings_accessibility": "/settings/accessibility";
     "settings_notification-preference": "/settings/notification-preference";
     "settings_privacy": "/settings/privacy";
     "sleep": "/sleep";
@@ -189,6 +190,7 @@ declare module "@elegant-router/types" {
     | "plan_detail"
     | "plan_generate"
     | "plan_list"
+    | "settings_accessibility"
     | "settings_notification-preference"
     | "settings_privacy"
     | "sleep_record"

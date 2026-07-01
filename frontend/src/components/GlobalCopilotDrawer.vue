@@ -1,7 +1,7 @@
 <template>
   <div class="copilot-wrapper">
     <!-- 悬浮 AI 按钮 -->
-    <div v-if="!appStore.copilotOpen" class="copilot-fab" @click="handleOpen">
+    <div v-if="!appStore.copilotOpen" class="copilot-fab" @click="handleOpen" data-onboarding="copilot-fab">
       <div class="fab-inner">
         <svg class="fab-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0-1.41 0L1.29 18.96c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05c.39-.39.39-1.02 0-1.41l-2.33-2.35z"/></svg>
         <span class="fab-label">AI助手</span>
@@ -11,7 +11,7 @@
 
     <!-- 底部抽屉 -->
     <transition name="drawer-slide">
-      <div v-if="appStore.copilotOpen" class="copilot-drawer">
+      <div v-if="appStore.copilotOpen" class="copilot-drawer" :class="{ 'mobile-sheet': isMobile }">
         <!-- 头部 -->
         <div class="drawer-header">
           <div class="handle-bar" />
@@ -68,7 +68,7 @@
         </div>
 
         <!-- 消息区 -->
-        <div class="drawer-messages" ref="messagesRef">
+        <div class="drawer-messages" ref="messagesRef" v-auto-animate>
           <div v-if="messages.length === 0 && !streaming" class="welcome-tip">
             <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36" style="color: var(--chart-sky)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
             <p>你好！我是AI智能助手</p>
@@ -96,38 +96,37 @@
             </div>
             <div class="message-bubble-wrapper">
               <div class="message-bubble">
+                <img v-if="msg.image" :src="msg.image" class="msg-image" alt="用户上传图片" />
                 <div class="message-text" v-html="formatContent(msg.content)"></div>
               </div>
 
-              <!-- SDUI plan_card 固化按钮 -->
+              <!-- SDUI dynamic widget renderer -->
               <ErrorBoundary
-                v-if="msg.sdui?.type === 'plan_card'"
-                fallbackTitle="计划卡片渲染异常"
-                fallbackMessage="AI 返回的计划数据格式有误"
+                v-if="msg.sdui"
+                fallbackTitle="组件渲染异常"
+                fallbackMessage="AI 返回的数据格式有误"
               >
-                <div class="sdui-plan-card">
-                  <div class="sdui-plan-header">
-                    <h4>{{ msg.sdui.planName }}</h4>
-                    <NButton size="small" type="primary" @click="handleApplyPlan(msg.sdui!)">
-                      固化到我的计划
-                    </NButton>
-                  </div>
-                  <div class="sdui-plan-preview">
-                    <span>{{ msg.sdui.durationDays }}天 · {{ msg.sdui.planType }}</span>
-                    <span>{{ msg.sdui.totalExercises }}个动作</span>
-                  </div>
-                </div>
+                <SduiRenderer :widget="msg.sdui" />
               </ErrorBoundary>
 
-              <!-- AI 回复操作按钮 -->
+              <!-- Progressive SDUI: show partial widget during streaming -->
+              <ErrorBoundary
+                v-if="streaming && progressiveSdui && idx === messages.length - 1"
+                fallbackTitle="图表加载中"
+                fallbackMessage="数据正在生成..."
+              >
+                <SduiRenderer :widget="progressiveSdui" />
+              </ErrorBoundary>
+
+              <!-- AI 回复操作按钮 + RLHF 反馈 -->
               <div v-if="msg.role === 'assistant' && msg.content && !msg.sdui" class="message-actions">
                 <NButton text size="small" @click="handleRegenerate(msg)" title="重新生成">重新生成</NButton>
-                <NButton text size="small" @click="handleFeedback(msg, 'useful')" title="有用">
-                  <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" :style="{ color: msg.feedback === 'useful' ? 'var(--color-success)' : '' }"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></template>
-                </NButton>
-                <NButton text size="small" @click="handleFeedback(msg, 'useless')" title="没用">
-                  <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" :style="{ color: msg.feedback === 'useless' ? 'var(--color-danger)' : '' }"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg></template>
-                </NButton>
+                <RlhfFeedback
+                  v-if="msg.messageId"
+                  :messageId="msg.messageId"
+                  :aiContent="msg.content"
+                  @feedback="(payload) => handleRlhfFeedback(msg, payload)"
+                />
               </div>
             </div>
           </div>
@@ -169,6 +168,23 @@
 
         <!-- 输入区 -->
         <div class="drawer-input">
+          <!-- 图片预览 -->
+          <div v-if="pendingImage" class="image-preview-bar">
+            <img :src="pendingImage" alt="pending" />
+            <NButton text size="tiny" @click="clearPendingImage" title="移除图片">
+              <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></template>
+            </NButton>
+          </div>
+          <input ref="fileInputRef" type="file" accept="image/*" capture="environment" style="display:none" @change="handleFileSelected" />
+          <NButton
+            class="photo-btn"
+            circle
+            @click="triggerFileInput"
+            title="拍照/选图"
+            data-onboarding="photo-btn"
+          >
+            <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg></template>
+          </NButton>
           <NInput
             v-model:value="inputText"
             :placeholder="inputPlaceholder"
@@ -192,7 +208,7 @@
           <NButton
             type="primary"
             :loading="streaming"
-            :disabled="!inputText.trim() || streaming"
+            :disabled="(!inputText.trim() && !pendingImage) || streaming"
             @click="handleSend"
           >{{ streaming ? '' : '发送' }}</NButton>
         </div>
@@ -207,13 +223,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onBeforeUnmount, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NTag, NInput, NAlert, useMessage, useDialog } from 'naive-ui';
+import { useMediaQuery } from '@vueuse/core';
+import { vAutoAnimate } from '@formkit/auto-animate/vue';
 import ErrorBoundary from '@/components/ErrorBoundary.vue';
+import SduiRenderer from '@/components/SduiRenderer.vue';
+import RlhfFeedback from '@/components/RlhfFeedback.vue';
 import { sanitizeHtml } from '@/utils/sanitize';
 import { cacheChatMessages } from '@/utils/offlineCache';
 import { createSSEStream } from '@/utils/sseClient';
+import { ProgressiveJsonParser } from '@/utils/progressiveJsonParser';
+import { captureSduiError } from '@/utils/telemetry';
 import { fetchCreateSession, fetchGetSessionList, fetchGetMessages, fetchDeleteSession } from '@/service/api';
 import { fetchSolidifyPlan } from '@/service/api';
 import { fetchGetLatestHealth } from '@/service/api';
@@ -227,10 +249,17 @@ defineOptions({ name: 'GlobalCopilotDrawer' });
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  sdui?: SduiPlanCard;
+  sdui?: Sdui.Widget;
   feedback?: 'useful' | 'useless' | null;
+  image?: string;
+  messageId?: string | number;
 }
 
+/** Progressive SDUI parser for streaming rendering */
+const progressiveParser = new ProgressiveJsonParser();
+const progressiveSdui = ref<Sdui.Widget | null>(null);
+
+/** @deprecated kept for backward compat in loadMessages */
 interface SduiPlanCard {
   type: 'plan_card';
   planName: string;
@@ -287,6 +316,9 @@ const dialog = useDialog();
 const appStore = useAppStore();
 const planStore = usePlanStore();
 
+// Mobile detection for responsive bottom sheet
+const isMobile = useMediaQuery('(max-width: 640px)');
+
 // === State ===
 const showSessionList = ref(false);
 const streaming = ref(false);
@@ -304,6 +336,34 @@ const sseRetryCount = ref(0);
 let sseTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let lastRequestData: Record<string, unknown> | null = null;
 let lastEndpoint: string = '/chat/send';
+
+// === Image / multimodal ===
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const pendingImage = ref<string | null>(null);
+
+function triggerFileInput() {
+  fileInputRef.value?.click();
+}
+
+function handleFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    message.warning('图片不能超过5MB');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingImage.value = reader.result as string;
+  };
+  reader.readAsDataURL(file);
+  input.value = ''; // reset so same file can be re-selected
+}
+
+function clearPendingImage() {
+  pendingImage.value = null;
+}
 
 // === Context awareness ===
 const contextInfo = computed<ContextInfo | null>(() => {
@@ -497,16 +557,19 @@ function handleQuickAction(action: QuickAction) {
 
 async function handleSend() {
   const text = inputText.value.trim();
-  if (!text || streaming.value || !currentSessionId.value) return;
+  const image = pendingImage.value;
+  if ((!text && !image) || streaming.value || !currentSessionId.value) return;
 
   if (currentSseAbort) {
     currentSseAbort.abort();
     currentSseAbort = null;
   }
 
-  messages.value.push({ role: 'user', content: text });
+  const userMsg: ChatMessage = { role: 'user', content: text || '[图片]', image: image || undefined };
+  messages.value.push(userMsg);
   cacheChatMessages(currentSessionId.value, messages.value as unknown as Record<string, unknown>[]);
   inputText.value = '';
+  pendingImage.value = null;
   streaming.value = true;
   streamingText.value = '';
   progressChars.value = 0;
@@ -576,8 +639,9 @@ async function handleSend() {
 
   const requestData = {
     sessionId: currentSessionId.value,
-    content: text,
-    context: contextPayload
+    content: text || '[图片]',
+    context: contextPayload,
+    image: image || undefined
   };
   lastRequestData = requestData;
   lastEndpoint = endpoint;
@@ -597,10 +661,15 @@ function startSseStream(endpoint: string, requestData: Record<string, unknown>) 
         const toolCall = tryParseToolCall(streamingText.value);
         const sdui = tryParseSdui(streamingText.value);
 
+        // Reset progressive parser
+        progressiveParser.reset();
+        progressiveSdui.value = null;
+
         const assistantMsg: ChatMessage = {
           role: 'assistant',
           content: streamingText.value,
-          sdui: sdui || undefined
+          sdui: sdui || undefined,
+          messageId: Date.now()
         };
         messages.value.push(assistantMsg);
 
@@ -620,10 +689,22 @@ function startSseStream(endpoint: string, requestData: Record<string, unknown>) 
         streaming.value = false;
         streamingText.value = '';
         progressChars.value = 0;
+        progressiveParser.reset();
+        progressiveSdui.value = null;
         message.error('AI回复失败');
       } else {
         streamingText.value += delta;
         progressChars.value = (progressChars.value || 0) + (delta ? delta.length : 0);
+
+        // Progressive SDUI: try to parse incrementally
+        const parseResult = progressiveParser.feed(delta);
+        if (parseResult.complete) {
+          progressiveSdui.value = parseResult.complete;
+        } else if (parseResult.partial && parseResult.partial.type) {
+          // Show partial widget for progressive rendering
+          progressiveSdui.value = parseResult.partial as unknown as Sdui.Widget;
+        }
+
         nextTick(() => scrollToBottom());
       }
     },
@@ -698,12 +779,17 @@ function tryParseToolCall(text: string): ToolCall | null {
   return null;
 }
 
-function tryParseSdui(text: string): SduiPlanCard | null {
+function tryParseSdui(text: string): Sdui.Widget | null {
   try {
-    const match = text.match(/\{[\s\S]*?"type"\s*:\s*"plan_card"[\s\S]*?\}/);
-    if (match) return JSON.parse(match[0]);
-  } catch {
-    // not SDUI
+    const match = text.match(/\{[\s\S]*?"type"\s*:\s*"(\w+)"[\s\S]*?\}/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      if (parsed.type) return parsed as Sdui.Widget;
+    }
+  } catch (err) {
+    // Capture SDUI parse error for telemetry
+    const widgetType = text.match(/"type"\s*:\s*"(\w+)"/)?.[1] || 'unknown';
+    captureSduiError(widgetType, text.slice(0, 200), err instanceof Error ? err : new Error(String(err)));
   }
   return null;
 }
@@ -783,6 +869,14 @@ function handleFeedback(msg: ChatMessage, type: 'useful' | 'useless') {
     msg.feedback = type;
   }
   message.success(type === 'useful' ? '感谢反馈！' : '已记录反馈');
+}
+
+/** Handle RLHF feedback from RlhfFeedback component */
+function handleRlhfFeedback(msg: ChatMessage, payload: { messageId: string | number; vote: 'up' | 'down'; aiContent?: string }) {
+  msg.feedback = payload.vote === 'up' ? 'useful' : 'useless';
+  // TODO: Call backend AI feedback API when available
+  // fetchAiFeedback({ messageId: payload.messageId, vote: payload.vote, content: payload.aiContent })
+  message.success('感谢反馈！');
 }
 
 // === Voice input (stub) ===
@@ -1021,9 +1115,17 @@ onBeforeUnmount(() => {
 .message-bubble {
   padding: 10px 14px;
   border-radius: 12px;
-  font-size: 14px;
+  font-size: calc(14px * var(--a11y-font-scale, 1));
   line-height: 1.6;
   word-break: break-word;
+  /* Micro-interaction: hover float + shadow */
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease;
+}
+
+.message-bubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .message-row.user .message-bubble {
@@ -1048,30 +1150,6 @@ onBeforeUnmount(() => {
 }
 
 .message-row.assistant:hover .message-actions { opacity: 1; }
-
-.sdui-plan-card {
-  margin-top: 8px;
-  padding: 12px;
-  background: rgba(88, 166, 255, 0.08);
-  border: 1px solid rgba(88, 166, 255, 0.2);
-  border-radius: 8px;
-}
-
-.sdui-plan-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.sdui-plan-header h4 { margin: 0; font-size: 14px; color: var(--sport-text-primary); }
-
-.sdui-plan-preview {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--sport-text-secondary);
-}
 
 .streaming .message-text { opacity: 0.9; }
 
@@ -1112,9 +1190,27 @@ onBeforeUnmount(() => {
   padding: 12px 16px;
   border-top: 1px solid var(--sport-bg-elevated);
   align-items: flex-end;
+  position: relative;
 }
 
 .voice-btn.recording { color: var(--color-danger); }
+
+.photo-btn { color: var(--sport-text-secondary); flex-shrink: 0; }
+.photo-btn:hover { color: var(--chart-sky); }
+
+.image-preview-bar {
+  display: flex; align-items: center; gap: 6px; padding: 4px 0;
+  position: absolute; bottom: 100%; left: 0; right: 0; padding-left: 12px;
+}
+.image-preview-bar img {
+  height: 48px; border-radius: 6px; border: 1px solid var(--sport-bg-elevated);
+  object-fit: cover;
+}
+
+.msg-image {
+  max-width: 200px; max-height: 160px; border-radius: 8px;
+  margin-bottom: 6px; display: block; object-fit: cover;
+}
 
 .drawer-disclaimer {
   text-align: center;
@@ -1125,4 +1221,51 @@ onBeforeUnmount(() => {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* ===== Mobile bottom sheet ===== */
+.copilot-drawer.mobile-sheet {
+  height: 75vh;
+  max-height: none;
+  border-radius: 16px 16px 0 0;
+}
+
+.copilot-drawer.mobile-sheet .handle-bar {
+  width: 48px;
+  height: 5px;
+  cursor: grab;
+  transition: background 0.2s;
+}
+
+.copilot-drawer.mobile-sheet .handle-bar:active {
+  cursor: grabbing;
+  background: var(--chart-sky);
+}
+
+.copilot-drawer.mobile-sheet .message-row {
+  max-width: 92%;
+}
+
+.copilot-drawer.mobile-sheet .drawer-input {
+  padding: 8px 12px;
+}
+
+/* ===== Accessibility: font scaling ===== */
+.copilot-drawer {
+  font-size: calc(1em * var(--a11y-font-scale, 1));
+}
+
+/* ===== Responsive: desktop drawer stays right-aligned ===== */
+@media (min-width: 641px) {
+  .copilot-drawer {
+    position: fixed;
+    bottom: 96px;
+    right: 24px;
+    left: auto;
+    width: 420px;
+    height: 65vh;
+    max-height: 700px;
+    border-radius: 16px;
+    border: 1px solid var(--sport-bg-elevated);
+  }
+}
 </style>

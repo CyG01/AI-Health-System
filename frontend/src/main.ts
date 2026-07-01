@@ -4,7 +4,25 @@ import { setupAppVersionNotification, setupDayjs, setupIconifyOffline, setupLoad
 import { setupStore } from './store'
 import { setupRouter } from './router'
 import { getLocale, setupI18n } from './locales'
+import { initTelemetry } from './utils/telemetry'
 import App from './App.vue'
+
+// Initialize frontend telemetry (error tracking) early
+initTelemetry();
+
+// Register PWA service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(
+      (registration) => {
+        console.info('[PWA] Service Worker registered, scope:', registration.scope);
+      },
+      (error) => {
+        console.warn('[PWA] Service Worker registration failed:', error);
+      }
+    );
+  });
+}
 
 async function setupApp() {
   setupLoading()

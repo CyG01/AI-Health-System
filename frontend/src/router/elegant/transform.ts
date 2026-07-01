@@ -217,6 +217,7 @@ const routeMap: RouteMap = {
   "plan_generate": "/plan/generate",
   "plan_list": "/plan/list",
   "settings": "/settings",
+  "settings_accessibility": "/settings/accessibility",
   "settings_notification-preference": "/settings/notification-preference",
   "settings_privacy": "/settings/privacy",
   "sleep": "/sleep",

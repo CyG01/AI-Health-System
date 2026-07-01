@@ -527,6 +527,15 @@ export const generatedRoutes: ElegantConstRoute[] = [
     },
     children: [
       {
+        name: 'settings_accessibility',
+        path: '/settings/accessibility',
+        component: 'view.settings_accessibility',
+        meta: {
+          title: 'settings_accessibility',
+          i18nKey: 'route.settings_accessibility'
+        }
+      },
+      {
         name: 'settings_notification-preference',
         path: '/settings/notification-preference',
         component: 'view.settings_notification-preference',

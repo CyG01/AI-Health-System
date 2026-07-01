@@ -20,6 +20,7 @@ import { Icon } from '@iconify/vue';
 import { useAppStore } from '@/store/modules/app';
 import { useAuthStore } from '@/store/modules/auth';
 import { useThemeStore } from '@/store/modules/theme';
+import FamilySwitcher from '@/components/FamilySwitcher.vue';
 
 defineOptions({ name: 'UserLayout' });
 
@@ -192,6 +193,9 @@ function toggleDark() {
             </template>
             <span>管理后台</span>
           </NTooltip>
+
+          <!-- Family member switcher -->
+          <FamilySwitcher />
 
           <!-- User avatar -->
           <NDropdown :options="userOptions" trigger="click" @select="handleUserSelect">

@@ -26,6 +26,8 @@ export const request = createFlatRequest(
     async onRequest(config) {
       const Authorization = getAuthorization();
       Object.assign(config.headers, { Authorization });
+      // Auto-inject browser timezone for Chronos Scheduler
+      Object.assign(config.headers, { 'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone });
 
       return config;
     },

@@ -11,6 +11,7 @@ export * from './dashboard';
 export * from './enterprise';
 export * from './exercise';
 export * from './export';
+export * from './family';
 export * from './food';
 export * from './goal';
 export * from './health';

@@ -51,6 +51,26 @@ export default defineConfig(configEnv => {
       sourcemap: viteEnv.VITE_SOURCE_MAP === 'Y',
       commonjsOptions: {
         ignoreTryCatch: false
+      },
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('/vue/') || id.includes('/vue-router/') || id.includes('/pinia/')) {
+                return 'vue-vendor';
+              }
+              if (id.includes('/naive-ui/')) {
+                return 'ui-vendor';
+              }
+              if (id.includes('/echarts/')) {
+                return 'chart-vendor';
+              }
+              if (id.includes('/@vueuse/core/') || id.includes('/dayjs/') || id.includes('/dompurify/')) {
+                return 'utils-vendor';
+              }
+            }
+          }
+        }
       }
     }
   };

@@ -1,1 +1,52 @@
 @forward 'scrollbar';
+
+/* ===== Accessibility: Global Font Scaling ===== */
+:root {
+  --a11y-font-scale: 1;
+}
+
+/* ===== Accessibility: High Contrast Mode ===== */
+.a11y-high-contrast {
+  --sport-text-primary: #ffffff;
+  --sport-text-secondary: #d0d7de;
+  --sport-text-tertiary: #8b949e;
+  --sport-bg-base: #000000;
+  --sport-bg-surface: #0d1117;
+  --sport-bg-elevated: #21262d;
+  --sport-border: #30363d;
+}
+
+.a11y-high-contrast body {
+  background: #000000;
+  color: #ffffff;
+}
+
+.a11y-high-contrast .message-bubble {
+  border-width: 2px;
+}
+
+.a11y-high-contrast .sdui-widget {
+  border-width: 2px;
+}
+
+/* ===== Accessibility: Reduce Motion ===== */
+.a11y-reduce-motion *,
+.a11y-reduce-motion *::before,
+.a11y-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Respect user's OS-level preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
