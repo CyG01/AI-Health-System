@@ -110,6 +110,7 @@
         :loading="historyLoading"
         :bordered="false"
         striped
+        :scroll-x="1100"
       />
     </NCard>
   </div>

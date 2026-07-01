@@ -10,7 +10,10 @@
     "dev:prod": "vite --mode prod",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit --skipLibCheck",
-    "gen-route": "sa gen-route"
+    "gen-route": "sa gen-route",
+    "lint": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,vue,css,scss,json}\"",
+    "prepare": "cd .. && husky frontend/.husky"
   },
   "dependencies": {
     "@better-scroll/core": "2.5.1",
@@ -40,6 +43,7 @@
   },
   "devDependencies": {
     "@elegant-router/vue": "0.3.8",
+    "@eslint/js": "^9.0.0",
     "@iconify/json": "2.2.472",
     "@sa/scripts": "workspace:*",
     "@sa/uno-preset": "workspace:*",
@@ -49,10 +53,15 @@
     "@vitejs/plugin-vue": "6.0.6",
     "@vitejs/plugin-vue-jsx": "5.1.5",
     "consola": "3.4.2",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^9.26.0",
+    "husky": "^9.0.0",
     "kolorist": "1.8.0",
+    "prettier": "^3.3.0",
     "sass": "1.99.0",
     "tsx": "4.21.0",
     "typescript": "6.0.3",
+    "typescript-eslint": "^8.0.0",
     "unocss": "^66.6.8",
     "unplugin-icons": "23.0.1",
     "unplugin-vue-components": "32.0.0",
@@ -61,10 +70,11 @@
     "vite-plugin-svg-icons": "2.0.1",
     "vite-plugin-vue-devtools": "8.1.2",
     "vite-plugin-vue-transition-root-validator": "^0.1.0",
+    "vue-eslint-parser": "^9.4.0",
     "vue-tsc": "3.2.8"
   },
   "engines": {
-    "node": ">=20.19.0",
-    "pnpm": ">=10.5.0"
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
   }
 }

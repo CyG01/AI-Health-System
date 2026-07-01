@@ -300,8 +300,8 @@ CREATE TABLE `sys_user`  (
   `is_deleted` tinyint NULL DEFAULT 0,
   `version` int NOT NULL DEFAULT 1 COMMENT '乐观锁版本号',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `username`(`username` ASC) USING BTREE,
-  UNIQUE INDEX `phone`(`phone` ASC) USING BTREE
+  UNIQUE INDEX `uk_username`(`username` ASC) USING BTREE,
+  UNIQUE INDEX `uk_phone`(`phone` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------

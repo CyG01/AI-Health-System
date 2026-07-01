@@ -1,6 +1,7 @@
 {
   "name": "@sa/alova",
   "version": "2.2.0",
+  "deprecated": "This package is unused dead code. The project exclusively uses @sa/axios. Safe to delete this directory.",
   "typesVersions": {
     "*": {
       "*": [

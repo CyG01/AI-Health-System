@@ -242,6 +242,7 @@
           :bordered="false"
           :row-key="(row: CheckinRecord) => row.id"
           striped
+          :scroll-x="1100"
         />
 
         <div v-if="historyTotal > 0" class="mt-4 flex justify-end">

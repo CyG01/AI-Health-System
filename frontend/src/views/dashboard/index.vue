@@ -3,6 +3,7 @@ import { computed, h, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NDataTable, NTag, NGrid, NGi, NIcon, NButton, NSpace } from 'naive-ui';
 import { Icon } from '@iconify/vue';
+import SkeletonScreen from '@/components/SkeletonScreen.vue';
 import { $t } from '@/locales';
 import {
   fetchGetLatestHealth,
@@ -324,7 +325,10 @@ onUnmounted(() => {
 
 <template>
   <div class="dashboard-page">
-    <NSpin :show="dataLoading">
+    <!-- Skeleton loading state -->
+    <SkeletonScreen v-if="dataLoading" :rows="8" />
+    <!-- Loaded content -->
+    <template v-else>
       <!-- Greeting Card -->
       <NCard v-if="greetingCard" class="greeting-card" :class="`card-${greetingCard.type || 'default'}`">
         <div class="greeting-content">
@@ -528,6 +532,7 @@ onUnmounted(() => {
               size="small"
               striped
               :bordered="false"
+              :scroll-x="1100"
             />
 
             <!-- Charts -->
@@ -601,6 +606,7 @@ onUnmounted(() => {
                 size="small"
                 striped
                 :bordered="false"
+                :scroll-x="1100"
               />
 
               <!-- Diet Comparison Chart -->
@@ -670,6 +676,7 @@ onUnmounted(() => {
                 size="small"
                 striped
                 :bordered="false"
+                :scroll-x="1100"
               />
             </template>
           </NTabPane>
@@ -795,7 +802,7 @@ onUnmounted(() => {
       <NCard v-if="recommends.aiSuggestions" :title="$t('page.dashboard.aiSuggestions')" class="section-card ai-suggestion-card">
         <p class="ai-suggestion-text" v-html="formatSuggestions(recommends.aiSuggestions as string)" />
       </NCard>
-    </NSpin>
+    </template>
   </div>
 </template>
 

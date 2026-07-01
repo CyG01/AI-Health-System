@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import {
   NCard,
   NGrid,
@@ -185,18 +185,26 @@ function initCharts() {
   }
 }
 
+function handleResize() {
+  userChart?.resize();
+  aiChart?.resize();
+  healthChart?.resize();
+}
+
 onMounted(() => {
   setTimeout(() => {
     loading.value = false;
     initCharts();
   }, 500);
 
-  // 响应式调整
-  window.addEventListener('resize', () => {
-    userChart?.resize();
-    aiChart?.resize();
-    healthChart?.resize();
-  });
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  userChart?.dispose();
+  aiChart?.dispose();
+  healthChart?.dispose();
 });
 </script>
 
@@ -261,6 +269,7 @@ onMounted(() => {
             :bordered="false"
             size="small"
             :pagination="false"
+            :scroll-x="1100"
           />
         </NCard>
       </NGridItem>

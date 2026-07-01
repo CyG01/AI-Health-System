@@ -132,8 +132,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public Result<Void> handleException(Exception e) {
-        log.error("未处理异常", e);
-        return Result.fail("系统繁忙，请稍后重试");
+    public Result<String> handleException(Exception e) {
+        // 1. 必须记录错误日志及堆栈，方便排查
+        log.error("【系统未捕获异常】", e);
+        // 2. 模糊化返回，绝不暴露敏感信息
+        return Result.fail(500, "服务器繁忙，请稍后再试");
     }
 }

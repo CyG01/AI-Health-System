@@ -68,7 +68,7 @@
 
       <!-- 历史记录 -->
       <NCard :title="$t('body.history') || '历史记录'">
-        <NDataTable :columns="historyColumns" :data="history" :loading="pageLoading" :bordered="false" :row-key="(row: BodyRecord) => row.id" />
+        <NDataTable :columns="historyColumns" :data="history" :loading="pageLoading" :bordered="false" :row-key="(row: BodyRecord) => row.id" :scroll-x="1100" />
       </NCard>
     </NSpin>
   </div>

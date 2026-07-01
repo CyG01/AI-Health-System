@@ -25,6 +25,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NCard, NSpin } from 'naive-ui';
 import { fetchCreateHealth, fetchUpdateHealth, fetchGetLatestHealth } from '@/service/api';
+import { useDirtyCheck } from '@/composables/useDirtyCheck';
 import HealthFormPanel from '../components/HealthFormPanel.vue';
 import type { HealthFormData } from '../components/HealthFormPanel.vue';
 
@@ -51,6 +52,8 @@ const form = reactive<HealthFormData>({
   dietHabit: ''
 });
 
+const { markClean } = useDirtyCheck(form);
+
 async function tryLoadLatest(): Promise<void> {
   try {
     const { data, error } = await fetchGetLatestHealth();
@@ -71,6 +74,8 @@ async function tryLoadLatest(): Promise<void> {
     form.exerciseHabit = data.exerciseHabit || '';
     form.dietHabit = data.dietHabit || '';
     isEdit.value = true;
+    // Reset dirty state after loading existing data
+    markClean();
   } catch {
     isEdit.value = false;
   }
@@ -113,6 +118,7 @@ async function handleSave(): Promise<void> {
       await fetchCreateHealth(payload);
       window.$message?.success('健康档案已创建');
     }
+    markClean();
     router.push('/health/view');
   } finally {
     saveLoading.value = false;

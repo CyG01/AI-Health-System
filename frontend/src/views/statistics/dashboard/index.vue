@@ -171,6 +171,7 @@
               :columns="todayTaskColumns"
               size="small"
               striped
+              :scroll-x="1100"
             />
           </NCard>
 
@@ -233,6 +234,7 @@
                 :columns="weekDailyColumns"
                 size="small"
                 striped
+                :scroll-x="1100"
               />
             </NCard>
 
@@ -315,6 +317,7 @@
                 :columns="monthWeeklyColumns"
                 size="small"
                 striped
+                :scroll-x="1100"
               />
             </NCard>
           </template>

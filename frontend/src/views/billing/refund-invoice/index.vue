@@ -92,6 +92,7 @@
                 :bordered="false"
                 striped
                 :max-height="400"
+                :scroll-x="1100"
               />
             </NCard>
           </NGi>

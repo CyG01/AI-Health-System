@@ -70,7 +70,7 @@
         <!-- 消息区 -->
         <div class="drawer-messages" ref="messagesRef">
           <div v-if="messages.length === 0 && !streaming" class="welcome-tip">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36" style="color: #58a6ff"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36" style="color: var(--chart-sky)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
             <p>你好！我是AI智能助手</p>
             <p class="sub-tip">{{ contextInfo ? `当前页面：${contextInfo.label}` : '可以问我任何关于健康、运动、饮食的问题' }}</p>
             <div v-if="!contextInfo" class="quick-questions">
@@ -123,10 +123,10 @@
               <div v-if="msg.role === 'assistant' && msg.content && !msg.sdui" class="message-actions">
                 <NButton text size="small" @click="handleRegenerate(msg)" title="重新生成">重新生成</NButton>
                 <NButton text size="small" @click="handleFeedback(msg, 'useful')" title="有用">
-                  <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" :style="{ color: msg.feedback === 'useful' ? '#3fb950' : '' }"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></template>
+                  <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" :style="{ color: msg.feedback === 'useful' ? 'var(--color-success)' : '' }"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></template>
                 </NButton>
                 <NButton text size="small" @click="handleFeedback(msg, 'useless')" title="没用">
-                  <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" :style="{ color: msg.feedback === 'useless' ? '#f85149' : '' }"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg></template>
+                  <template #icon><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" :style="{ color: msg.feedback === 'useless' ? 'var(--color-danger)' : '' }"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg></template>
                 </NButton>
               </div>
             </div>
@@ -837,13 +837,13 @@ onBeforeUnmount(() => {
 .fab-inner {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, #58a6ff, #7c3aed);
+  background: linear-gradient(135deg, var(--chart-sky), var(--sport-accent));
   border-radius: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--sport-text-primary);
   box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4);
   transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
@@ -883,8 +883,8 @@ onBeforeUnmount(() => {
   right: 0;
   height: 65vh;
   max-height: 700px;
-  background: var(--n-color, #0d1117);
-  border-top: 1px solid var(--n-border-color, #30363d);
+  background: var(--n-color, var(--sport-bg-base));
+  border-top: 1px solid var(--n-border-color, var(--sport-border));
   border-radius: 16px 16px 0 0;
   display: flex;
   flex-direction: column;
@@ -903,7 +903,7 @@ onBeforeUnmount(() => {
 .handle-bar {
   width: 40px;
   height: 4px;
-  background: #30363d;
+  background: var(--sport-border);
   border-radius: 2px;
   margin: 8px auto 4px;
 }
@@ -913,7 +913,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px 12px;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--sport-bg-elevated);
 }
 
 .header-left { display: flex; align-items: center; gap: 8px; }
@@ -921,13 +921,13 @@ onBeforeUnmount(() => {
 .header-dot {
   width: 8px;
   height: 8px;
-  background: #484f58;
+  background: var(--sport-text-tertiary);
   border-radius: 50%;
 }
 
-.header-dot.active { background: #3fb950; }
+.header-dot.active { background: var(--color-success); }
 
-.header-title { font-weight: 600; font-size: 15px; color: #e6edf3; }
+.header-title { font-weight: 600; font-size: 15px; color: var(--sport-text-primary); }
 
 .header-right { display: flex; align-items: center; gap: 4px; }
 
@@ -936,7 +936,7 @@ onBeforeUnmount(() => {
 .session-list {
   max-height: 120px;
   overflow-y: auto;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--sport-bg-elevated);
   padding: 4px 0;
 }
 
@@ -954,7 +954,7 @@ onBeforeUnmount(() => {
 
 .session-title {
   font-size: 13px;
-  color: #8b949e;
+  color: var(--sport-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -982,12 +982,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: #8b949e;
+  color: var(--sport-text-secondary);
   text-align: center;
 }
 
-.welcome-tip p { margin: 8px 0 0; font-size: 15px; color: #e6edf3; }
-.welcome-tip .sub-tip { font-size: 13px; color: #8b949e; }
+.welcome-tip p { margin: 8px 0 0; font-size: 15px; color: var(--sport-text-primary); }
+.welcome-tip .sub-tip { font-size: 13px; color: var(--sport-text-secondary); }
 
 .quick-questions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; justify-content: center; }
 
@@ -1010,11 +1010,11 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
-  background: #21262d;
-  color: #e6edf3;
+  background: var(--sport-bg-elevated);
+  color: var(--sport-text-primary);
 }
 
-.message-row.user .message-avatar { background: #58a6ff; color: #fff; }
+.message-row.user .message-avatar { background: var(--chart-sky); color: var(--sport-text-primary); }
 
 .message-bubble-wrapper { flex: 1; min-width: 0; }
 
@@ -1027,15 +1027,15 @@ onBeforeUnmount(() => {
 }
 
 .message-row.user .message-bubble {
-  background: #58a6ff;
-  color: #fff;
+  background: var(--chart-sky);
+  color: var(--sport-text-primary);
   border-bottom-right-radius: 4px;
 }
 
 .message-row.assistant .message-bubble {
-  background: #161b22;
-  color: #e6edf3;
-  border: 1px solid #21262d;
+  background: var(--sport-bg-surface);
+  color: var(--sport-text-primary);
+  border: 1px solid var(--sport-bg-elevated);
   border-bottom-left-radius: 4px;
 }
 
@@ -1064,20 +1064,20 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
 }
 
-.sdui-plan-header h4 { margin: 0; font-size: 14px; color: #e6edf3; }
+.sdui-plan-header h4 { margin: 0; font-size: 14px; color: var(--sport-text-primary); }
 
 .sdui-plan-preview {
   display: flex;
   gap: 12px;
   font-size: 12px;
-  color: #8b949e;
+  color: var(--sport-text-secondary);
 }
 
 .streaming .message-text { opacity: 0.9; }
 
 .cursor-blink {
   animation: blink 1s step-end infinite;
-  color: #58a6ff;
+  color: var(--chart-sky);
 }
 
 @keyframes blink {
@@ -1090,13 +1090,13 @@ onBeforeUnmount(() => {
   gap: 6px;
   margin-top: 6px;
   font-size: 12px;
-  color: #8b949e;
+  color: var(--sport-text-secondary);
 }
 
 .progress-dot {
   width: 6px;
   height: 6px;
-  background: #58a6ff;
+  background: var(--chart-sky);
   border-radius: 50%;
   animation: pulse-dot 1.5s infinite;
 }
@@ -1110,16 +1110,16 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #21262d;
+  border-top: 1px solid var(--sport-bg-elevated);
   align-items: flex-end;
 }
 
-.voice-btn.recording { color: #f85149; }
+.voice-btn.recording { color: var(--color-danger); }
 
 .drawer-disclaimer {
   text-align: center;
   font-size: 11px;
-  color: #484f58;
+  color: var(--sport-text-tertiary);
   padding: 6px 16px 10px;
 }
 

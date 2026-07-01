@@ -158,7 +158,7 @@ function toggleDark() {
           <!-- Dark mode toggle -->
           <NTooltip placement="bottom">
             <template #trigger>
-              <NButton text class="action-btn" @click="toggleDark">
+              <NButton text class="action-btn" aria-label="切换暗黑模式" @click="toggleDark">
                 <NIcon size="20">
                   <Icon :icon="isDark ? 'mdi:white-balance-sunny' : 'mdi:weather-night'" />
                 </NIcon>
@@ -170,7 +170,7 @@ function toggleDark() {
           <!-- Notifications -->
           <NTooltip placement="bottom">
             <template #trigger>
-              <NButton text class="action-btn" @click="router.push('/notification/notification-list')">
+              <NButton text class="action-btn" aria-label="通知" @click="router.push('/notification/notification-list')">
                 <NBadge :value="5" type="error" :max="99">
                   <NIcon size="20">
                     <Icon icon="mdi:bell-outline" />
@@ -184,7 +184,7 @@ function toggleDark() {
           <!-- Admin shortcut -->
           <NTooltip v-if="isAdmin" placement="bottom">
             <template #trigger>
-              <NButton text class="action-btn admin-btn" @click="goToAdmin">
+              <NButton text class="action-btn admin-btn" aria-label="管理后台" @click="goToAdmin">
                 <NIcon size="20">
                   <Icon icon="mdi:shield-crown" />
                 </NIcon>
@@ -207,7 +207,7 @@ function toggleDark() {
           </NDropdown>
 
           <!-- Mobile menu -->
-          <NButton v-if="appStore.isMobile" text class="mobile-menu-btn" @click="mobileMenuShow = true">
+          <NButton v-if="appStore.isMobile" text class="mobile-menu-btn" aria-label="打开菜单" @click="mobileMenuShow = true">
             <NIcon size="24">
               <Icon icon="mdi:menu" />
             </NIcon>

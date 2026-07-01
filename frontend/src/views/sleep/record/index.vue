@@ -106,6 +106,7 @@
         :loading="pageLoading"
         :bordered="false"
         striped
+        :scroll-x="1100"
       />
     </NCard>
   </div>

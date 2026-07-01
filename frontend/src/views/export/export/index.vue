@@ -67,6 +67,7 @@
         :bordered="false"
         striped
         size="small"
+        :scroll-x="1100"
       />
     </NCard>
   </div>

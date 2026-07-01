@@ -33,7 +33,7 @@
 
     <!-- Model Status -->
     <NCard title="模型状态">
-      <NDataTable :columns="modelColumns" :data="modelRows" :loading="modelLoading" size="small" />
+      <NDataTable :columns="modelColumns" :data="modelRows" :loading="modelLoading" size="small" :scroll-x="1100" />
     </NCard>
 
     <!-- Circuit Breaker Status -->
@@ -82,7 +82,7 @@
 
       <!-- Prompt History -->
       <NCard v-if="promptHistory.length" title="版本历史" size="small" class="mt-3">
-        <NDataTable :columns="historyColumns" :data="promptHistory" size="small" />
+        <NDataTable :columns="historyColumns" :data="promptHistory" size="small" :scroll-x="1100" />
       </NCard>
 
       <!-- A/B Test -->
@@ -131,7 +131,7 @@
 
       <!-- Running Canaries -->
       <NCard v-if="runningCanaries.length" title="进行中的灰度发布" size="small" class="mt-3">
-        <NDataTable :columns="runningCanaryColumns" :data="runningCanaries" size="small" />
+        <NDataTable :columns="runningCanaryColumns" :data="runningCanaries" size="small" :scroll-x="1100" />
       </NCard>
     </NCard>
 
@@ -143,7 +143,7 @@
           <NButton size="small" @click="loadAlerts" :loading="alertLoading">查询</NButton>
         </NSpace>
       </template>
-      <NDataTable :columns="alertColumns" :data="alerts" :loading="alertLoading" size="small" />
+      <NDataTable :columns="alertColumns" :data="alerts" :loading="alertLoading" size="small" :scroll-x="1100" />
     </NCard>
   </div>
 </template>

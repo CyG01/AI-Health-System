@@ -112,6 +112,7 @@
         :loading="recordsLoading"
         :bordered="false"
         striped
+        :scroll-x="1100"
       />
     </NCard>
 

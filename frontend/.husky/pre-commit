@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+echo "🚀 开始执行前端代码规范与类型检查..."
+
+# 1. 切换到 frontend 目录下
+cd frontend
+
+# 2. 执行您配好的代码检查命令
+pnpm lint --no-fix --quiet
+pnpm typecheck

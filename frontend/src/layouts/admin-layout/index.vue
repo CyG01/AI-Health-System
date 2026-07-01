@@ -195,10 +195,10 @@ onMounted(() => {
       <!-- Header -->
       <NLayoutHeader bordered class="admin-header">
         <div class="header-left">
-          <NButton v-if="appStore.isMobile" text @click="mobileMenuShow = true" class="header-action">
+          <NButton v-if="appStore.isMobile" text aria-label="打开菜单" @click="mobileMenuShow = true" class="header-action">
             <NIcon size="20"><Icon icon="mdi:menu" /></NIcon>
           </NButton>
-          <NButton v-else text @click="toggleSider" class="header-action">
+          <NButton v-else text aria-label="切换侧边栏" @click="toggleSider" class="header-action">
             <NIcon size="20">
               <Icon :icon="siderCollapsed ? 'mdi:menu-open' : 'mdi:menu'" />
             </NIcon>
@@ -213,7 +213,7 @@ onMounted(() => {
           <!-- Theme toggle -->
           <NTooltip placement="bottom">
             <template #trigger>
-              <NButton text class="header-action" @click="toggleDark">
+              <NButton text class="header-action" aria-label="切换暗黑模式" @click="toggleDark">
                 <NIcon size="20">
                   <Icon :icon="isDark ? 'mdi:white-balance-sunny' : 'mdi:weather-night'" />
                 </NIcon>
@@ -225,7 +225,7 @@ onMounted(() => {
           <!-- User site link -->
           <NTooltip placement="bottom">
             <template #trigger>
-              <NButton text class="header-action" @click="goToUserSite">
+              <NButton text class="header-action" aria-label="用户站点" @click="goToUserSite">
                 <NIcon size="20"><Icon icon="mdi:web" /></NIcon>
               </NButton>
             </template>
@@ -235,7 +235,7 @@ onMounted(() => {
           <!-- Notifications -->
           <NTooltip placement="bottom">
             <template #trigger>
-              <NButton text class="header-action">
+              <NButton text class="header-action" aria-label="通知">
                 <NBadge :value="3" type="error">
                   <NIcon size="20"><Icon icon="mdi:bell" /></NIcon>
                 </NBadge>
@@ -247,7 +247,7 @@ onMounted(() => {
           <!-- Settings -->
           <NTooltip placement="bottom">
             <template #trigger>
-              <NButton text class="header-action" @click="appStore.openThemeDrawer">
+              <NButton text class="header-action" aria-label="设置" @click="appStore.openThemeDrawer">
                 <NIcon size="20"><Icon icon="mdi:cog" /></NIcon>
               </NButton>
             </template>

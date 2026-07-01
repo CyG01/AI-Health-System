@@ -67,8 +67,10 @@ export function createRouteGuard(router: Router) {
       return handleRouteSwitch(to, from);
     } catch (error) {
       console.error('[RouteGuard] Unexpected error in beforeEach:', error);
-      // Safety net: always allow navigation to proceed (redirect to login if needed)
-      // This prevents the app from being stuck on a white screen
+      // Prevent infinite loop: if we're already navigating to login, don't redirect to login again
+      if (to.name === 'login') {
+        return true; // allow navigation to proceed
+      }
       return { name: 'login', query: { redirect: to.fullPath } };
     }
   });

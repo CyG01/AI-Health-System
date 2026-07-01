@@ -1,4 +1,4 @@
-@echo off
+git add .@echo off
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 title AI 健康管理系统 - 一键启动

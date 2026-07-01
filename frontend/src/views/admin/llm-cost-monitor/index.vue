@@ -78,6 +78,7 @@
               :data="userDailyCost.costByIntent"
               :bordered="true"
               size="small"
+              :scroll-x="1100"
             />
           </NGi>
           <NGi v-if="userDailyCost.costByModel?.length">
@@ -87,6 +88,7 @@
               :data="userDailyCost.costByModel"
               :bordered="true"
               size="small"
+              :scroll-x="1100"
             />
           </NGi>
         </NGrid>
@@ -102,6 +104,7 @@
         :bordered="true"
         size="small"
         :row-key="(row: Api.LlmCost.OverBudgetUser) => row.userId"
+        :scroll-x="1100"
       />
     </NCard>
 

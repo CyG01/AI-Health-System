@@ -21,6 +21,7 @@ import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NCard, useDialog } from 'naive-ui';
 import { fetchCreateHealth, fetchGetLatestHealth } from '@/service/api';
+import { useDirtyCheck } from '@/composables/useDirtyCheck';
 import HealthFormPanel from '../components/HealthFormPanel.vue';
 import type { HealthFormData } from '../components/HealthFormPanel.vue';
 
@@ -45,6 +46,8 @@ const form = reactive<HealthFormData>({
   exerciseHabit: '',
   dietHabit: ''
 });
+
+const { markClean } = useDirtyCheck(form);
 
 async function checkExistingRecord(): Promise<boolean> {
   try {
@@ -92,6 +95,7 @@ async function handleSubmit(): Promise<void> {
       dietHabit: form.dietHabit
     });
     window.$message?.success('健康档案创建成功');
+    markClean();
     router.push('/health/view');
   } finally {
     submitting.value = false;

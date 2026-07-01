@@ -39,6 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String AUTH_FAIL_PREFIX = "auth:fail:";
     private static final String AUTH_LOCK_PREFIX = "auth:lock:";
     private static final String AUTH_BLACKLIST_PREFIX = "auth:blacklist:";
+    private static final long JWT_BLACKLIST_MAX_EXPIRE_DAYS = 7; // 黑名单最大有效期（兜底，防止永久Key）
     private static final long SMS_CODE_EXPIRE_MINUTES = 5;
     private static final long SMS_RATE_LIMIT_SECONDS = 60;
     private static final long LOCK_EXPIRE_MINUTES = 15;
@@ -291,11 +292,12 @@ public class AuthServiceImpl implements AuthService {
         }
         checkUserEnabled(user);
 
-        // 将旧的refreshToken加入黑名单
+        // 将旧的refreshToken加入黑名单（取剩余有效期与最大有效期的较小值，兜底防止永久Key）
         long ttl = claims.getExpiration().getTime() - System.currentTimeMillis();
         if (ttl > 0) {
+            long safeTtl = Math.min(ttl, JWT_BLACKLIST_MAX_EXPIRE_DAYS * 24 * 60 * 60 * 1000L);
             stringRedisTemplate.opsForValue().set(
-                    blacklistKey, "1", ttl, TimeUnit.MILLISECONDS);
+                    blacklistKey, "1", safeTtl, TimeUnit.MILLISECONDS);
         }
 
         return buildLoginVO(user, false);
@@ -303,26 +305,28 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String authorization, String refreshToken) {
-        // 将 accessToken 加入黑名单
+        // 将 accessToken 加入黑名单（取剩余有效期与最大有效期的较小值，兜底防止永久Key）
         String accessToken = jwtUtil.extractToken(authorization);
         if (accessToken != null && !accessToken.isBlank() && jwtUtil.validateToken(accessToken)) {
             Claims claims = jwtUtil.parseToken(accessToken);
             long ttl = claims.getExpiration().getTime() - System.currentTimeMillis();
             if (ttl > 0) {
+                long safeTtl = Math.min(ttl, JWT_BLACKLIST_MAX_EXPIRE_DAYS * 24 * 60 * 60 * 1000L);
                 stringRedisTemplate.opsForValue().set(
-                        AUTH_BLACKLIST_PREFIX + accessToken, "1", ttl, TimeUnit.MILLISECONDS);
+                        AUTH_BLACKLIST_PREFIX + accessToken, "1", safeTtl, TimeUnit.MILLISECONDS);
             }
         }
 
-        // 将 refreshToken 也加入黑名单
+        // 将 refreshToken 也加入黑名单（取剩余有效期与最大有效期的较小值，兜底防止永久Key）
         if (refreshToken != null && !refreshToken.isBlank()) {
             String rt = jwtUtil.extractToken(refreshToken);
             if (rt != null && !rt.isBlank() && jwtUtil.validateToken(rt)) {
                 Claims refreshClaims = jwtUtil.parseToken(rt);
                 long refreshTtl = refreshClaims.getExpiration().getTime() - System.currentTimeMillis();
                 if (refreshTtl > 0) {
+                    long safeTtl = Math.min(refreshTtl, JWT_BLACKLIST_MAX_EXPIRE_DAYS * 24 * 60 * 60 * 1000L);
                     stringRedisTemplate.opsForValue().set(
-                            AUTH_BLACKLIST_PREFIX + rt, "1", refreshTtl, TimeUnit.MILLISECONDS);
+                            AUTH_BLACKLIST_PREFIX + rt, "1", safeTtl, TimeUnit.MILLISECONDS);
                 }
             }
         }

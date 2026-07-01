@@ -36,8 +36,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -68,13 +71,22 @@ public class AgentOrchestrator {
     private final SafetyReviewLogMapper safetyReviewLogMapper;
     private final ObjectMapper objectMapper;
 
-    private final ExecutorService executor = Executors.newFixedThreadPool(
-            Runtime.getRuntime().availableProcessors(),
-            r -> {
-                Thread t = new Thread(r, "agent-orchestrator");
-                t.setDaemon(true);
-                return t;
-            });
+    private final ExecutorService executor = new ThreadPoolExecutor(
+            50, // 核心线程数（适合 I/O 密集型）
+            200, // 最大线程数
+            60L, TimeUnit.SECONDS, // 空闲线程存活时间
+            new LinkedBlockingQueue<>(500), // 有界队列，防止 OOM
+            new ThreadFactory() {
+                private final AtomicInteger threadNumber = new AtomicInteger(1);
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "ai-agent-pool-" + threadNumber.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                }
+            },
+            new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略：队列满了让调用线程自己执行，防止任务丢失
+    );
 
     public AgentOrchestrator(HealthCoachAgent coachAgent,
                               NutritionAgent nutritionAgent,

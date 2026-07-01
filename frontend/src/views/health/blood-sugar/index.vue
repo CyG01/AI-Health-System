@@ -112,6 +112,7 @@
           :data="records"
           :bordered="true"
           :single-line="true"
+          :scroll-x="1100"
         />
       </n-spin>
     </n-card>
