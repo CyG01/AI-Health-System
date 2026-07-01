@@ -146,9 +146,13 @@ public class AuthServiceImpl implements AuthService {
         // 4. 密码校验
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             String failKey = AUTH_FAIL_PREFIX + dto.getUsername();
+            // increment 是原子操作，确保并发下计数准确
             Long failCount = stringRedisTemplate.opsForValue().increment(failKey);
-            stringRedisTemplate.expire(failKey, LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
-            int remaining = MAX_FAIL_COUNT - failCount.intValue();
+            // 仅在第一次失败时设置过期时间（固定窗口，避免每次重置导致永久锁定风险）
+            if (failCount != null && failCount == 1) {
+                stringRedisTemplate.expire(failKey, LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
+            }
+            int remaining = MAX_FAIL_COUNT - (failCount != null ? failCount.intValue() : 0);
             if (remaining <= 0) {
                 stringRedisTemplate.opsForValue().set(lockKey, "1", LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
                 stringRedisTemplate.delete(failKey);
@@ -187,9 +191,13 @@ public class AuthServiceImpl implements AuthService {
         }
         if (!cachedCode.equals(dto.getVerifyCode())) {
             String failKey = AUTH_FAIL_PREFIX + dto.getPhone();
+            // increment 是原子操作，确保并发下计数准确
             Long failCount = stringRedisTemplate.opsForValue().increment(failKey);
-            stringRedisTemplate.expire(failKey, LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
-            int remaining = MAX_FAIL_COUNT - failCount.intValue();
+            // 仅在第一次失败时设置过期时间（固定窗口）
+            if (failCount != null && failCount == 1) {
+                stringRedisTemplate.expire(failKey, LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
+            }
+            int remaining = MAX_FAIL_COUNT - (failCount != null ? failCount.intValue() : 0);
             if (remaining <= 0) {
                 stringRedisTemplate.opsForValue().set(lockKey, "1", LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
                 stringRedisTemplate.delete(failKey);

@@ -19,6 +19,15 @@ public final class MqTopics {
     /** LLM 对话响应 */
     public static final String LLM_CHAT_RESPONSE = "llm-chat-response";
 
+    /** 健康提醒推送 */
+    public static final String HEALTH_REMINDER = "health-reminder";
+
+    /** 多模态处理任务 */
+    public static final String MULTIMODAL_PROCESS = "multimodal-process";
+
+    /** 隐私数据焚毁任务 */
+    public static final String PRIVACY_DATA_PURGE = "privacy-data-purge";
+
     // --- 死信队列 Topic ---
 
     /** 健康报告生成 — 死信 */
