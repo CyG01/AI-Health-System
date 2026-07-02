@@ -2,11 +2,20 @@ import { h } from 'vue';
 import type { App } from 'vue';
 import { NButton } from 'naive-ui';
 import { $t } from '@/locales';
+import { captureError } from '@/utils/telemetry';
 
 export function setupAppErrorHandle(app: App) {
   app.config.errorHandler = (err, vm, info) => {
     // eslint-disable-next-line no-console
     console.error(err, vm, info);
+
+    // Integrate with telemetry system
+    captureError({
+      type: 'runtime',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      component: vm?.$options?.name || vm?.$options?.__name || 'Unknown'
+    });
   };
 }
 

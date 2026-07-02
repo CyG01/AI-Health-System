@@ -38,12 +38,23 @@ public class JacksonXssConfig {
             return value
                     .replaceAll("(?i)<script.*?>.*?</script>", "")
                     .replaceAll("(?i)<script.*?>", "")
+                    .replaceAll("(?i)<iframe.*?>", "")
+                    .replaceAll("(?i)<object.*?>", "")
+                    .replaceAll("(?i)<embed.*?>", "")
+                    .replaceAll("(?i)<link.*?>", "")
+                    .replaceAll("(?i)<meta.*?>", "")
+                    .replaceAll("(?i)<style.*?>.*?</style>", "")
+                    .replaceAll("(?i)<svg.*?>", "")
+                    .replaceAll("(?i)<math.*?>", "")
                     .replaceAll("(?i)sr[\\s]*c[\\s]*=[\\s]*['\"].*?['\"]", "")
                     .replaceAll("(?i)eval\\(.*?\\)", "")
                     .replaceAll("(?i)expression\\(.*?\\)", "")
                     .replaceAll("(?i)javascript:", "")
                     .replaceAll("(?i)vbscript:", "")
                     .replaceAll("(?i)onload(.*?)=", "")
+                    .replaceAll("(?i)on\\w+\\s*=", "")
+                    .replaceAll("(?i)document\\.cookie", "")
+                    .replaceAll("(?i)data:text/html;base64", "")
                     .replace("<", "&lt;")
                     .replace(">", "&gt;");
         }

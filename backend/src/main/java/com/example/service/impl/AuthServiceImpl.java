@@ -50,7 +50,7 @@ public class AuthServiceImpl implements AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
-    @Value("${sms.dev-mode:true}")
+    @Value("${sms.dev-mode:false}")
     private boolean smsDevMode;
 
     private final SysUserMapper sysUserMapper;

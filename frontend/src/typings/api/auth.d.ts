@@ -52,6 +52,7 @@ declare namespace Api {
       gender: number;
       age: number;
       role: string;
+      roles?: string[];
       status?: number;
       createTime?: string;
     }

@@ -27,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -41,6 +43,13 @@ public class ChatServiceImpl implements ChatService {
 
     private static final int MAX_CONTEXT_MESSAGES = 20;
     private static final int STREAM_CHUNK_SIZE = 10;
+
+    /** 流式输出共享线程池，避免每次请求创建裸线程 */
+    private static final ExecutorService STREAM_EXECUTOR = Executors.newFixedThreadPool(4, r -> {
+        Thread t = new Thread(r, "chat-stream-simulator");
+        t.setDaemon(true);
+        return t;
+    });
 
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
@@ -305,7 +314,7 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
 
-        new Thread(() -> {
+        STREAM_EXECUTOR.execute(() -> {
             try {
                 for (int i = 0; i < text.length(); i += STREAM_CHUNK_SIZE) {
                     int end = Math.min(i + STREAM_CHUNK_SIZE, text.length());
@@ -321,7 +330,7 @@ public class ChatServiceImpl implements ChatService {
             } finally {
                 onComplete.run();
             }
-        }, "chat-stream-simulator").start();
+        });
     }
 
     /**

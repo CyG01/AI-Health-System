@@ -10,7 +10,14 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import java.lang.reflect.Method;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * TDengine 双写切面。
@@ -28,12 +35,35 @@ public class TsdbDoubleWriteAspect {
 
     private final TSDBConnectionPool tsdbPool;
 
+    /**
+     * 专用线程池：用于异步执行 TSDB 双写，避免阻塞主事务线程。
+     * 核心线程 2，最大线程 4，空闲 60s 回收，队列容量 128。
+     */
+    private static final ExecutorService TSDB_WRITE_EXECUTOR =
+            Executors.newFixedThreadPool(4, r -> {
+                Thread t = new Thread(r, "tsdb-double-write");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /** 重试最大次数 */
+    private static final int MAX_RETRIES = 3;
+
+    /** 重试基础等待时间（毫秒），指数退避：100ms → 200ms → 400ms */
+    private static final long RETRY_BASE_DELAY_MS = 100L;
+
     public TsdbDoubleWriteAspect(TSDBConnectionPool tsdbPool) {
         this.tsdbPool = tsdbPool;
     }
 
     /**
-     * 环绕通知：先执行原方法（MySQL 写入），成功后异步写入 TDengine。
+     * 环绕通知：先执行原方法（MySQL 写入），事务提交后异步写入 TDengine。
+     * <p>
+     * 修复要点：
+     * 1. pjp.proceed() 返回时 Spring 事务尚未提交，不能同步写 TSDB
+     * 2. 通过 TransactionSynchronizationManager.afterCommit 确保 MySQL 已提交
+     * 3. TSDB 写入异步执行，不阻塞主流程
+     * 4. 写入失败自动重试（最多 3 次，指数退避）
      */
     @Around("@annotation(com.example.annotation.TsdbDoubleWrite)")
     public Object handleDoubleWrite(ProceedingJoinPoint pjp) throws Throwable {
@@ -56,18 +86,64 @@ public class TsdbDoubleWriteAspect {
             return result;
         }
 
-        // 4. 异步写入 TDengine（捕获所有异常，不影响主流程）
+        // 4. 准备双写参数（在 lambda 捕获前取值）
         String dataType = annotation.dataType();
         Object[] args = pjp.getArgs();
+        String methodName = method.getName();
+        Object target = pjp.getTarget();
 
-        try {
-            doDoubleWrite(dataType, method.getName(), args, result, pjp.getTarget());
-        } catch (Exception e) {
-            log.warn("TDengine double-write failed for {} dataType={}: {}",
-                    method.getName(), dataType, e.getMessage());
+        // 5. 注册事务提交后的异步写入
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            // 在事务中：注册 afterCommit 回调，确保 MySQL 事务提交后再写 TSDB
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    CompletableFuture.runAsync(() ->
+                            writeWithRetry(dataType, methodName, args, result, target),
+                            TSDB_WRITE_EXECUTOR);
+                }
+            });
+        } else {
+            // 不在事务中：直接异步执行 TSDB 写入
+            CompletableFuture.runAsync(() ->
+                    writeWithRetry(dataType, methodName, args, result, target),
+                    TSDB_WRITE_EXECUTOR);
         }
 
         return result;
+    }
+
+    /**
+     * 带重试的 TDengine 写入。最多重试 {@value MAX_RETRIES} 次，指数退避。
+     * 全部失败后记录 error 日志，不抛出异常（不影响主流程）。
+     */
+    private void writeWithRetry(String dataType, String methodName,
+                                Object[] args, Object result, Object target) {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                doDoubleWrite(dataType, methodName, args, result, target);
+                return; // 写入成功，直接返回
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < MAX_RETRIES) {
+                    long delayMs = RETRY_BASE_DELAY_MS * (1L << (attempt - 1));
+                    log.warn("TDengine double-write attempt {}/{} failed for {} dataType={}, retrying in {}ms: {}",
+                            attempt, MAX_RETRIES, methodName, dataType, delayMs, e.getMessage());
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.error("TDengine double-write retry interrupted for {} dataType={}", methodName, dataType);
+                        return;
+                    }
+                }
+            }
+        }
+        // 全部重试失败
+        log.error("TDengine double-write FAILED after {} attempts for {} dataType={}: {}",
+                MAX_RETRIES, methodName, dataType,
+                lastException != null ? lastException.getMessage() : "unknown error");
     }
 
     /**

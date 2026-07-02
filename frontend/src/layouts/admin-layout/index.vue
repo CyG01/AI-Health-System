@@ -271,7 +271,7 @@ onMounted(() => {
       <!-- Content -->
       <NLayoutContent class="admin-content">
         <div class="content-wrapper">
-          <slot />
+          <RouterView />
         </div>
       </NLayoutContent>
     </NLayout>

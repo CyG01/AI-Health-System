@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -39,7 +40,7 @@ public class ChatController {
     private static final ExecutorService SSE_EXECUTOR = new ThreadPoolExecutor(
             4, 20, 60L, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(100),
-            new ThreadPoolExecutor.CallerRunsPolicy()
+            new ThreadPoolExecutor.AbortPolicy()
     );
 
     /** SSE 响应缓存 Redis Key 前缀 */
@@ -136,51 +137,62 @@ public class ChatController {
         SseEmitter emitter = new SseEmitter(120_000L);
         String cacheKey = SSE_CACHE_PREFIX + dto.getSessionId() + ":" + userId;
 
-        SSE_EXECUTOR.execute(() -> {
+        try {
+            SSE_EXECUTOR.execute(() -> {
+                try {
+                    chatService.chat(dto.getSessionId(), userId, dto.getContent(),
+                            delta -> {
+                                try {
+                                    // 发送增量数据
+                                    emitter.send(SseEmitter.event()
+                                            .name("message")
+                                            .data(delta));
+                                    // 缓存到 Redis 支持断点续传
+                                    cacheDelta(cacheKey, delta);
+                                } catch (IOException e) {
+                                    emitter.completeWithError(e);
+                                }
+                            },
+                            () -> {
+                                try {
+                                    emitter.send(SseEmitter.event()
+                                            .name("message")
+                                            .data("[DONE]"));
+                                    emitter.complete();
+                                    // 清理缓存
+                                    clearCache(cacheKey);
+                                } catch (IOException e) {
+                                    emitter.completeWithError(e);
+                                }
+                            },
+                            errorMsg -> {
+                                try {
+                                    emitter.send(SseEmitter.event()
+                                            .name("error")
+                                            .data(errorMsg));
+                                    emitter.send(SseEmitter.event()
+                                            .name("message")
+                                            .data("[ERROR]"));
+                                    emitter.complete();
+                                    clearCache(cacheKey);
+                                } catch (IOException e) {
+                                    emitter.completeWithError(e);
+                                }
+                            });
+                } catch (Exception e) {
+                    emitter.completeWithError(e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            log.warn("SSE线程池已满，拒绝请求 userId={}", userId);
             try {
-                chatService.chat(dto.getSessionId(), userId, dto.getContent(),
-                        delta -> {
-                            try {
-                                // 发送增量数据
-                                emitter.send(SseEmitter.event()
-                                        .name("message")
-                                        .data(delta));
-                                // 缓存到 Redis 支持断点续传
-                                cacheDelta(cacheKey, delta);
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
-                            }
-                        },
-                        () -> {
-                            try {
-                                emitter.send(SseEmitter.event()
-                                        .name("message")
-                                        .data("[DONE]"));
-                                emitter.complete();
-                                // 清理缓存
-                                clearCache(cacheKey);
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
-                            }
-                        },
-                        errorMsg -> {
-                            try {
-                                emitter.send(SseEmitter.event()
-                                        .name("error")
-                                        .data(errorMsg));
-                                emitter.send(SseEmitter.event()
-                                        .name("message")
-                                        .data("[ERROR]"));
-                                emitter.complete();
-                                clearCache(cacheKey);
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
-                            }
-                        });
-            } catch (Exception e) {
-                emitter.completeWithError(e);
+                emitter.send(SseEmitter.event().name("error").data("系统繁忙，请稍后重试"));
+                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+            } catch (IOException ex) {
+                log.debug("发送繁忙提示失败: {}", ex.getMessage());
             }
-        });
+            emitter.complete();
+        }
 
         return emitter;
     }
@@ -193,48 +205,59 @@ public class ChatController {
         String cacheKey = SSE_CACHE_PREFIX + dto.getSessionId() + ":" + userId;
         int cursor = dto.getCursor();
 
-        SSE_EXECUTOR.execute(() -> {
-            try {
-                if (redisTemplate == null) {
-                    emitter.send(SseEmitter.event().name("error").data("断点续传服务不可用"));
-                    emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
-                    emitter.complete();
-                    return;
-                }
+        try {
+            SSE_EXECUTOR.execute(() -> {
+                try {
+                    if (redisTemplate == null) {
+                        emitter.send(SseEmitter.event().name("error").data("断点续传服务不可用"));
+                        emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                        emitter.complete();
+                        return;
+                    }
 
-                // 从 Redis 读取缓存的完整响应
-                String cached = redisTemplate.opsForValue().get(cacheKey);
-                if (cached == null || cached.isEmpty()) {
-                    emitter.send(SseEmitter.event().name("error").data("缓存已过期，请重新发送"));
-                    emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
-                    emitter.complete();
-                    return;
-                }
+                    // 从 Redis 读取缓存的完整响应
+                    String cached = redisTemplate.opsForValue().get(cacheKey);
+                    if (cached == null || cached.isEmpty()) {
+                        emitter.send(SseEmitter.event().name("error").data("缓存已过期，请重新发送"));
+                        emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+                        emitter.complete();
+                        return;
+                    }
 
-                // 从 cursor 位置开始发送
-                String remaining = cached.substring(Math.min(cursor, cached.length()));
-                if (remaining.isEmpty()) {
+                    // 从 cursor 位置开始发送
+                    String remaining = cached.substring(Math.min(cursor, cached.length()));
+                    if (remaining.isEmpty()) {
+                        emitter.send(SseEmitter.event().name("message").data("[DONE]"));
+                        emitter.complete();
+                        return;
+                    }
+
+                    // 发送剩余部分的分块
+                    int chunkSize = 10;
+                    for (int i = 0; i < remaining.length(); i += chunkSize) {
+                        int end = Math.min(i + chunkSize, remaining.length());
+                        String chunk = remaining.substring(i, end);
+                        emitter.send(SseEmitter.event().name("message").data(chunk));
+                        // 模拟快速追赶（无延迟，比正常流更快）
+                        Thread.sleep(5);
+                    }
+
                     emitter.send(SseEmitter.event().name("message").data("[DONE]"));
                     emitter.complete();
-                    return;
+                } catch (Exception e) {
+                    emitter.completeWithError(e);
                 }
-
-                // 发送剩余部分的分块
-                int chunkSize = 10;
-                for (int i = 0; i < remaining.length(); i += chunkSize) {
-                    int end = Math.min(i + chunkSize, remaining.length());
-                    String chunk = remaining.substring(i, end);
-                    emitter.send(SseEmitter.event().name("message").data(chunk));
-                    // 模拟快速追赶（无延迟，比正常流更快）
-                    Thread.sleep(5);
-                }
-
-                emitter.send(SseEmitter.event().name("message").data("[DONE]"));
-                emitter.complete();
-            } catch (Exception e) {
-                emitter.completeWithError(e);
+            });
+        } catch (RejectedExecutionException e) {
+            log.warn("SSE线程池已满，拒绝断点续传请求 userId={}", userId);
+            try {
+                emitter.send(SseEmitter.event().name("error").data("系统繁忙，请稍后重试"));
+                emitter.send(SseEmitter.event().name("message").data("[ERROR]"));
+            } catch (IOException ex) {
+                log.debug("发送繁忙提示失败: {}", ex.getMessage());
             }
-        });
+            emitter.complete();
+        }
 
         return emitter;
     }

@@ -23,6 +23,7 @@ import com.example.service.MemoryService;
 import com.example.resilience.ModelRouter;
 import com.example.util.AiResponseParser;
 import com.example.util.DataMaskingService;
+import com.example.util.MedicalDisclaimerFilter;
 import com.example.util.PromptSanitizer;
 import com.example.vo.AiPlanDetailVO;
 import com.example.vo.AiPlanVO;
@@ -62,6 +63,8 @@ public class AiPlanServiceImpl implements AiPlanService {
     private static final long GLOBAL_CACHE_TTL = 30;
     private static final long USER_CACHE_TTL = 7;
 
+    private static final String DISCLAIMER_TEXT = "本计划由AI生成，仅供参考，不构成医疗诊断或治疗建议。如有健康问题，请咨询专业医生。";
+
     private final HealthService healthService;
     private final DeepSeekService deepSeekService;
     private final MultiModelCostMonitor deepSeekCostMonitor;
@@ -77,6 +80,7 @@ public class AiPlanServiceImpl implements AiPlanService {
     private final DataMaskingService dataMaskingService;
     private final MemoryService memoryService;
     private final ModelRouter modelRouter;
+    private final MedicalDisclaimerFilter medicalDisclaimerFilter;
 
     public AiPlanServiceImpl(HealthService healthService,
                              DeepSeekService deepSeekService,
@@ -92,7 +96,8 @@ public class AiPlanServiceImpl implements AiPlanService {
                              AiCallAuditLogMapper auditLogMapper,
                              DataMaskingService dataMaskingService,
                              MemoryService memoryService,
-                             ModelRouter modelRouter) {
+                             ModelRouter modelRouter,
+                             MedicalDisclaimerFilter medicalDisclaimerFilter) {
         this.healthService = healthService;
         this.deepSeekService = deepSeekService;
         this.deepSeekCostMonitor = deepSeekCostMonitor;
@@ -108,6 +113,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         this.dataMaskingService = dataMaskingService;
         this.memoryService = memoryService;
         this.modelRouter = modelRouter;
+        this.medicalDisclaimerFilter = medicalDisclaimerFilter;
     }
 
     @Override
@@ -169,6 +175,9 @@ public class AiPlanServiceImpl implements AiPlanService {
             }
         }
 
+        // 对 AI 输出追加医疗免责声明
+        aiContent = medicalDisclaimerFilter.appendDisclaimer(aiContent);
+
         // AI call completed outside transaction — now persist the results
         AiPlan plan = new AiPlan();
         plan.setUserId(userId);
@@ -184,7 +193,9 @@ public class AiPlanServiceImpl implements AiPlanService {
 
         redisTemplate.opsForValue().set(globalCacheKey, aiContent, GLOBAL_CACHE_TTL, TimeUnit.DAYS);
 
-        return aiPlanConvert.toAiPlanDetailVO(plan);
+        AiPlanDetailVO detailVO = aiPlanConvert.toAiPlanDetailVO(plan);
+        detailVO.setDisclaimer(DISCLAIMER_TEXT);
+        return detailVO;
     }
 
     @Override
@@ -272,6 +283,9 @@ public class AiPlanServiceImpl implements AiPlanService {
                                 return;
                             }
 
+                            // 对 AI 输出追加医疗免责声明
+                            aiContent = medicalDisclaimerFilter.appendDisclaimer(aiContent);
+
                             ((AiPlanServiceImpl) self).savePlanWithContent(userId, dto, aiContent, globalCacheKey);
 
                             emitter.send(SseEmitter.event().name("message").data("[DONE]"));
@@ -327,6 +341,7 @@ public class AiPlanServiceImpl implements AiPlanService {
                 .orderByAsc(AiPlanDetail::getDaySequence);
         List<AiPlanDetail> details = aiPlanDetailMapper.selectList(detailWrapper);
         vo.setDetails(details.stream().map(aiPlanConvert::toDetailVO).toList());
+        vo.setDisclaimer(DISCLAIMER_TEXT);
 
         return vo;
     }
@@ -694,6 +709,7 @@ public class AiPlanServiceImpl implements AiPlanService {
         vo.setStartDate(plan.getStartDate());
         vo.setStatus(plan.getStatus());
         vo.setCreateTime(plan.getCreateTime());
+        vo.setDisclaimer(DISCLAIMER_TEXT);
         return vo;
     }
 

@@ -3,6 +3,8 @@ package com.example.dto;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -13,12 +15,14 @@ public class BloodSugarSubmitDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @NotNull
+    @NotNull(message = "记录日期不能为空")
+    @PastOrPresent(message = "记录日期不能为未来日期")
     private LocalDate recordDate;
 
     private LocalTime recordTime;
 
-    @NotNull
+    @NotNull(message = "测量类型不能为空")
+    @Pattern(regexp = "空腹|餐后1小时|餐后2小时|随机", message = "测量类型必须为：空腹、餐后1小时、餐后2小时、随机")
     private String measureType;
 
     @NotNull

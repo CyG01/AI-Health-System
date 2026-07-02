@@ -73,6 +73,15 @@ public class SysUser implements Serializable {
     /** 免责声明接受时间（注册时记录） */
     private LocalDateTime disclaimerAcceptedAt;
 
+    /** AI记忆开关 true=开启 false=关闭 */
+    private Boolean aiMemoryEnabled;
+
+    /** 数据保留天数 */
+    private Integer dataRetentionDays;
+
+    /** 禁止追踪标记 true=禁止 false=允许 */
+    private Boolean doNotTrack;
+
     public Long getId() {
         return id;
     }
@@ -212,5 +221,29 @@ public class SysUser implements Serializable {
 
     public void setDisclaimerAcceptedAt(LocalDateTime disclaimerAcceptedAt) {
         this.disclaimerAcceptedAt = disclaimerAcceptedAt;
+    }
+
+    public Boolean getAiMemoryEnabled() {
+        return aiMemoryEnabled;
+    }
+
+    public void setAiMemoryEnabled(Boolean aiMemoryEnabled) {
+        this.aiMemoryEnabled = aiMemoryEnabled;
+    }
+
+    public Integer getDataRetentionDays() {
+        return dataRetentionDays;
+    }
+
+    public void setDataRetentionDays(Integer dataRetentionDays) {
+        this.dataRetentionDays = dataRetentionDays;
+    }
+
+    public Boolean getDoNotTrack() {
+        return doNotTrack;
+    }
+
+    public void setDoNotTrack(Boolean doNotTrack) {
+        this.doNotTrack = doNotTrack;
     }
 }

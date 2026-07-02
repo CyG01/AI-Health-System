@@ -21,9 +21,18 @@ public interface CommunityService {
     void deletePost(Long userId, Long postId);
 
     /**
-     * 获取帖子列表 (首页动态)
+     * 获取帖子列表 (首页动态) - 传统分页
      */
     List<CommunityPostVO> getPostList(Long userId, int page, int size);
+
+    /**
+     * 获取帖子列表 - 游标分页（Feed流推荐）
+     * @param userId 当前用户ID
+     * @param lastId 上一页最后一条记录的ID，为null时查询第一页
+     * @param size   每页大小
+     * @return 包含 list（帖子列表）和 hasMore（是否还有更多）的Map
+     */
+    Map<String, Object> getPostListByCursor(Long userId, Long lastId, int size);
 
     /**
      * 获取帖子详情

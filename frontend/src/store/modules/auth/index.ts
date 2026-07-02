@@ -1,5 +1,5 @@
 import { computed, reactive, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { router } from '@/router';
 import { defineStore } from 'pinia';
 import { useLoading } from '@sa/hooks';
 import { fetchGetUserInfo, fetchLogin, fetchLoginByPhone, fetchLogout, fetchRefreshToken } from '@/service/api';
@@ -15,7 +15,6 @@ import { clearAuthStorage, getToken } from './shared';
 const NOTIFICATION_DURATION = 4500;
 
 export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
-  const route = useRoute();
   const authStore = useAuthStore();
   const routeStore = useRouteStore();
   const tabStore = useTabStore();
@@ -25,15 +24,14 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   const token = ref('');
 
   const userInfo: Api.Auth.UserInfo = reactive({
-    userId: '',
     id: 0,
-    userName: '',
     username: '',
     phone: '',
     avatar: '',
     nickname: '',
     gender: 0,
     age: 0,
+    role: '',
     roles: []
   });
 
@@ -46,7 +44,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   const isStaticSuper = computed(() => {
     const { VITE_AUTH_ROUTE_MODE, VITE_STATIC_SUPER_ROLE } = import.meta.env;
 
-    return VITE_AUTH_ROUTE_MODE === 'static' && userInfo.roles.includes(VITE_STATIC_SUPER_ROLE);
+    return VITE_AUTH_ROUTE_MODE === 'static' && (userInfo.roles || []).includes(VITE_STATIC_SUPER_ROLE);
   });
 
   /** Is login */
@@ -134,7 +132,8 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
     authStore.$reset();
 
-    if (!route.meta.constant) {
+    const currentRoute = router.currentRoute.value;
+    if (!currentRoute.meta.constant) {
       await toLogin();
     }
 
@@ -213,7 +212,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
         }
 
         // Redirect to admin dashboard if user is admin and no specific redirect
-        if (needRedirect && userInfo.roles.includes('admin')) {
+        if (needRedirect && (userInfo.roles || []).includes('admin')) {
           const currentRoute = router.currentRoute.value;
           const redirectPath = currentRoute.query.redirect as string;
           if (!redirectPath || redirectPath === '/' || redirectPath === '/dashboard') {
@@ -266,7 +265,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
         }
 
         // Redirect to admin dashboard if user is admin and no specific redirect
-        if (needRedirect && userInfo.roles.includes('admin')) {
+        if (needRedirect && (userInfo.roles || []).includes('admin')) {
           const currentRoute = router.currentRoute.value;
           const redirectPath = currentRoute.query.redirect as string;
           if (!redirectPath || redirectPath === '/' || redirectPath === '/dashboard') {
@@ -294,20 +293,25 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   }
 
   async function loginByToken(loginToken: Api.Auth.LoginToken) {
-    // 1. stored in the localStorage, the later requests need it in headers
+    // 1. get user info first (before storing tokens)
     const accessToken = loginToken.accessToken || loginToken.token;
-    localStg.set('token', accessToken);
-    localStg.set('refreshToken', loginToken.refreshToken);
 
-    // 2. get user info
+    // Temporarily set token for getUserInfo API call
+    const tempToken = token.value;
+    token.value = accessToken;
+
     const pass = await getUserInfo();
 
     if (pass) {
-      token.value = accessToken;
+      // 2. Only store tokens after successful user info validation
+      localStg.set('token', accessToken);
+      localStg.set('refreshToken', loginToken.refreshToken);
 
       return true;
     }
 
+    // Restore previous token state on failure
+    token.value = tempToken;
     return false;
   }
 

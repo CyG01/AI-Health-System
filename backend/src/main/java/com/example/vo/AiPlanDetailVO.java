@@ -18,6 +18,8 @@ public class AiPlanDetailVO implements Serializable {
     private LocalDateTime createTime;
     private String aiContent;
 
+    private String disclaimer;
+
     private List<DetailItem> details;
 
     public Long getId() { return id; }
@@ -43,6 +45,9 @@ public class AiPlanDetailVO implements Serializable {
 
     public String getAiContent() { return aiContent; }
     public void setAiContent(String aiContent) { this.aiContent = aiContent; }
+
+    public String getDisclaimer() { return disclaimer; }
+    public void setDisclaimer(String disclaimer) { this.disclaimer = disclaimer; }
 
     public List<DetailItem> getDetails() { return details; }
     public void setDetails(List<DetailItem> details) { this.details = details; }

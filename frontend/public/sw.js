@@ -92,8 +92,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 其他：Network First
-  event.respondWith(networkFirst(request, STATIC_CACHE));
+  // 其他：直接走网络，不拦截
+  event.respondWith(fetch(request).catch(() => Response.error()));
 });
 
 /**
@@ -118,14 +118,18 @@ async function networkFirst(request, cacheName, ttlMs = 0) {
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(cacheName);
-      // 存储时加上时间戳
-      const responseWithTime = new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers
-      });
-      await cache.put(request, responseWithTime);
+      // 异步写入缓存，不阻塞响应返回
+      const cloned = response.clone();
+      caches.open(cacheName).then((cache) => {
+        const headers = new Headers(cloned.headers);
+        headers.set('sw-cached-at', String(Date.now()));
+        const responseWithTime = new Response(cloned.body, {
+          status: cloned.status,
+          statusText: cloned.statusText,
+          headers: headers
+        });
+        return cache.put(request, responseWithTime);
+      }).catch(() => { /* 缓存写入失败不影响正常响应 */ });
     }
     return response;
   } catch (error) {

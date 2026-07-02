@@ -160,13 +160,19 @@ export class ProgressiveJsonParser {
     if (lastComma > 0) {
       // 截断到最后一个完整字段，补上闭合括号
       const truncated = jsonText.slice(0, lastComma).trimEnd();
-      // 计算需要补几个 }
-      let openCount = 0;
+      // 计算需要补几个 } 和 ]
+      let openBraces = 0;
+      let openBrackets = 0;
       for (const ch of truncated) {
-        if (ch === '{') openCount++;
-        else if (ch === '}') openCount--;
+        if (ch === '{') openBraces++;
+        else if (ch === '}') openBraces--;
+        else if (ch === '[') openBrackets++;
+        else if (ch === ']') openBrackets--;
       }
-      return truncated + '}'.repeat(Math.max(0, openCount));
+      // 先补 ] 再补 }（JSON 中数组通常在对象内部）
+      return truncated
+        + ']'.repeat(Math.max(0, openBrackets))
+        + '}'.repeat(Math.max(0, openBraces));
     }
 
     return null;

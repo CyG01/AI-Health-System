@@ -74,7 +74,7 @@ public class AiCallQueueService {
                     t.setDaemon(true);
                     return t;
                 },
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ThreadPoolExecutor.AbortPolicy()
         ) {
             @Override
             protected void beforeExecute(Thread t, Runnable r) {
@@ -195,6 +195,10 @@ public class AiCallQueueService {
             });
 
             return future.get(MAX_WAIT_SECONDS, TimeUnit.SECONDS);
+        } catch (RejectedExecutionException e) {
+            log.warn("AI调用线程池已满，任务被拒绝 taskName={}, activeCount={}, queueSize={}",
+                    taskName, executor.getActiveCount(), executor.getQueue().size());
+            throw new BusinessException("当前AI服务请求量过大，请稍后再试。系统正在排队处理中。");
         } catch (TimeoutException e) {
             log.error("AI调用排队超时 taskName={}, maxWait={}s", taskName, MAX_WAIT_SECONDS);
             throw new BusinessException("AI服务繁忙，排队超时，请稍后再试");

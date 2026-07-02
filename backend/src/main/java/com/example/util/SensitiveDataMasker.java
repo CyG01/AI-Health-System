@@ -1,5 +1,6 @@
 package com.example.util;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -81,7 +82,18 @@ public final class SensitiveDataMasker {
      */
     public static String maskJwt(String text) {
         if (text == null) return null;
-        return JWT_PATTERN.matcher(text).replaceAll("$1$2".substring(0, 6) + "..." + "$2".substring("$2".length() - 6));
+        Matcher matcher = JWT_PATTERN.matcher(text);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String prefix = matcher.group(1); // "Bearer "
+            String token = matcher.group(2); // the JWT token
+            String masked = token.length() > 12
+                    ? token.substring(0, 6) + "..." + token.substring(token.length() - 6)
+                    : "***";
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(prefix + masked));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     /**

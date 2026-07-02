@@ -3,6 +3,7 @@ package com.example.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -17,6 +18,7 @@ public class WaterRecordSubmitDTO {
 
     @NotNull(message = "饮水量不能为空")
     @Min(value = 1, message = "饮水量至少1ml")
+    @Max(value = 5000, message = "单次饮水量不能超过5000ml")
     @Schema(description = "饮水量(ml)")
     private Integer amountMl;
 }

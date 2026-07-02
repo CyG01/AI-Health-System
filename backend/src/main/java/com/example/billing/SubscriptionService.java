@@ -1,5 +1,6 @@
 package com.example.billing;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.example.entity.Subscription;
 import com.example.mapper.SubscriptionMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -97,13 +98,20 @@ public class SubscriptionService {
 
     /**
      * 激活/续费订阅。
+     * 使用条件更新实现原子操作，避免并发覆盖。
      */
     public Subscription activateSubscription(Long userId, String tier, int days, String orderNo, String channel) {
-        // 取消旧订阅
+        // 原子地取消旧订阅：仅当 status='active' 时才更新，防止并发冲突
         Subscription old = getActiveSubscription(userId);
         if (old != null) {
-            old.setStatus("cancelled");
-            subscriptionMapper.updateById(old);
+            int affected = subscriptionMapper.update(null,
+                    new LambdaUpdateWrapper<Subscription>()
+                            .set(Subscription::getStatus, "cancelled")
+                            .eq(Subscription::getId, old.getId())
+                            .eq(Subscription::getStatus, "active"));
+            if (affected == 0) {
+                throw new RuntimeException("订阅状态已被并发修改，请重试 userId=" + userId);
+            }
         }
 
         Subscription sub = new Subscription();
@@ -125,15 +133,20 @@ public class SubscriptionService {
 
     /**
      * 取消订阅。
+     * 使用条件更新实现原子操作，避免并发冲突。
      */
     public void cancelSubscription(Long userId) {
-        Subscription sub = getActiveSubscription(userId);
-        if (sub != null) {
-            sub.setStatus("cancelled");
-            sub.setAutoRenew(false);
-            subscriptionMapper.updateById(sub);
+        int affected = subscriptionMapper.update(null,
+                new LambdaUpdateWrapper<Subscription>()
+                        .set(Subscription::getStatus, "cancelled")
+                        .set(Subscription::getAutoRenew, false)
+                        .eq(Subscription::getUserId, userId)
+                        .eq(Subscription::getStatus, "active"));
+        if (affected > 0) {
             evictTierCache(userId);
             log.info("订阅已取消 userId={}", userId);
+        } else {
+            log.info("未找到活跃订阅，无需取消 userId={}", userId);
         }
     }
 

@@ -3,7 +3,7 @@ import { request } from '../request';
 /** Get current user's family list */
 export function fetchMyFamilies() {
   return request<Api.Family.Family[]>({
-    url: '/family/my-families',
+    url: '/v1/family/my-families',
     method: 'get'
   });
 }
@@ -11,7 +11,7 @@ export function fetchMyFamilies() {
 /** Get primary family */
 export function fetchPrimaryFamily() {
   return request<Api.Family.Family>({
-    url: '/family/primary',
+    url: '/v1/family/primary',
     method: 'get'
   });
 }
@@ -19,7 +19,7 @@ export function fetchPrimaryFamily() {
 /** Get family members */
 export function fetchFamilyMembers(familyId: number) {
   return request<Api.Family.Member[]>({
-    url: `/family/${familyId}/members`,
+    url: `/v1/family/${familyId}/members`,
     method: 'get'
   });
 }
@@ -27,7 +27,7 @@ export function fetchFamilyMembers(familyId: number) {
 /** Create family group */
 export function fetchCreateFamily(familyName: string) {
   return request<Api.Family.Family>({
-    url: '/family/create',
+    url: '/v1/family/create',
     method: 'post',
     params: { familyName }
   });
@@ -36,7 +36,7 @@ export function fetchCreateFamily(familyName: string) {
 /** Invite member to family */
 export function fetchInviteMember(familyId: number, phone: string, role: string) {
   return request<void>({
-    url: `/family/${familyId}/invite`,
+    url: `/v1/family/${familyId}/invite`,
     method: 'post',
     params: { phone, role }
   });
@@ -45,7 +45,7 @@ export function fetchInviteMember(familyId: number, phone: string, role: string)
 /** Join family via invite code */
 export function fetchJoinFamily(inviteCode: string) {
   return request<void>({
-    url: '/family/join',
+    url: '/v1/family/join',
     method: 'post',
     params: { inviteCode }
   });
@@ -54,7 +54,7 @@ export function fetchJoinFamily(inviteCode: string) {
 /** Leave family */
 export function fetchLeaveFamily(familyId: number) {
   return request<void>({
-    url: `/family/${familyId}/leave`,
+    url: `/v1/family/${familyId}/leave`,
     method: 'post'
   });
 }
@@ -62,7 +62,7 @@ export function fetchLeaveFamily(familyId: number) {
 /** Get viewable member IDs */
 export function fetchViewableMembers() {
   return request<number[]>({
-    url: '/family/viewable-members',
+    url: '/v1/family/viewable-members',
     method: 'get'
   });
 }

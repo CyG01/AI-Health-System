@@ -77,6 +77,9 @@ public class UserProfile implements Serializable {
 
     private LocalDateTime updatedAt;
 
+    /** 用户时区ID，如 Asia/Shanghai */
+    private String timezoneId;
+
     // --- getters/setters ---
 
     public Long getId() { return id; }
@@ -144,4 +147,7 @@ public class UserProfile implements Serializable {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getTimezoneId() { return timezoneId; }
+    public void setTimezoneId(String timezoneId) { this.timezoneId = timezoneId; }
 }

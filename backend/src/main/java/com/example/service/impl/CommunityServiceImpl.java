@@ -103,6 +103,26 @@ public class CommunityServiceImpl implements CommunityService {
     }
 
     @Override
+    public Map<String, Object> getPostListByCursor(Long userId, Long lastId, int size) {
+        List<CommunityPost> posts = postMapper.selectByCursor(lastId, size);
+
+        // Batch-query like status for all posts in one query instead of N+1
+        Set<Long> likedPostIds = batchLoadLikedPostIds(userId, posts);
+
+        List<CommunityPostVO> voList = posts.stream()
+                .map(p -> toPostVO(p, likedPostIds))
+                .collect(Collectors.toList());
+
+        // 如果查出的记录数等于size，说明可能还有更多数据
+        boolean hasMore = posts.size() >= size;
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", voList);
+        result.put("hasMore", hasMore);
+        return result;
+    }
+
+    @Override
     public CommunityPostVO getPostDetail(Long userId, Long postId) {
         CommunityPost post = postMapper.selectById(postId);
         if (post == null) throw new BusinessException("帖子不存在");
@@ -122,20 +142,20 @@ public class CommunityServiceImpl implements CommunityService {
         CommunityLike existing = likeMapper.selectOne(wrapper);
 
         if (existing != null) {
-            // 取消点赞
+            // 取消点赞：使用 SQL 原子递减，避免 read-then-write 竞态
             likeMapper.deleteById(existing.getId());
-            post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
-            postMapper.updateById(post);
-            return Map.of("isLiked", false, "likeCount", post.getLikeCount());
+            postMapper.decrementLikeCount(postId);
+            int newCount = post.getLikeCount() - 1;
+            return Map.of("isLiked", false, "likeCount", Math.max(newCount, 0));
         } else {
-            // 点赞
+            // 点赞：使用 SQL 原子递增，避免 read-then-write 竞态
             CommunityLike like = new CommunityLike();
             like.setPostId(postId);
             like.setUserId(userId);
             likeMapper.insert(like);
-            post.setLikeCount(post.getLikeCount() + 1);
-            postMapper.updateById(post);
-            return Map.of("isLiked", true, "likeCount", post.getLikeCount());
+            postMapper.incrementLikeCount(postId);
+            int newCount = post.getLikeCount() + 1;
+            return Map.of("isLiked", true, "likeCount", newCount);
         }
     }
 

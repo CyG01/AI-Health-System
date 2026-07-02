@@ -4,6 +4,6 @@ defineOptions({ name: 'BaseLayout' });
 
 <template>
   <div class="base-layout">
-    <slot />
+    <RouterView />
   </div>
 </template>

@@ -40,6 +40,18 @@ public class UserMemory implements Serializable {
 
     private LocalDateTime createdAt;
 
+    /** 记忆层级：short_term/long_term */
+    private String memoryLayer;
+
+    /** 事件时间 */
+    private LocalDateTime eventTime;
+
+    /** 衰减率 */
+    private Double decayRate;
+
+    /** 标签（逗号分隔） */
+    private String tags;
+
     // --- getters/setters ---
 
     public Long getId() { return id; }
@@ -71,4 +83,16 @@ public class UserMemory implements Serializable {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getMemoryLayer() { return memoryLayer; }
+    public void setMemoryLayer(String memoryLayer) { this.memoryLayer = memoryLayer; }
+
+    public LocalDateTime getEventTime() { return eventTime; }
+    public void setEventTime(LocalDateTime eventTime) { this.eventTime = eventTime; }
+
+    public Double getDecayRate() { return decayRate; }
+    public void setDecayRate(Double decayRate) { this.decayRate = decayRate; }
+
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
 }

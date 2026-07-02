@@ -96,7 +96,8 @@ export function createSSEStream(url: string, data: SSEStreamData, callbacks: SSE
       },
       body: JSON.stringify(requestData),
       signal: controller.signal
-    }).then(response => {
+    }).then(async response => {
+      // Handle both HTTP 401 and business code 4001 for token expiry
       if (response.status === 401) {
         return handleTokenRefresh(accessToken);
       }
@@ -105,6 +106,20 @@ export function createSSEStream(url: string, data: SSEStreamData, callbacks: SSE
       }
       if (!response.body) {
         throw new Error('Response body is empty');
+      }
+
+      // Check for business-level token expiry (HTTP 200 but code 4001)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const clonedResponse = response.clone();
+        try {
+          const jsonData = await clonedResponse.json();
+          if (jsonData.code === 4001) {
+            return handleTokenRefresh(accessToken);
+          }
+        } catch {
+          // Not JSON or parse error, continue with normal stream processing
+        }
       }
 
       const reader = response.body.getReader();
@@ -173,12 +188,15 @@ export function createSSEStream(url: string, data: SSEStreamData, callbacks: SSE
         if (!refreshRes.ok) throw new Error('Token expired, please login again');
         return refreshRes.json();
       }).then(res => {
-        if (res.code === 200 && res.data) {
-          localStg.set('token', res.data.accessToken);
-          if (res.data.refreshToken) {
-            localStg.set('refreshToken', res.data.refreshToken);
+        // Handle both {code: 200, data: {...}} and direct response formats
+        const tokenData = res.code === 200 ? res.data : res;
+        if (tokenData && (tokenData.accessToken || tokenData.token)) {
+          const newAccessToken = tokenData.accessToken || tokenData.token;
+          localStg.set('token', newAccessToken);
+          if (tokenData.refreshToken) {
+            localStg.set('refreshToken', tokenData.refreshToken);
           }
-          return doFetch(res.data.accessToken);
+          return doFetch(newAccessToken);
         }
         throw new Error('Token refresh failed');
       });

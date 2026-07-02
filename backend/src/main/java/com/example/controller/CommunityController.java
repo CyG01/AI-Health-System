@@ -53,6 +53,15 @@ public class CommunityController {
     }
 
     @RateLimit(time = 60, count = 30)
+    @Operation(summary = "帖子列表-游标分页")
+    @GetMapping("/posts/cursor")
+    public Result<Map<String, Object>> postListCursor(@RequestParam(required = false) Long lastId,
+                                                       @RequestParam(defaultValue = "10") int size,
+                                                       @RequestAttribute("userId") Long userId) {
+        return Result.success(communityService.getPostListByCursor(userId, lastId, size));
+    }
+
+    @RateLimit(time = 60, count = 30)
     @Operation(summary = "帖子详情")
     @GetMapping("/post/{postId}")
     public Result<CommunityPostVO> postDetail(@PathVariable Long postId,

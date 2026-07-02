@@ -200,7 +200,7 @@ public class PrivacyServiceImpl implements PrivacyService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("userId", userId);
         result.put("aiMemoryEnabled", user != null && user.getAiMemoryEnabled() != null
-                ? user.getAiMemoryEnabled() == 1 : true);
+                ? Boolean.TRUE.equals(user.getAiMemoryEnabled()) : true);
         result.put("doNotTrack", isDoNotTrackEnabled(userId));
         result.put("dataRetentionDays", user != null && user.getDataRetentionDays() != null
                 ? user.getDataRetentionDays() : 365);
@@ -213,8 +213,8 @@ public class PrivacyServiceImpl implements PrivacyService {
         sysUserMapper.update(null,
                 new LambdaUpdateWrapper<SysUser>()
                         .eq(SysUser::getId, userId)
-                        .set(SysUser::getAiMemoryEnabled, enabled ? 1 : 0)
-                        .set(SysUser::getDoNotTrack, enabled ? 0 : 1)
+                        .set(SysUser::getAiMemoryEnabled, enabled)
+                        .set(SysUser::getDoNotTrack, !enabled)
         );
 
         // 清除缓存
@@ -243,7 +243,7 @@ public class PrivacyServiceImpl implements PrivacyService {
 
         // 查数据库
         SysUser user = sysUserMapper.selectById(userId);
-        boolean dnt = user != null && user.getDoNotTrack() != null && user.getDoNotTrack() == 1;
+        boolean dnt = user != null && user.getDoNotTrack() != null && Boolean.TRUE.equals(user.getDoNotTrack());
 
         // 写入缓存
         stringRedisTemplate.opsForValue().set(cacheKey, dnt ? "1" : "0", DNT_CACHE_HOURS, TimeUnit.HOURS);

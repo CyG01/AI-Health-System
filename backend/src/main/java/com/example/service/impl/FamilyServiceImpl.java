@@ -361,7 +361,7 @@ public class FamilyServiceImpl implements FamilyService {
                         .eq(SysFamilyUser::getFamilyId, familyId)
                         .eq(SysFamilyUser::getUserId, userId)
                         .eq(SysFamilyUser::getStatus, 1)
-                        .set(SysFamilyUser::setStatus, 0)
+                        .set(SysFamilyUser::getStatus, 0)
                         .set(SysFamilyUser::getUpdatedAt, LocalDateTime.now())
         );
 

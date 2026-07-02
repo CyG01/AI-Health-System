@@ -19,6 +19,7 @@ import {
   fetchGetRecommendations
 } from '@/service/api';
 import echarts from '@/utils/echarts';
+import { sanitizeHtml } from '@/utils/sanitize';
 
 defineOptions({ name: 'Dashboard' });
 
@@ -256,7 +257,8 @@ function goToEntry(path: string) {
 // ===================== Format Helpers =====================
 function formatSuggestions(text: string) {
   if (!text) return '';
-  return text.replace(/\n/g, '<br>');
+  const sanitized = sanitizeHtml(text);
+  return sanitized.replace(/\n/g, '<br>');
 }
 
 // ===================== Lifecycle =====================

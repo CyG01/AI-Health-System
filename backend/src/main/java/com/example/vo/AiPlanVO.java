@@ -22,6 +22,8 @@ public class AiPlanVO implements Serializable {
 
     private LocalDateTime createTime;
 
+    private String disclaimer;
+
     public Long getId() {
         return id;
     }
@@ -76,5 +78,13 @@ public class AiPlanVO implements Serializable {
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
+    }
+
+    public String getDisclaimer() {
+        return disclaimer;
+    }
+
+    public void setDisclaimer(String disclaimer) {
+        this.disclaimer = disclaimer;
     }
 }

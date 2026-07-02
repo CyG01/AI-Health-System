@@ -17,6 +17,7 @@ import com.example.monitor.MultiModelCostMonitor;
 import com.example.monitor.ModelTier;
 import com.example.resilience.FallbackService;
 import com.example.resilience.OnlineSafetyCircuitBreaker;
+import com.example.safety.ContentSafetyValidator;
 import com.example.sdui.AiAgentResponse;
 import com.example.sdui.ToolCallResult;
 import com.example.sdui.Widget;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +72,7 @@ public class AgentOrchestrator {
     private final UserProfileMapper userProfileMapper;
     private final SafetyReviewLogMapper safetyReviewLogMapper;
     private final ObjectMapper objectMapper;
+    private final ContentSafetyValidator contentSafetyValidator;
 
     private final ExecutorService executor = new ThreadPoolExecutor(
             50, // 核心线程数（适合 I/O 密集型）
@@ -85,7 +88,7 @@ public class AgentOrchestrator {
                     return t;
                 }
             },
-            new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略：队列满了让调用线程自己执行，防止任务丢失
+            new ThreadPoolExecutor.AbortPolicy() // 拒绝策略：队列满了直接拒绝，由调用方捕获处理
     );
 
     public AgentOrchestrator(HealthCoachAgent coachAgent,
@@ -101,7 +104,8 @@ public class AgentOrchestrator {
                               DataMaskingService dataMaskingService,
                               UserProfileMapper userProfileMapper,
                               SafetyReviewLogMapper safetyReviewLogMapper,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              ContentSafetyValidator contentSafetyValidator) {
         this.coachAgent = coachAgent;
         this.nutritionAgent = nutritionAgent;
         this.psychologyAgent = psychologyAgent;
@@ -116,6 +120,7 @@ public class AgentOrchestrator {
         this.userProfileMapper = userProfileMapper;
         this.safetyReviewLogMapper = safetyReviewLogMapper;
         this.objectMapper = objectMapper;
+        this.contentSafetyValidator = contentSafetyValidator;
     }
 
     /**
@@ -129,7 +134,14 @@ public class AgentOrchestrator {
     public AiAgentResponse execute(RoutingDecision decision, Long userId, String userInput) {
         long startTime = System.currentTimeMillis();
 
-        // Step 0: 检查熔断器状态
+        // Step 0: ContentSafetyValidator 输入侧安全校验（Layer1 Regex + Layer2 BERT）
+        ContentSafetyValidator.SafetyResult inputSafety = contentSafetyValidator.validateInput(userInput);
+        if (!inputSafety.passed()) {
+            log.warn("ContentSafetyValidator输入拦截 userId={} reason={}", userId, inputSafety.reason());
+            return AiAgentResponse.textOnly("您的消息涉及安全敏感内容，无法处理。如有疑问请咨询专业机构。");
+        }
+
+        // Step 0.1: 检查熔断器状态
         if (!circuitBreaker.allowAiCall()) {
             log.warn("安全熔断器已触发，返回规则引擎降级计划 userId={}", userId);
             return fallbackService.getFallbackResponse(userId, userInput);
@@ -202,9 +214,15 @@ public class AgentOrchestrator {
     private List<AgentResult> executeParallel(RoutingDecision decision, Long userId, String userInput) {
         List<CompletableFuture<AgentResult>> futures = new ArrayList<>();
         for (String agentName : decision.getTargetAgents()) {
-            CompletableFuture<AgentResult> future = CompletableFuture.supplyAsync(
-                    () -> callAgent(agentName, userId, userInput), executor);
-            futures.add(future);
+            try {
+                CompletableFuture<AgentResult> future = CompletableFuture.supplyAsync(
+                        () -> callAgent(agentName, userId, userInput), executor);
+                futures.add(future);
+            } catch (RejectedExecutionException e) {
+                log.warn("Agent线程池已满，拒绝并行任务 agent={} userId={}", agentName, userId);
+                futures.add(CompletableFuture.completedFuture(
+                        AgentResult.error(agentName, "系统繁忙，请稍后重试")));
+            }
         }
 
         List<AgentResult> results = new ArrayList<>();

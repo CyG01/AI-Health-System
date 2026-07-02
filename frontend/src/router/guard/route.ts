@@ -30,9 +30,10 @@ export function createRouteGuard(router: Router) {
 
       // Admin routes require admin role
       const isAdminRoute = to.path.startsWith('/admin');
-      const hasAdminRole = authStore.userInfo.roles.includes('admin');
+      const userRoles = authStore.userInfo.roles || [];
+      const hasAdminRole = userRoles.includes('admin');
 
-      const hasRole = authStore.userInfo.roles.some(role => routeRoles.includes(role));
+      const hasRole = userRoles.some(role => routeRoles.includes(role));
       const hasAuth = authStore.isStaticSuper || !routeRoles.length || hasRole;
 
       // Admin route additional check

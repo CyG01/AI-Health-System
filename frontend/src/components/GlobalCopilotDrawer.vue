@@ -105,6 +105,7 @@
                 v-if="msg.sdui"
                 fallbackTitle="组件渲染异常"
                 fallbackMessage="AI 返回的数据格式有误"
+                :on-error="(err) => captureSduiError(msg.sdui?.type || 'unknown', JSON.stringify(msg.sdui || {}), err)"
               >
                 <SduiRenderer :widget="msg.sdui" />
               </ErrorBoundary>
@@ -114,6 +115,7 @@
                 v-if="streaming && progressiveSdui && idx === messages.length - 1"
                 fallbackTitle="图表加载中"
                 fallbackMessage="数据正在生成..."
+                :on-error="(err) => captureSduiError(progressiveSdui?.type || 'unknown', JSON.stringify(progressiveSdui || {}), err)"
               >
                 <SduiRenderer :widget="progressiveSdui" />
               </ErrorBoundary>

@@ -17,6 +17,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,27 +40,66 @@ public class AuthController {
     private static final String CAPTCHA_PREFIX = "captcha:";
     private static final long CAPTCHA_EXPIRE_MINUTES = 2;
 
+    // Fix for easy-captcha compatibility with Java 17+
+    static {
+        System.setProperty("java.awt.headless", "false");
+    }
+
     private final AuthService authService;
 
     private final UserConvert userConvert;
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     @Operation(summary = "获取验证码")
     @GetMapping("/captcha")
     public Result<CaptchaVO> captcha() {
-        SpecCaptcha captcha = new SpecCaptcha(130, 48, 5);
-        String captchaText = captcha.text();
         String uuid = UUID.randomUUID().toString();
-        stringRedisTemplate.opsForValue().set(
-                CAPTCHA_PREFIX + uuid,
-                captchaText,
-                CAPTCHA_EXPIRE_MINUTES,
-                TimeUnit.MINUTES);
-        CaptchaVO captchaVO = new CaptchaVO();
-        captchaVO.setBase64(captcha.toBase64());
-        captchaVO.setUuid(uuid);
-        return Result.success(captchaVO);
+        // Use simple SVG captcha for Java 22 compatibility (SpecCaptcha has AWT issues)
+        return generateFallbackCaptcha(uuid);
+    }
+
+    private Result<CaptchaVO> generateFallbackCaptcha(String uuid) {
+        try {
+            // Generate a simple 4-digit numeric captcha
+            String captchaText = String.valueOf((int) ((Math.random() * 9 + 1) * 1000));
+            stringRedisTemplate.opsForValue().set(
+                    CAPTCHA_PREFIX + uuid,
+                    captchaText,
+                    CAPTCHA_EXPIRE_MINUTES,
+                    TimeUnit.MINUTES);
+
+            // Create a simple SVG captcha with noise lines
+            StringBuilder svg = new StringBuilder();
+            svg.append("<svg xmlns='http://www.w3.org/2000/svg' width='130' height='48'>");
+            svg.append("<rect width='130' height='48' fill='#f5f5f5'/>");
+            // Add noise lines
+            for (int i = 0; i < 5; i++) {
+                int x1 = (int) (Math.random() * 130);
+                int y1 = (int) (Math.random() * 48);
+                int x2 = (int) (Math.random() * 130);
+                int y2 = (int) (Math.random() * 48);
+                svg.append("<line x1='").append(x1).append("' y1='").append(y1)
+                   .append("' x2='").append(x2).append("' y2='").append(y2)
+                   .append("' stroke='#ccc' stroke-width='1'/>");
+            }
+            // Add captcha text
+            svg.append("<text x='65' y='34' font-size='26' font-family='Arial, sans-serif' fill='#2c3e50' text-anchor='middle' font-weight='bold'>");
+            svg.append(captchaText);
+            svg.append("</text></svg>");
+
+            String base64 = "data:image/svg+xml;base64," + java.util.Base64.getEncoder().encodeToString(svg.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            CaptchaVO captchaVO = new CaptchaVO();
+            captchaVO.setBase64(base64);
+            captchaVO.setUuid(uuid);
+            return Result.success(captchaVO);
+        } catch (Exception ex) {
+            log.error("验证码生成失败", ex);
+            return Result.fail("验证码生成失败，请稍后重试");
+        }
     }
 
     @RateLimit(time = 60, count = 3)

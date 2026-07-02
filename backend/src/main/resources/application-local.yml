@@ -1,3 +1,6 @@
 spring:
   datasource:
     password: GCYgcygcygcy123/
+
+sms:
+  dev-mode: true

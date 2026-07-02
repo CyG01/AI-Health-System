@@ -10,11 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.util.concurrent.TimeUnit;
+import java.util.Collections;
 
 @Aspect
 @Component
@@ -39,10 +40,14 @@ public class RateLimitAspect {
         String uri = request.getRequestURI();
         String key = RATE_LIMIT_PREFIX + ip + ":" + uri;
 
-        Long count = stringRedisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            stringRedisTemplate.expire(key, rateLimit.time(), TimeUnit.SECONDS);
-        }
+        String luaScript = "local current = redis.call('incr', KEYS[1]) " +
+                "if current == 1 then redis.call('expire', KEYS[1], ARGV[1]) end " +
+                "return current";
+        Long count = stringRedisTemplate.execute(
+                new DefaultRedisScript<>(luaScript, Long.class),
+                Collections.singletonList(key),
+                String.valueOf(rateLimit.time())
+        );
         if (count != null && count > rateLimit.count()) {
             log.warn("Rate limit exceeded for IP: {}, URI: {}, count: {}/{}", ip, uri, count, rateLimit.count());
             throw new BusinessException(429, rateLimit.message());

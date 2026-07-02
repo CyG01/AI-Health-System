@@ -91,7 +91,7 @@ function filterRouteByDev(route: ElegantConstRoute): ElegantConstRoute[] {
  */
 function sortRouteByOrder(route: ElegantConstRoute) {
   if (route.children?.length) {
-    route.children.sort((next, prev) => (Number(next.meta?.order) || 0) - (Number(prev.meta?.order) || 0));
+    route.children.sort((a, b) => (Number(a.meta?.order) || 0) - (Number(b.meta?.order) || 0));
     route.children.forEach(sortRouteByOrder);
   }
 
@@ -104,7 +104,7 @@ function sortRouteByOrder(route: ElegantConstRoute) {
  * @param routes routes
  */
 export function sortRoutesByOrder(routes: ElegantConstRoute[]) {
-  routes.sort((next, prev) => (Number(next.meta?.order) || 0) - (Number(prev.meta?.order) || 0));
+  routes.sort((a, b) => (Number(a.meta?.order) || 0) - (Number(b.meta?.order) || 0));
   routes.forEach(sortRouteByOrder);
 
   return routes;

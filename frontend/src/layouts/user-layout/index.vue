@@ -244,7 +244,7 @@ function toggleDark() {
     <!-- Main content -->
     <NLayoutContent class="user-content">
       <div class="content-container">
-        <slot />
+        <RouterView />
       </div>
     </NLayoutContent>
 

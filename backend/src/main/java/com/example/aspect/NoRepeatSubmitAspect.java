@@ -1,6 +1,8 @@
 package com.example.aspect;
 
 import com.example.common.BusinessException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -28,9 +30,11 @@ public class NoRepeatSubmitAspect {
     private static final String REPEAT_SUBMIT_PREFIX = "repeat:";
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
 
-    public NoRepeatSubmitAspect(StringRedisTemplate stringRedisTemplate) {
+    public NoRepeatSubmitAspect(StringRedisTemplate stringRedisTemplate, ObjectMapper objectMapper) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Around("@annotation(com.example.annotation.NoRepeatSubmit)")
@@ -45,7 +49,12 @@ public class NoRepeatSubmitAspect {
         Object[] args = joinPoint.getArgs();
         for (Object arg : args) {
             if (arg != null && !(arg instanceof HttpServletRequest)) {
-                sb.append(arg.toString());
+                try {
+                    sb.append(objectMapper.writeValueAsString(arg));
+                } catch (JsonProcessingException e) {
+                    log.debug("参数JSON序列化失败，回退到toString: {}", e.getMessage());
+                    sb.append(arg.toString());
+                }
             }
         }
         String paramHash = sha256(sb.toString());

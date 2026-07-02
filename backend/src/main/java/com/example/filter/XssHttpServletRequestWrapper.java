@@ -71,6 +71,14 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
             "onload(.*?)=",
             Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL
     );
+    private static final Pattern SVG_PATTERN = Pattern.compile(
+            "<svg(.*?)>",
+            Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL
+    );
+    private static final Pattern MATH_PATTERN = Pattern.compile(
+            "<math(.*?)>",
+            Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL
+    );
 
     public XssHttpServletRequestWrapper(HttpServletRequest request) {
         super(request);
@@ -122,6 +130,8 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
         cleaned = COOKIE_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = EVENT_HANDLER_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = ONLOAD_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = SVG_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = MATH_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = cleaned.replace("<", "&lt;").replace(">", "&gt;");
         return cleaned;
     }

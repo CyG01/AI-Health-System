@@ -3,7 +3,7 @@ import { request } from '../request';
 /** Get current user's data consent status */
 export function fetchGetPrivacyConsent() {
   return request<Api.Privacy.ConsentStatus>({
-    url: '/privacy/consent',
+    url: '/v1/privacy/consent',
     method: 'get'
   });
 }
@@ -11,7 +11,7 @@ export function fetchGetPrivacyConsent() {
 /** Update user's data consent preferences */
 export function fetchUpdatePrivacyConsent(data: Api.Privacy.ConsentUpdateParams) {
   return request<Api.Privacy.ConsentStatus>({
-    url: '/privacy/consent',
+    url: '/v1/privacy/consent',
     method: 'put',
     data
   });
@@ -20,7 +20,7 @@ export function fetchUpdatePrivacyConsent(data: Api.Privacy.ConsentUpdateParams)
 /** Get AI memory sandbox status */
 export function fetchGetMemorySandbox() {
   return request<{ enabled: boolean }>({
-    url: '/privacy/memory-sandbox',
+    url: '/v1/privacy/memory-sandbox',
     method: 'get'
   });
 }
@@ -28,7 +28,7 @@ export function fetchGetMemorySandbox() {
 /** Toggle AI memory sandbox */
 export function fetchToggleMemorySandbox(enabled: boolean) {
   return request<void>({
-    url: '/privacy/memory-sandbox',
+    url: '/v1/privacy/memory-sandbox',
     method: 'put',
     params: { enabled }
   });
@@ -37,7 +37,7 @@ export function fetchToggleMemorySandbox(enabled: boolean) {
 /** Submit data purge request */
 export function fetchDataPurge(data: { dataTypes: string[]; reason?: string }) {
   return request<{ userId: number; dataTypes: string[]; status: string; message: string; estimatedTime: string }>({
-    url: '/privacy/purge',
+    url: '/v1/privacy/purge',
     method: 'post',
     data
   });
@@ -46,7 +46,7 @@ export function fetchDataPurge(data: { dataTypes: string[]; reason?: string }) {
 /** Get privacy statistics */
 export function fetchPrivacyStatistics() {
   return request<Record<string, unknown>>({
-    url: '/privacy/statistics',
+    url: '/v1/privacy/statistics',
     method: 'get'
   });
 }
@@ -54,7 +54,7 @@ export function fetchPrivacyStatistics() {
 /** Get privacy audit logs */
 export function fetchPrivacyAuditLogs(limit = 20) {
   return request<Array<{ id: number; actionType: string; actionDescription: string; result: string; ipAddress: string; userAgent: string; createTime: string }>>({
-    url: '/privacy/audit-logs',
+    url: '/v1/privacy/audit-logs',
     method: 'get',
     params: { limit }
   });
@@ -63,7 +63,7 @@ export function fetchPrivacyAuditLogs(limit = 20) {
 /** Request data export */
 export function fetchDataExport(data: { exportType: string; exportScope?: string }) {
   return request<{ taskId: string; status: string }>({
-    url: '/privacy/export',
+    url: '/v1/privacy/export',
     method: 'post',
     data
   });

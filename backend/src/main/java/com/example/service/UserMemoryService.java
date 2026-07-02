@@ -53,7 +53,7 @@ public interface UserMemoryService {
      * @param topK          返回数量
      * @return 检索结果（带得分）
      */
-    List<Map<String, Object> hybridSearchMemories(Long userId, String queryText,
+    List<Map<String, Object>> hybridSearchMemories(Long userId, String queryText,
                                                     float[] queryEmbedding, int topK);
 
     /**
